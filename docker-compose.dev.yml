@@ -1,0 +1,79 @@
+services:
+  db:
+    image: postgres:latest
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_PORT: ${DB_PORT}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports: ["${DB_PORT}:5432"]
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -h 127.0.0.1 -p $${POSTGRES_PORT}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:latest
+    ports:
+      - "${REDIS_PORT}:6379"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      PORT: ${BACKEND_PORT}
+      DB_HOST: db
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT}
+      FRONTEND_PORT: ${FRONTEND_PORT}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT}:5000"
+    networks:
+      - app-network
+  client:
+    image: node:20-alpine
+    working_dir: /client
+    volumes:
+      - ./client:/client
+    command: sh -lc "npm i && npm start"
+    environment:
+      # CRA doesn’t expose custom envs unless prefixed with REACT_APP_
+      REACT_APP_API_BASE_URL: http://localhost:5000
+      BROWSER: none
+    ports:
+      - "${FRONTEND_PORT}:3000"
+    depends_on: [api]
+volumes:
+  db-data:
+networks:
+  app-network:
+    driver: bridge
