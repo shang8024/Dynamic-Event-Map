@@ -64,14 +64,19 @@ services:
     working_dir: /client
     volumes:
       - ./client:/client
-    command: sh -lc "npm i && npm start"
+      - /client/node_modules
+    command: sh -c "npm install && npm run dev"
     environment:
-      REACT_APP_API_BASE_URL: http://localhost:5000
+      VITE_API_BASE_URL: http://localhost:${BACKEND_PORT}
       VITE_GOOGLE_MAPS_KEY: ${VITE_GOOGLE_MAPS_KEY}
       BROWSER: none
+      CHOKIDAR_USEPOLLING: true
+      WATCHPACK_POLLING: true
     ports:
       - "${FRONTEND_PORT}:3000"
     depends_on: [api]
+    stdin_open: true
+    tty: true
 volumes:
   db-data:
 networks:

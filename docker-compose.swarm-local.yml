@@ -86,9 +86,14 @@ services:
   client:
     image: dynamic-event-map-client:latest
     environment:
-      REACT_APP_API_BASE_URL: http://localhost/api
+      VITE_API_BASE_URL: http://localhost/api
       VITE_GOOGLE_MAPS_KEY: ${VITE_GOOGLE_MAPS_KEY}
       BROWSER: none
+      CHOKIDAR_USEPOLLING: true
+      WATCHPACK_POLLING: true
+    volumes:
+      - ./client:/app:cached
+      - /app/node_modules
     networks:
       - app-network
     deploy:
