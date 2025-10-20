@@ -1,8 +1,11 @@
 import React from "react";
-import EventMap from "./feature/events/EventMap.jsx";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
+import { Link } from "react-router-dom";
+import BookmarksPage from "./feature/bookmarks/EventBookmarks.jsx";
+import EventMap from "./feature/events/EventMap.jsx";
 
-export default function App() {
+function HomePage() {
   return (
     <div className="flex h-screen flex-col px-10 py-2">
       {/* Header Section */}
@@ -16,5 +19,16 @@ export default function App() {
         <EventMap />
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/bookmarks" element={<BookmarksPage />} />
+        <Route path="*" element={<HomePage />} />
+      </Routes>
+    </Router>
   );
 }

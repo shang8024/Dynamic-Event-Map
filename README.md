@@ -34,6 +34,18 @@ cd Dynamic-Event-Map
 cp .env.example .env && cp client/.env.example client/.env
 ```
 
+The env file should contains:
+```
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
+DB_PORT=
+REDIS_PORT=
+BACKEND_PORT=
+FRONTEND_PORT=
+VITE_GOOGLE_MAPS_KEY=
+```
+
 ### 3. Run with Docker Compose
 ```bash
 # Start all services

@@ -66,8 +66,8 @@ services:
       - ./client:/client
     command: sh -lc "npm i && npm start"
     environment:
-      # CRA doesn’t expose custom envs unless prefixed with REACT_APP_
       REACT_APP_API_BASE_URL: http://localhost:5000
+      VITE_GOOGLE_MAPS_KEY: ${VITE_GOOGLE_MAPS_KEY}
       BROWSER: none
     ports:
       - "${FRONTEND_PORT}:3000"
