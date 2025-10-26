@@ -1,0 +1,133 @@
+name: deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  STACK: eventmap
+  OWNER: ${{ github.repository_owner }}
+  REPO: ${{ github.repository }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- lower case
+      - name: set lower case owner name
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >>${GITHUB_ENV}
+          echo "REPO_LC=${REPO,,}" >>${GITHUB_ENV}
+
+      # ---- Build & push images to GHCR ----
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USER }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Build & push API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./api
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-api:latest
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-api:${{ github.sha }}
+          provenance: false
+
+      - name: Build & push Client (inject prod API base URL)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./client
+          push: true
+          build-args: |
+            REACT_APP_API_BASE_URL=${{ vars.PROD_API_BASE_URL }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-client:latest
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-client:${{ github.sha }}
+          provenance: false
+
+      # ---- Copy stack + db/ to droplet (first time or whenever they change) ----
+      - name: Upload stack.yml and db/
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.DO_SSH_HOST }}
+          username: ${{ vars.DO_SSH_USER }}
+          password: ${{ secrets.DO_SSH_PASS }}
+          source: "stack.yml,db/*"
+          target: "/root/deploy/"
+
+      # ---- Deploy on droplet (password auth) ----
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ vars.DO_SSH_HOST }}
+          username: ${{ vars.DO_SSH_USER }}
+          password: ${{ secrets.DO_SSH_PASS }}
+          script: |
+            set -euo pipefail
+
+            echo "[*] Logging in to GHCR on droplet..."
+            docker login ghcr.io -u ${{ secrets.GHCR_USER }} -p ${{ secrets.GHCR_PAT }}
+
+            echo "[*] Preparing deploy directory and .env ..."
+            mkdir -p /root/deploy
+            cat >/root/deploy/.env <<'EOF'
+            BACKEND_PORT=${{ vars.BACKEND_PORT }}
+            DB_PORT=${{ vars.DB_PORT }}
+            DB_NAME=${{ vars.DB_NAME }}
+            DB_USER=${{ vars.DB_USER }}
+            REDIS_PORT=${{ vars.REDIS_PORT }}
+            EOF
+
+            echo "[*] Ensuring Swarm is active..."
+            if ! docker info --format '{{.Swarm.LocalNodeState}}' | grep -q 'active'; then
+              docker swarm init
+            fi
+
+            echo "[*] Ensuring DO Volume mountpoint exists and permissions are correct..."
+            mkdir -p /mnt/pgdata
+            chown 999:999 /mnt/pgdata || true
+
+            echo "[*] Ensuring pg_password secret exists..."
+            if ! docker secret ls | awk '{print $2}' | grep -qx 'pg_password'; then
+              echo -n '${{ secrets.PG_PASSWORD }}' | docker secret create pg_password -
+            else
+              echo "pg_password already present."
+            fi
+
+            echo "[*] Pulling freshly built images by SHA..."
+            docker pull ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-api:${{ github.sha }}
+            docker pull ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-client:${{ github.sha }}
+
+            echo "[*] Deploying/Updating stack: ${{ env.STACK }}"
+            if docker stack services ${{ env.STACK }} >/dev/null 2>&1; then
+              # Rolling update to immutable tags so Swarm actually deploys new tasks
+              docker service update --image ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-api:${{ github.sha }}    ${{ env.STACK }}_api || true
+              docker service update --image ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-client:${{ github.sha }} ${{ env.STACK }}_client || true
+            else
+              # First-time deploy: export envs for ${VAR} substitution in stack.yml
+              set -a
+              . /root/deploy/.env
+              set +a
+              docker stack deploy -c /root/deploy/stack.yml ${{ env.STACK }} --with-registry-auth
+            fi
+
+            echo "[✓] Done. Current services:"
+            docker service ls
+

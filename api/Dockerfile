@@ -1,15 +1,13 @@
-# api/Dockerfile
-FROM node:22
+FROM node:22-alpine AS deps
 WORKDIR /app
-# Copy only manifests first for better layer caching
-COPY package*.json ./
-# Install deps
-RUN npm install
+COPY package.json package-lock.json* ./
+RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm i --omit=dev; fi
 
+FROM node:22-alpine
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Default port in your code is 5000
 EXPOSE 5000
-
-# Start the server
-CMD ["node", "index.js"]
+USER node
+CMD ["node","index.js"]

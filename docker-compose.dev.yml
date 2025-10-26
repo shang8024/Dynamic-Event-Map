@@ -37,7 +37,7 @@ services:
   api:
     build:
       context: ./api
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     env_file:
       - .env
     environment:
@@ -60,14 +60,13 @@ services:
     networks:
       - app-network
   client:
-    image: node:20-alpine
-    working_dir: /client
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
     volumes:
-      - ./client:/client
-      - /client/node_modules
-    command: sh -c "npm install && npm run dev"
+      - ./client:/app
     environment:
-      VITE_API_BASE_URL: http://localhost:${BACKEND_PORT}
+      REACT_APP_API_BASE_URL: http://localhost:${BACKEND_PORT}
       VITE_GOOGLE_MAPS_KEY: ${VITE_GOOGLE_MAPS_KEY}
       BROWSER: none
       CHOKIDAR_USEPOLLING: true

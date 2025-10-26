@@ -1,0 +1,73 @@
+version: "3.9"
+
+networks:
+  app_net:
+    driver: overlay
+
+volumes:
+  pgdata:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/pgdata   
+
+secrets:
+  pg_password:
+    external: true
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+      POSTGRES_DB: eventsdb
+    secrets: [pg_password]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db:/docker-entrypoint-initdb.d:ro   
+    networks: [app_net]
+    deploy:
+      placement: { constraints: [node.role == manager] }
+      restart_policy: { condition: any }
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server","--appendonly","yes","--appendfsync","everysec"]
+    networks: [app_net]
+    deploy:
+      restart_policy: { condition: any }
+
+  api:
+    image: ghcr.io/shang8024/Dynamic-Event-Map-api:latest
+    environment:
+      NODE_ENV: production             
+      PORT: "${BACKEND_PORT}"          
+      DB_HOST: db
+      DB_PORT: "${DB_PORT:-5432}"     
+      DB_NAME: "${DB_NAME:-eventsdb}"
+      DB_USER: "${DB_USER:-user}"
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      DB_PASSWORD_FILE: /run/secrets/pg_password
+    secrets: [pg_password]
+    networks: [app_net]
+    depends_on: [db, redis]
+    ports:
+      - "5000:5000"                    
+    deploy:
+      replicas: 2
+      update_config: { order: start-first }
+      restart_policy: { condition: any }
+
+  client:
+    image: ghcr.io/shang8024/Dynamic-Event-Map-client:latest
+    networks: [app_net]
+    depends_on: [api]
+    ports:
+      - "80:80"
+    deploy:
+      replicas: 2
+      update_config: { order: start-first }
+      restart_policy: { condition: any }
