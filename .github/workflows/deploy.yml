@@ -119,17 +119,11 @@ jobs:
             docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-client:${{ github.sha }}
 
             echo "[*] Deploying/Updating stack: ${{ env.STACK }}"
-            if docker stack services ${{ env.STACK }} >/dev/null 2>&1; then
-              # Rolling update to immutable tags so Swarm actually deploys new tasks
-              docker service update --image ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-api:${{ github.sha }}    ${{ env.STACK }}_api || true
-              docker service update --image ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-client:${{ github.sha }} ${{ env.STACK }}_client || true
-            else
-              # First-time deploy: export envs for ${VAR} substitution in stack.yml
-              set -a
-              . /root/deploy/.env
-              set +a
-              docker stack deploy -c /root/deploy/stack.yml ${{ env.STACK }} --with-registry-auth
-            fi
+
+            set -a
+            . /root/deploy/.env
+            set +a
+            docker stack deploy -c /root/deploy/stack.yml ${{ env.STACK }} --with-registry-auth
 
             echo "[✓] Done. Current services:"
             docker service ls
