@@ -23,6 +23,7 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
       POSTGRES_DB: eventsdb
+      PGDATA: /var/lib/postgresql/data/pgdata
     secrets: [pg_password]
     volumes:
       - pgdata:/var/lib/postgresql/data
