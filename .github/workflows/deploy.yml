@@ -17,7 +17,7 @@ env:
   REGISTRY: ghcr.io
   STACK: eventmap
   OWNER: ${{ github.repository_owner }}
-  REPO: ${{ github.repository }}
+  REPO: ${{ github.event.repository.name }}
 
 jobs:
   build-and-deploy:
@@ -46,8 +46,8 @@ jobs:
           context: ./api
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-api:latest
-            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-api:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-api:latest
+            ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-api:${{ github.sha }}
           provenance: false
 
       - name: Build & push Client (inject prod API base URL)
@@ -56,10 +56,11 @@ jobs:
           context: ./client
           push: true
           build-args: |
-            REACT_APP_API_BASE_URL=${{ vars.PROD_API_BASE_URL }}
+            VITE_API_BASE_URL=/api
+            VITE_GOOGLE_MAPS_KEY=${{ secrets.GOOGLE_MAPS_KEY }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-client:latest
-            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-client:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-client:latest
+            ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-client:${{ github.sha }}
           provenance: false
 
       # ---- Copy stack + db/ to droplet (first time or whenever they change) ----
@@ -68,7 +69,8 @@ jobs:
         with:
           host: ${{ vars.DO_SSH_HOST }}
           username: ${{ vars.DO_SSH_USER }}
-          password: ${{ secrets.DO_SSH_PASS }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
           source: "stack.yml,db/*"
           target: "/root/deploy/"
 
@@ -78,7 +80,8 @@ jobs:
         with:
           host: ${{ vars.DO_SSH_HOST }}
           username: ${{ vars.DO_SSH_USER }}
-          password: ${{ secrets.DO_SSH_PASS }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
           script: |
             set -euo pipefail
 
@@ -112,14 +115,14 @@ jobs:
             fi
 
             echo "[*] Pulling freshly built images by SHA..."
-            docker pull ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-api:${{ github.sha }}
-            docker pull ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-client:${{ github.sha }}
+            docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-api:${{ github.sha }}
+            docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-client:${{ github.sha }}
 
             echo "[*] Deploying/Updating stack: ${{ env.STACK }}"
             if docker stack services ${{ env.STACK }} >/dev/null 2>&1; then
               # Rolling update to immutable tags so Swarm actually deploys new tasks
-              docker service update --image ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-api:${{ github.sha }}    ${{ env.STACK }}_api || true
-              docker service update --image ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.REPO_LC }}-client:${{ github.sha }} ${{ env.STACK }}_client || true
+              docker service update --image ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-api:${{ github.sha }}    ${{ env.STACK }}_api || true
+              docker service update --image ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-client:${{ github.sha }} ${{ env.STACK }}_client || true
             else
               # First-time deploy: export envs for ${VAR} substitution in stack.yml
               set -a

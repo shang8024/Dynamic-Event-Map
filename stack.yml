@@ -40,7 +40,7 @@ services:
       restart_policy: { condition: any }
 
   api:
-    image: ghcr.io/shang8024/Dynamic-Event-Map-api:latest
+    image: ghcr.io/shang8024/dynamic-event-map-api:latest
     environment:
       NODE_ENV: production             
       PORT: "${BACKEND_PORT}"          
@@ -62,7 +62,7 @@ services:
       restart_policy: { condition: any }
 
   client:
-    image: ghcr.io/shang8024/Dynamic-Event-Map-client:latest
+    image: ghcr.io/shang8024/dynamic-event-map-client:latest
     networks: [app_net]
     depends_on: [api]
     ports:

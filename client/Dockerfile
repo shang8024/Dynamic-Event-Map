@@ -3,15 +3,16 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm i; fi
 COPY . .
-ARG REACT_APP_API_BASE_URL=
-ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
+# Inject frontend config at build time
+ARG VITE_API_BASE_URL=/api
+ARG VITE_GOOGLE_MAPS_KEY=
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_GOOGLE_MAPS_KEY=$VITE_GOOGLE_MAPS_KEY
 RUN npm run build
 
+# ---- serve (nginx) ----
 FROM nginx:alpine
-COPY --from=build /app/build /usr/share/nginx/html
-RUN printf 'server { \
-  listen 80; server_name _; \
-  root /usr/share/nginx/html; index index.html; \
-  location / { try_files $uri /index.html; } \
-}\n' > /etc/nginx/conf.d/default.conf
+# Prod Nginx
+COPY nginx/nginx-prod.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
