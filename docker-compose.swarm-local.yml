@@ -8,17 +8,13 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    networks:
-      - app-network
+    networks: [app-network]
     deploy:
       replicas: 1
       placement:
         constraints:
           - node.labels.postgres == true
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
+      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 3 }
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
@@ -31,17 +27,13 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
-    networks:
-      - app-network
+    networks: [app-network]
     deploy:
       replicas: 1
       placement:
         constraints:
           - node.labels.redis == true
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
+      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 3 }
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -61,73 +53,43 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: ${REDIS_PORT}
-    networks:
-      - app-network
+    networks: [app-network]
     deploy:
       replicas: 2
-      update_config:
-        parallelism: 1
-        delay: 10s
-        failure_action: rollback
-      rollback_config:
-        parallelism: 1
-        delay: 10s
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
-        - "traefik.http.services.api.loadbalancer.server.port=${BACKEND_PORT}"
+      update_config: { parallelism: 1, delay: 10s, failure_action: rollback }
+      rollback_config: { parallelism: 1, delay: 10s }
+      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 3 }
+      # (removed Traefik labels)
 
   client:
-    image: dynamic-event-map-client:latest
-    environment:
-      VITE_API_BASE_URL: http://localhost/api
-      VITE_GOOGLE_MAPS_KEY: ${VITE_GOOGLE_MAPS_KEY}
-      BROWSER: none
-      CHOKIDAR_USEPOLLING: true
-      WATCHPACK_POLLING: true
-    build:
-      context: ./client
-      dockerfile: Dockerfile.local
-    volumes:
-      - ./client:/app:cached
-      - /app/node_modules
-    networks:
-      - app-network
+    image: dynamic-event-map-client:latest   # this image must be nginx-based and serve /usr/share/nginx/html on :80
+    networks: [app-network]
     deploy:
       replicas: 2
-      update_config:
-        parallelism: 1
-        delay: 10s
-        failure_action: rollback
-      rollback_config:
-        parallelism: 1
-        delay: 10s
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
+      update_config: { parallelism: 1, delay: 10s, failure_action: rollback }
+      rollback_config: { parallelism: 1, delay: 10s }
+      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 3 }
+    # optional healthcheck to catch “blank page”
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   nginx:
     image: nginx:alpine
     ports:
       - "80:80"
     volumes:
-      - ./nginx/nginx-local.conf:/etc/nginx/nginx.conf:ro
-    networks:
-      - app-network
+      - ./client/nginx/nginx-local.conf:/etc/nginx/nginx.conf:ro
+    networks: [app-network]
     deploy:
       replicas: 1
       placement:
         constraints:
           - node.role == manager
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
+      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 3 }
 
 volumes:
   postgres-data:

@@ -70,17 +70,7 @@ docker swarm init
 docker node update --label-add postgres=true $(docker info --format '{{.Swarm.NodeID}}')
 docker node update --label-add redis=true $(docker info --format '{{.Swarm.NodeID}}')
 ```
-
-### 2. Build Images
-```powershell
-# Build API image
-docker build -t dynamic-event-map-api:latest ./api
-
-# Build Client image
-docker build -t dynamic-event-map-client:latest ./client
-```
-
-### 3. Deploy Stack with 2 API Replicas
+### 2. local environment
 ```powershell
 # Load .env variables into current PowerShell session
 Get-Content .env | ForEach-Object { 
@@ -88,8 +78,18 @@ Get-Content .env | ForEach-Object {
         [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process') 
     } 
 }
+```
+### 3. Build Images
+```powershell
+# Build API image
+docker build -t dynamic-event-map-api:latest ./api
 
-# Deploy the stack
+# Build Client image
+docker build -f client/Dockerfile.local -t dynamic-event-map-client:latest ./client
+```
+
+### 4. Deploy Stack with 2 API Replicas
+```
 docker stack deploy -c docker-compose.swarm-local.yml dynamic-event-map
 ```
 ### 4. Access the Application

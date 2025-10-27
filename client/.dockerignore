@@ -1,0 +1,6 @@
+# Ignore node_modules - we'll install fresh in the container
+node_modules/
+
+# Ignore build output - we'll build fresh in the container
+dist/
+build/
