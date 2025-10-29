@@ -1,0 +1,11 @@
+# /etc/logrotate.d/docker-clean
+/var/log/docker-clean/*.log {
+  weekly
+  rotate 8
+  compress
+  missingok
+  notifempty
+  create 0640 root root
+  dateext
+  delaycompress
+}

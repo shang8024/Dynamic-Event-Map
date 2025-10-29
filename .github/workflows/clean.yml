@@ -1,0 +1,18 @@
+name: Docker Clean Now
+on:
+  workflow_dispatch: {}
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run docker clean on droplet
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ vars.DO_SSH_HOST }}
+          username: ${{ vars.DO_SSH_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          script: |
+            systemctl start docker-clean.service
+            journalctl -u docker-clean.service -n 200 --no-pager

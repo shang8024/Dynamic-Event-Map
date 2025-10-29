@@ -71,10 +71,10 @@ jobs:
           username: ${{ vars.DO_SSH_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
-          source: "stack.yml,db/*"
+          source: "stack.yml,db/*,infra/*"
           target: "/root/deploy/"
 
-      # ---- Deploy on droplet (password auth) ----
+      # ---- Deploy on droplet ----
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -104,14 +104,26 @@ jobs:
             fi
 
             echo "[*] Ensuring DO Volume mountpoint exists and permissions are correct..."
-            mkdir -p /mnt/pgdata
-            chown 999:999 /mnt/pgdata || true
+            mkdir -p /mnt/pgdata/postgres-data/pgdata
+            mkdir -p /mnt/pgdata/redis-data
+
+            chown -R 70:70 /mnt/pgdata/postgres-data/pgdata || true
+            chmod 700 /mnt/pgdata/postgres-data/pgdata || true
+
+            chown -R 999:999 /mnt/pgdata/redis-data || true
+            chmod 777 /mnt/pgdata/redis-data || true
 
             echo "[*] Ensuring pg_password secret exists..."
             if ! docker secret ls | awk '{print $2}' | grep -qx 'pg_password'; then
-              echo -n '${{ secrets.PG_PASSWORD }}' | docker secret create pg_password -
+              docker secret create pg_password /root/pg_password.txt
             else
               echo "pg_password already present."
+            fi
+
+            if ! docker secret ls | awk '{print $2}' | grep -qx 'redis_password'; then
+              docker secret create redis_password /root/redis_password.txt
+            else
+              echo "redis_password already present."
             fi
 
             echo "[*] Pulling freshly built images by SHA..."
@@ -127,4 +139,10 @@ jobs:
 
             echo "[✓] Done. Current services:"
             docker service ls
+
+            echo "[*] Prune unused or stopped containers/networks/images/volumes ... "
+            docker system prune -a -f
+
+            echo "[✓] Disk usage after prune:"
+            docker system df
 

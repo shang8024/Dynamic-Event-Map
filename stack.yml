@@ -10,10 +10,24 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /mnt/pgdata/postgres-data   
+      device: /mnt/pgdata/postgres-data
+  dbinit:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /root/deploy/db
+  redisdata:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/pgdata/redis-data
 
 secrets:
   pg_password:
+    external: true
+  redis_password:
     external: true
 
 services:
@@ -27,18 +41,59 @@ services:
     secrets: [pg_password]
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./db:/docker-entrypoint-initdb.d:ro   
+      - dbinit:/docker-entrypoint-initdb.d:ro   
     networks: [app_net]
     deploy:
       placement: { constraints: [node.role == manager] }
-      restart_policy: { condition: any }
+      restart_policy: { condition: any, delay: 5s, max_attempts: 3 }
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d eventsdb -h 127.0.0.1 -p 5432 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 120s
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server","--appendonly","yes","--appendfsync","everysec"]
+    command: >
+      sh -c '
+        PASS_FILE="/run/secrets/redis_password";
+        PASS=$$(cat "$$PASS_FILE");
+        exec redis-server \
+          --appendonly yes \
+          --appendfsync everysec \
+          --dir /data \
+          --save 900 1 --save 300 10 --save 60 10000 \
+          --maxmemory 200mb --maxmemory-policy allkeys-lru \
+          --requirepass "$$PASS";
+      '
     networks: [app_net]
+    volumes:
+      - redisdata:/data
     deploy:
-      restart_policy: { condition: any }
+      restart_policy: { condition: any, delay: 5s, max_attempts: 3 }
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - >
+        REDIS_PASS=$$(cat /run/secrets/redis_password 2>/dev/null || true);
+        redis-cli -a "$$REDIS_PASS" PING | grep PONG;
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    secrets:
+      - redis_password
 
   api:
     image: ghcr.io/shang8024/dynamic-event-map-api:latest
@@ -52,7 +107,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "${REDIS_PORT:-6379}"
       DB_PASSWORD_FILE: /run/secrets/pg_password
-    secrets: [pg_password]
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+    secrets: [pg_password, redis_password]
     networks: [app_net]
     depends_on: [db, redis]
     ports:
@@ -61,6 +117,17 @@ services:
       replicas: 2
       update_config: { order: start-first }
       restart_policy: { condition: any }
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 ${BACKEND_PORT} || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
 
   client:
     image: ghcr.io/shang8024/dynamic-event-map-client:latest
@@ -70,5 +137,16 @@ services:
       - "80:80"
     deploy:
       replicas: 2
-      update_config: { order: start-first }
-      restart_policy: { condition: any }
+      update_config: { order: start-first, parallelism: 1, delay: 5s }
+      restart_policy: { condition: any, delay: 5s, max_attempts: 3 }
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s

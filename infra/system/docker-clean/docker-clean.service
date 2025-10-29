@@ -1,0 +1,24 @@
+# /etc/systemd/system/docker-clean.service
+[Unit]
+Description=Docker/Garbage Auto Cleanup
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+Environment=KEEP_HOURS=168
+Environment=STOPPED_KEEP_HOURS=24
+
+Environment=DRY_RUN=false
+ExecStart=/usr/local/bin/docker_clean.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+CPUSchedulingPolicy=other
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_CHOWN CAP_SETGID CAP_SETUID
+ProtectSystem=full
+ProtectHome=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

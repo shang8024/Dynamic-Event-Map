@@ -1,0 +1,13 @@
+# /etc/systemd/system/docker-clean.timer
+[Unit]
+Description=Weekly Docker/Garbage Cleanup Timer
+
+[Timer]
+OnCalendar=Sun 03:30
+Persistent=true
+OnBootSec=10min
+RandomizedDelaySec=5min
+Unit=docker-clean.service
+
+[Install]
+WantedBy=timers.target
