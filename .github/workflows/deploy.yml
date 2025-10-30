@@ -50,6 +50,16 @@ jobs:
             ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-api:${{ github.sha }}
           provenance: false
 
+      - name: Build & push Ingest
+        uses: docker/build-push-action@v6
+        with:
+          context: ./infra/ingest
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-events-ingest:latest
+            ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-events-ingest:${{ github.sha }}
+          provenance: false
+
       - name: Build & push Client (inject prod API base URL)
         uses: docker/build-push-action@v6
         with:
@@ -129,6 +139,7 @@ jobs:
             echo "[*] Pulling freshly built images by SHA..."
             docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-api:${{ github.sha }}
             docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-client:${{ github.sha }}
+            docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-events-ingest:latest
 
             echo "[*] Deploying/Updating stack: ${{ env.STACK }}"
 

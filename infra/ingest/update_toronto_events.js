@@ -137,7 +137,7 @@ async function main() {
     process.env.DB_PASSWORD ||
     undefined;
 
-  const client = new pg.Client({
+  const client = new Client({
     host: process.env.PGHOST || process.env.DB_HOST || "127.0.0.1",
     port: Number(process.env.PGPORT || process.env.DB_PORT || 5432),
     database: process.env.PGDATABASE || process.env.DB_NAME || "eventsdb",

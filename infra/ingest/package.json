@@ -1,0 +1,11 @@
+{
+  "name": "ingest",
+  "version": "1.0.0",
+  "tyepe": "module",
+  "main": "update_toronto_events.js",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}

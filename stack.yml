@@ -152,11 +152,11 @@ services:
       start_period: 10s
 
   events_ingest:
-    image: node:22-alpine
-    volumes:
-      - /root/deploy/infra/scripts/ingest:/work/scripts:ro
+    image: ghcr.io/shang8024/dynamic-event-map-events-ingest:latest
     secrets:
       - pg_password
+    volumes:
+      - /run/secrets/pg_password:/run/secrets/pg_password:ro
     environment:
       DB_HOST: db
       DB_PORT: "${DB_PORT:-5432}"
@@ -165,12 +165,7 @@ services:
     networks:
       - app_net
     deploy:
-      replicas: 1
+      mode: replicated
+      replicas: 0
       restart_policy:
         condition: none
-      placement: { constraints: [node.role == manager] }
-    command: >
-      sh -c "
-        npm install pg &&
-        node /work/scripts/update_toronto_events.js
-      "
