@@ -193,45 +193,19 @@ async function main() {
 
   await client.end();
   console.log(`[pull] done. upserted=${ok}, failed=${fail}`);
-
-  const externalIds = events.map((e) => e.ref_id);
-  const nowIso = new Date().toISOString();
-
-  if (externalIds.length > 0) {
-    const deleteSQL = `
-      DELETE FROM events e
-      WHERE e.source = 'external'
-        AND e.ends_at IS NOT NULL
-        AND e.ends_at < $1
-        AND e.ref_id <> ALL($2)
-        AND NOT EXISTS (
-          SELECT 1 FROM bookmarks b
-          WHERE b.external_source = 'external'
-            AND b.external_ref_id = e.ref_id
-        );
-    `;
-    const delRes = await client.query(deleteSQL, [nowIso, externalIds]);
-    console.log(
-      `[pull] deleted expired external events (not bookmarked): ${delRes.rowCount}`
-    );
-  } else {
-    const deleteSQL = `
-      DELETE FROM events e
-      WHERE e.source = 'external'
-        AND e.ends_at IS NOT NULL
-        AND e.ends_at < $1
-        AND NOT EXISTS (
-          SELECT 1 FROM bookmarks b
-          WHERE b.external_source = 'external'
-            AND b.external_ref_id = e.ref_id
-        );
-    `;
-    const delRes = await client.query(deleteSQL, [nowIso]);
-    console.log(
-      `[pull] deleted expired external events (no fresh ids, not bookmarked): ${delRes.rowCount}`
-    );
-  }
-
+  await client.query(
+    `
+    DELETE FROM events e
+    WHERE e.source = 'external'
+      AND e.ends_at IS NOT NULL
+      AND e.ends_at < NOW()
+      AND NOT EXISTS (
+        SELECT 1 FROM bookmarks b
+        WHERE b.external_source = 'external'
+          AND b.external_ref_id = e.ref_id
+      );
+    `
+  );
   await client.end();
   console.log("[pull] done.");
 }

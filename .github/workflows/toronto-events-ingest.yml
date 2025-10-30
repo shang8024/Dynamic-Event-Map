@@ -1,0 +1,24 @@
+name: daily-toronto-ingest
+
+on:
+  schedule:
+    - cron: "0 3 * * *"  # every day 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  run-daily:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and run ingest
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ vars.DO_SSH_HOST }}
+          username: ${{ vars.DO_SSH_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          script: |
+            docker service ls | grep eventmap_events_ingest || {
+              echo "eventmap_events_ingest service not found"; exit 1;
+            }
+            docker service update --force eventmap_events_ingest
+            docker service ps eventmap_events_ingest --no-trunc --latest

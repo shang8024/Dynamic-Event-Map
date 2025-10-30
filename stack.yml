@@ -150,3 +150,27 @@ services:
       timeout: 3s
       retries: 6
       start_period: 10s
+
+  events_ingest:
+    image: node:22-alpine
+    volumes:
+      - /root/deploy/infra/scripts/ingest:/work/scripts:ro
+    secrets:
+      - pg_password
+    environment:
+      DB_HOST: db
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_NAME: "${DB_NAME:-eventsdb}"
+      DB_USER: "${DB_USER:-user}"
+    networks:
+      - app_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: none
+      placement: { constraints: [node.role == manager] }
+    command: >
+      sh -c "
+        npm install pg &&
+        node /work/scripts/update_toronto_events.js
+      "
