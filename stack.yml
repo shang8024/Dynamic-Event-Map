@@ -155,13 +155,13 @@ services:
     image: ghcr.io/shang8024/dynamic-event-map-events-ingest:latest
     secrets:
       - pg_password
-    volumes:
-      - /run/secrets/pg_password:/run/secrets/pg_password:ro
     environment:
       DB_HOST: db
       DB_PORT: "${DB_PORT:-5432}"
       DB_NAME: "${DB_NAME:-eventsdb}"
       DB_USER: "${DB_USER:-user}"
+      DB_PASSWORD_FILE: /run/secrets/pg_password
+    depends_on: [db]
     networks:
       - app_net
     deploy:

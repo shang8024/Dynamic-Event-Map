@@ -46,7 +46,7 @@ function getTorontoEventsURL({ from, to }) {
     "calendar_date",
     "calendar_date_group"
   ].join(","),
-  "$orderby=calendar_date_group asc, event_startdate asc",
+  "$orderby= calendar_date_group asc, event_startdate asc",
   `$filter=(${calExpr}) and calendar_date ge ${toTorontoIso(from)} and calendar_date lt ${toTorontoIso(to)}`
 ].join("&");
   const url = `${TORONTO_BASE}?${qs}`;

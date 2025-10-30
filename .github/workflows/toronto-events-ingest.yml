@@ -97,4 +97,4 @@ jobs:
 
             echo "[*] scale back to 0"
             docker service update --replicas 0 eventmap_events_ingest
-            docker service ps eventmap_events_ingest --no-trunc --latest
+            docker service ps eventmap_events_ingest --no-trunc
