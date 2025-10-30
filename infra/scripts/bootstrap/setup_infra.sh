@@ -95,6 +95,10 @@ install_all_bins
 echo "[*] Installing docker-clean timers..."
 install_unit "docker-clean.service" "docker-clean.timer" "$INFRA/system/docker-clean"
 
+echo "[*] Installing toronto-events ingest timers..."
+install_unit "toronto-events-pull.service" "toronto-events-pull.timer" "$INFRA/system/ingest"
+chmod +x /usr/local/bin/pull_toronto_events.sh
+
 # read env in systemd units
 SED_ENV='s|^EnvironmentFile=.*|EnvironmentFile='"$INFRA"'/env/.env.backup|g'
 for S in /etc/systemd/system/*.service; do
@@ -120,4 +124,8 @@ echo "[*] Running first clean (one-shot)"
 systemctl start docker-clean.service || true
 sleep 2
 journalctl -u docker-clean.service -n 100 --no-pager || true
-echo "[✓] Setup finished."
+echo "[*] Running first toronto-events ingest (one-shot)"
+systemctl start toronto-events-pull.service || true
+sleep 2
+journalctl -u toronto-events-pull.service -n 100 --no-pager || true
+echo "[*] Setup complete."

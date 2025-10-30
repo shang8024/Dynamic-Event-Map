@@ -1,0 +1,11 @@
+[Unit]
+Description=Pull Toronto events into local DB
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/pull_toronto_events.sh
+Environment=NODE_ENV=production
+StandardOutput=journal
+StandardError=journal

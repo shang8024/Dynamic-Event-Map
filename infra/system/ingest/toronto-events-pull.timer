@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Toronto events pull daily
+
+[Timer]
+OnCalendar=*-*-* 02:20:00
+Persistent=true
+RandomizedDelaySec=180
+
+[Install]
+WantedBy=timers.target
