@@ -46,7 +46,7 @@ function getTorontoEventsURL({ from, to }) {
     "calendar_date",
     "calendar_date_group"
   ].join(","),
-  "$orderby= calendar_date_group asc, event_startdate asc",
+  "$orderby=calendar_date_group,featured_event desc,calendar_date",
   `$filter=(${calExpr}) and calendar_date ge ${toTorontoIso(from)} and calendar_date lt ${toTorontoIso(to)}`
 ].join("&");
   const url = `${TORONTO_BASE}?${qs}`;
@@ -85,7 +85,7 @@ function normalizeTorontoEvents(raw) {
   const endsAt = raw.event_enddate || null;
   return {
     source: "external",
-    external_id: String(raw.id),
+    ref_id: String(raw.id),
     title: raw.short_name || "Untitled",
     description: raw.short_description || null,
     starts_at: startsAt ? new Date(startsAt).toISOString() : null,
@@ -191,7 +191,6 @@ async function main() {
     }
   }
 
-  await client.end();
   console.log(`[pull] done. upserted=${ok}, failed=${fail}`);
   await client.query(
     `

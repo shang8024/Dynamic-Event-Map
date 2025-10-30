@@ -1,7 +1,7 @@
 {
   "name": "ingest",
   "version": "1.0.0",
-  "tyepe": "module",
+  "type": "module",
   "main": "update_toronto_events.js",
   "author": "",
   "license": "ISC",

@@ -1,4 +1,4 @@
-// api/services/torontoEvents.js
+// api/controllers/externalEventsController.js
 
 const TORONTO_BASE =
   "https://secure.toronto.ca/c3api_data/v2/DataAccess.svc/festivals_events/events";
@@ -44,7 +44,7 @@ function getTorontoEventsURL({ from, to }) {
     "calendar_date",
     "calendar_date_group"
   ].join(","),
-  "$orderby= calendar_date_group asc, event_startdate asc",
+  "$orderby=calendar_date_group,featured_event desc,calendar_date",
   `$filter=(${calExpr}) and calendar_date ge ${toTorontoIso(from)} and calendar_date lt ${toTorontoIso(to)}`
 ].join("&");
   const url = `${TORONTO_BASE}?${qs}`;
@@ -114,7 +114,8 @@ const getTorontoEvents = async (req, res) => {
     if (!data.ok) {
       throw new Error(`toronto fetch failed: ${data.status} ${data.statusText}`);
     }
-    const raw = Array.isArray(data?.value) ? data.value : [];
+    const dataJson = await data.json();
+    const raw = Array.isArray(dataJson?.value) ? dataJson.value : [];
     const events = raw.map(normalizeTorontoEvents);
     return res.json(events);
   } catch (err) {

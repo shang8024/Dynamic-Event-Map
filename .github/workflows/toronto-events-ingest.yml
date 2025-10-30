@@ -4,44 +4,11 @@ on:
   schedule:
     - cron: "0 3 * * *"  # every day 03:00 UTC
   workflow_dispatch:
-permissions:
-  contents: read
-  packages: write
-env:
-  REGISTRY: ghcr.io
-  STACK: eventmap
-  OWNER: ${{ github.repository_owner }}
-  REPO: ${{ github.event.repository.name }}
+
 jobs:
   run-daily:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      # --- lower case
-      - name: set lower case owner name
-        run: |
-          echo "OWNER_LC=${OWNER,,}" >>${GITHUB_ENV}
-          echo "REPO_LC=${REPO,,}" >>${GITHUB_ENV}
-
-      # ---- Build & push images to GHCR ----
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ secrets.GHCR_USER }}
-          password: ${{ secrets.GHCR_PAT }}
-
-      - name: build and push GHCR
-        uses: docker/build-push-action@v6
-        with:
-          context: ./infra/ingest
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-events-ingest:latest
-            ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-events-ingest:${{ github.sha }}
-          provenance: false
-
       - name: SSH and run ingest
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -52,11 +19,6 @@ jobs:
           script: |
             set -euo pipefail
 
-            IMG="${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-events-ingest:latest"
-
-            echo "[*] pull latest ingest image on droplet..."
-            docker pull "$IMG"
-
             echo "[*] make sure service exists..."
             if ! docker service ls --format '{{.Name}}' | grep -q '^eventmap_events_ingest$'; then
               echo "FATAL: service eventmap_events_ingest not found. Deploy stack first."
@@ -66,7 +28,7 @@ jobs:
 
             echo "[*] run one-shot ingest..."
             # set replicas to 1 so a task is actually created
-            docker service update --image "$IMG" --replicas 1 eventmap_events_ingest
+            docker service update --replicas 1 eventmap_events_ingest
 
             echo "[*] wait for task to finish..."
             # get last task id
