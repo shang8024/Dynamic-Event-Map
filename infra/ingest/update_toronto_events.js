@@ -150,11 +150,13 @@ async function main() {
     INSERT INTO events (
       title, source, ref_id, description,
       data, starts_at, ends_at, latitude, longitude,
+      location_name, location_address,
       updated_at
     )
     VALUES (
       $1, $2, $3, $4,
       $5, $6, $7, $8, $9,
+      NULLIF($10, ''), NULLIF($11, ''),
       NOW()
     )
     ON CONFLICT (source, ref_id)
@@ -166,6 +168,8 @@ async function main() {
       ends_at = EXCLUDED.ends_at,
       latitude = EXCLUDED.latitude,
       longitude = EXCLUDED.longitude,
+      location_name = EXCLUDED.location_name,
+      location_address = EXCLUDED.location_address,
       updated_at = NOW();
   `;
 
@@ -183,6 +187,8 @@ async function main() {
         ev.ends_at,
         ev.latitude,
         ev.longitude,
+        ev.location_name,
+        ev.location_address,
       ]);
       ok++;
     } catch (e) {
