@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS events (
     location_address TEXT,
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
-    calendar_date TIMESTAMP NOT NULL,
+    calendar_date TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT events_external_unique UNIQUE (source, ref_id)

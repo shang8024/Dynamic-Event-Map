@@ -203,19 +203,19 @@ async function main() {
   }
 
   console.log(`[pull] done. upserted=${ok}, failed=${fail}`);
-  await client.query(
-    `
+  await client.query(`
     DELETE FROM events e
     WHERE e.source = 'external'
-      AND e.calendar_date IS NOT NULL
-      AND e.calendar_date < NOW()
+      AND (
+            (e.calendar_date IS NOT NULL AND e.calendar_date < NOW())
+         OR (e.ends_at IS NOT NULL AND e.ends_at < NOW())
+      )
       AND NOT EXISTS (
         SELECT 1 FROM bookmarks b
         WHERE b.external_source = 'external'
           AND b.external_ref_id = e.ref_id
       );
-    `
-  );
+  `);
   await client.end();
   console.log("[pull] done.");
 }
