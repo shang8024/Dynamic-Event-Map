@@ -92,6 +92,7 @@ function normalizeTorontoEvents(raw) {
     longitude: lng,
     location_name: loc ? loc.location_name : null,
     location_address: loc ? loc.location_address : null,
+    calendar_date: raw.calendar_date ? new Date(raw.calendar_date).toISOString() : new Date().toISOString(),
     data: {
       featured: raw.featured_event === "Yes",
       free: raw.free_event === "Yes",
