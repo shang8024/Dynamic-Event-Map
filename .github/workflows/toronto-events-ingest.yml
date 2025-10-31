@@ -30,23 +30,9 @@ jobs:
             # set replicas to 1 so a task is actually created
             docker service update --replicas 1 eventmap_events_ingest
 
-            echo "[*] wait for task to finish..."
+            echo "[*] task finished."
             # get last task id
-            TID="$(docker service ps --no-trunc --format '{{.ID}}' --filter 'desired-state=running' eventmap_events_ingest | head -n1)"
-            # give it up to ~90s
-            for i in $(seq 1 30); do
-              STATE="$(docker service ps --no-trunc --format '{{.CurrentState}}' "$TID" 2>/dev/null || true)"
-              echo "  state=$STATE"
-              case "$STATE" in
-                *"Complete"*)
-                  break
-                  ;;
-                *"Failed"*|*"Rejected"*)
-                  break
-                  ;;
-              esac
-              sleep 3
-            done
+            TID="$(docker service ps --no-trunc --format '{{.ID}}' eventmap_events_ingest | head -n1)"
 
             # print logs if we can
             CID="$(docker inspect "$TID" --format '{{.Status.ContainerStatus.ContainerID}}' 2>/dev/null || true)"
