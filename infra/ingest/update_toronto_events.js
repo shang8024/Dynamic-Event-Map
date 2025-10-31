@@ -152,14 +152,12 @@ async function main() {
       title, source, ref_id, description,
       data, starts_at, ends_at, latitude, longitude,
       location_name, location_address,
-      calendar_date,
       updated_at
     )
     VALUES (
       $1, $2, $3, $4,
       $5, $6, $7, $8, $9,
       NULLIF($10, ''), NULLIF($11, ''),
-      $12,
       NOW()
     )
     ON CONFLICT (source, ref_id)
@@ -173,7 +171,6 @@ async function main() {
       longitude = EXCLUDED.longitude,
       location_name = EXCLUDED.location_name,
       location_address = EXCLUDED.location_address,
-      calendar_date = EXCLUDED.calendar_date,
       updated_at = NOW();
   `;
 
@@ -193,7 +190,6 @@ async function main() {
         ev.longitude,
         ev.location_name,
         ev.location_address,
-        ev.calendar_date,
       ]);
       ok++;
     } catch (e) {
