@@ -38,3 +38,17 @@ CREATE TABLE IF NOT EXISTS bookmarks (
     CONSTRAINT bookmarks_unique_internal UNIQUE (user_id, event_id),
     CONSTRAINT bookmarks_unique_external UNIQUE (user_id, external_source, external_ref_id)
 );
+
+-- Comments table: store user comments for events
+CREATE TABLE IF NOT EXISTS comments (
+    id SERIAL PRIMARY KEY,
+    event_id INT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Ensure a simple mock user exists for development
+INSERT INTO users (username, password_hash)
+SELECT 'mockuser', 'mock-password'
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'mockuser');

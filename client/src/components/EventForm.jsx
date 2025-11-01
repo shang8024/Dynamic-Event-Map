@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from "react";
+import { createEvent as apiCreateEvent, updateEvent as apiUpdateEvent } from "../services/eventsService";
 
-export default function EventForm({ initialData = {}, onSaved, onCancel }) {
+export default function EventForm({ initialData = {}, onSaved, onCancel, onOptimistic, onRollback }) {
   const [form, setForm] = useState({
     title: "",
     description: "",
     address: "",
-    lat: "",
-    lng: "",
+    latitude: "",
+    longitude: "",
   });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (initialData) {
       setForm({
         address: initialData.address || "",
-        lat: initialData.lat || "",
-        lng: initialData.lng || "",
+        latitude: initialData.latitude ?? initialData.lat ?? "",
+        longitude: initialData.longitude ?? initialData.lng ?? "",
         title: initialData.title || "",
         description: initialData.description || "",
       });
@@ -25,7 +27,7 @@ export default function EventForm({ initialData = {}, onSaved, onCancel }) {
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const validateForm = () => {
-    return form.title && form.description && form.lat && form.lng;
+    return form.title && form.description && form.latitude && form.longitude;
   };
 
   const handleSubmit = (e) => {
@@ -35,7 +37,46 @@ export default function EventForm({ initialData = {}, onSaved, onCancel }) {
       return;
     }
     setError("");
-    onSaved({ id: Date.now(), ...form, lat: Number(form.lat), lng: Number(form.lng) });
+    (async () => {
+      setLoading(true);
+      try {
+      const payload = { title: form.title, description: form.description, latitude: Number(form.latitude), longitude: Number(form.longitude) };
+        if (initialData && initialData.id) {
+          // optimistic update: inform parent to update UI immediately
+          const optimistic = {
+            id: initialData.id,
+            title: payload.title,
+            description: payload.description,
+            latitude: payload.latitude,
+            longitude: payload.longitude,
+          };
+          try {
+            onOptimistic?.(optimistic);
+          } catch (err) {
+            // ignore optimistic hook errors
+            console.warn('onOptimistic hook failed', err);
+          }
+
+          // perform the network update
+          const updated = await apiUpdateEvent(initialData.id, payload);
+          onSaved(updated);
+        } else {
+          const created = await apiCreateEvent(payload);
+          onSaved(created);
+        }
+      } catch (err) {
+        console.error('Failed to save event', err);
+        setError('Failed to save event');
+        // notify parent to rollback optimistic change for edits
+        try {
+          onRollback?.(initialData);
+        } catch (e) {
+          console.warn('onRollback hook failed', e);
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
   };
 
   return (
@@ -65,8 +106,8 @@ export default function EventForm({ initialData = {}, onSaved, onCancel }) {
             </label>
                <input
                  type="text"
-                 name="lat"
-                 value={form.lat}
+                 name="latitude"
+                 value={form.latitude}
                  readOnly
                  disabled
                  className="input input-bordered w-full bg-base-200"
@@ -79,8 +120,8 @@ export default function EventForm({ initialData = {}, onSaved, onCancel }) {
             </label>
                <input
                  type="text"
-                 name="lng"
-                 value={form.lng}
+                 name="longitude"
+                 value={form.longitude}
                  readOnly
                  disabled
                  className="input input-bordered w-full bg-base-200"
@@ -119,11 +160,11 @@ export default function EventForm({ initialData = {}, onSaved, onCancel }) {
         {error && <div className="text-error text-sm">{error}</div>}
 
         <div className="flex items-center justify-end gap-2">
-          <button type="button" className="btn" onClick={onCancel}>
+          <button type="button" className="btn" onClick={onCancel} disabled={loading}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary">
-            Save Event
+          <button type="submit" className="btn btn-neutral" disabled={loading}>
+            {loading ? (initialData?.id ? 'Saving...' : 'Creating...') : (initialData?.id ? 'Save' : 'Create Event')}
           </button>
         </div>
       </form>

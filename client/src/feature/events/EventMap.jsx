@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LoadScript, GoogleMap, Marker } from "@react-google-maps/api";
 import EventInfo from "../../components/EventInfo.jsx";
 import EventForm from "../../components/EventForm.jsx";
+import { fetchEvents, deleteEvent } from "../../services/eventsService";
+import socket from "../../services/socket";
 
 // Map styles (retro theme)
 const MAP_STYLES = [
@@ -64,20 +66,6 @@ const mapOptions = {
   gestureHandling: "greedy",
 };
 
-const MOCK_EVENTS = [
-  {
-    id: 1,
-    title: "Community Picnic",
-    description: "A fun picnic at the park for all ages.",
-    position: { lat: 43.7239, lng: -79.4512 },
-  },
-  {
-    id: 2,
-    title: "Art in the Park",
-    description: "An outdoor art exhibition featuring local artists.",
-    position: { lat: 43.7249, lng: -79.4522 },
-  },
-];
 
 export default function EventMap() {
   // refs
@@ -89,7 +77,7 @@ export default function EventMap() {
 
   // UI state
   const [center, setCenter] = useState({ lat: 43.7, lng: -79.42 });
-  const [events, setEvents] = useState(MOCK_EVENTS);
+  const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [initialFormData, setInitialFormData] = useState(null);
@@ -100,54 +88,64 @@ export default function EventMap() {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [predictions, setPredictions] = useState([]);
-  // Fetch place predictions as the user types (debounced)
+  // small helper: ensure Places APIs are available
+  const hasPlaces = useCallback(() => !!(window.google && window.google.maps && window.google.maps.places), []);
+
   // Helper: promise-based wrapper for AutocompleteService.getPlacePredictions
-  const getPredictions = (input) => {
-    return new Promise((resolve) => {
-      if (!window.google || !window.google.maps || !window.google.maps.places) return resolve([]);
-      try {
-        const service = new window.google.maps.places.AutocompleteService();
-        const bounds = new window.google.maps.LatLngBounds(
-          { lat: torontoBounds.south, lng: torontoBounds.west },
-          { lat: torontoBounds.north, lng: torontoBounds.east }
-        );
-        service.getPlacePredictions(
-          { input, bounds, strictBounds: true, componentRestrictions: { country: "ca" } },
-          (preds, status) => {
-            if (status === window.google.maps.places.PlacesServiceStatus.OK && preds)
-              resolve(preds);
-            else resolve([]);
-          }
-        );
-      } catch (err) {
-        console.warn("getPredictions error", err);
-        resolve([]);
-      }
-    });
-  };
+  const getPredictions = useCallback(
+    (input) =>
+      new Promise((resolve) => {
+        if (!hasPlaces()) return resolve([]);
+        try {
+          const service = new window.google.maps.places.AutocompleteService();
+          const bounds = new window.google.maps.LatLngBounds(
+            { lat: torontoBounds.south, lng: torontoBounds.west },
+            { lat: torontoBounds.north, lng: torontoBounds.east }
+          );
+          service.getPlacePredictions(
+            { input, bounds, strictBounds: true, componentRestrictions: { country: "ca" } },
+            (preds, status) => {
+              if (status === window.google.maps.places.PlacesServiceStatus.OK && preds) resolve(preds);
+              else resolve([]);
+            }
+          );
+        } catch (err) {
+          console.warn("getPredictions error", err);
+          resolve([]);
+        }
+      }),
+    [hasPlaces]
+  );
 
   // Helper: promise-based wrapper for PlacesService.getDetails
-  const getPlaceDetails = (placeId) => {
-    return new Promise((resolve) => {
-      if (!window.google || !window.google.maps || !window.google.maps.places) return resolve(null);
-      const service = new window.google.maps.places.PlacesService(
-        mapRef.current || document.createElement("div")
-      );
-      try {
-        service.getDetails(
-          { placeId, fields: ["formatted_address", "geometry"] },
-          (place, status) => {
-            if (status === window.google.maps.places.PlacesServiceStatus.OK && place)
-              resolve(place);
+  const getPlaceDetails = useCallback(
+    (placeId) =>
+      new Promise((resolve) => {
+        if (!hasPlaces()) return resolve(null);
+        const service = new window.google.maps.places.PlacesService(mapRef.current || document.createElement("div"));
+        try {
+          service.getDetails({ placeId, fields: ["formatted_address", "geometry"] }, (place, status) => {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK && place) resolve(place);
             else resolve(null);
-          }
-        );
-      } catch (err) {
-        console.warn("getPlaceDetails error", err);
-        resolve(null);
-      }
-    });
-  };
+          });
+        } catch (err) {
+          console.warn("getPlaceDetails error", err);
+          resolve(null);
+        }
+      }),
+    [hasPlaces]
+  );
+
+  // utility to pan the map safely
+  const panToPosition = useCallback((pos, zoom = 15) => {
+    if (!mapRef.current || !pos) return;
+    try {
+      mapRef.current.panTo(pos);
+      if (zoom) mapRef.current.setZoom(zoom);
+    } catch (err) {
+      console.warn("panTo failed", err);
+    }
+  }, []);
 
   // Debounced effect: fetch predictions when inputValue changes
   useEffect(() => {
@@ -170,7 +168,7 @@ export default function EventMap() {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
-  }, [inputValue, mapLoaded]);
+  }, [inputValue, mapLoaded, getPredictions]);
 
   const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 
@@ -188,9 +186,7 @@ export default function EventMap() {
     );
   }, []);
 
-  // We use AutocompleteService + PlacesService to show our own dropdown; do not attach
-  // the built-in google.maps.places.Autocomplete to avoid the native Google dropdown.
-
+  // We use AutocompleteService + PlacesService to show our own dropdown
   const onMapLoad = useCallback((mapInstance) => {
     mapRef.current = mapInstance;
     setMapLoaded(true);
@@ -200,15 +196,47 @@ export default function EventMap() {
     setSelectedEvent(event);
   }, []);
 
+  // handler when a prediction is chosen (or button selects first match)
+  const handlePredictionSelect = async (p) => {
+    if (!p) return;
+    setPredictions([]);
+    setInputValue(p.description);
+    lastSelectedRef.current = p.description;
+    const place = await getPlaceDetails(p.place_id);
+    if (place && place.geometry) {
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+      const created = {
+        address: place.formatted_address || p.description,
+        lat,
+        lng,
+      };
+      setInitialFormData(created);
+      setShowModal(true);
+      panToPosition({ lat, lng }, 15);
+    }
+  };
+
+  const handleSearchButton = async () => {
+    // prefer existing predictions
+    let p = predictions && predictions.length > 0 ? predictions[0] : null;
+    if (!p && inputValue && inputValue.length > 1) {
+      const live = await getPredictions(inputValue);
+      if (live && live.length > 0) p = live[0];
+    }
+    if (p) handlePredictionSelect(p);
+    else alert("Please pick an address from the suggestions.");
+  };
+
   // When the right panel opens/closes, give the map a moment to resize and recenter
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !selectedEvent) return;
     const t = setTimeout(() => {
       try {
-        const target = selectedEvent?.position || center;
-        mapRef.current.panTo(target);
-      } catch {
+        mapRef.current.panTo(selectedEvent.position);
+      } catch (err) {
         // ignore
+        console.warn("panTo failed", err);
       }
     }, 320);
     return () => clearTimeout(t);
@@ -238,6 +266,124 @@ export default function EventMap() {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
       clearTimeout(timeout);
+    };
+  }, []);
+
+  // delete handler for events
+  const handleDeleteEvent = async (id) => {
+    if (!id) return;
+    // optimistic: remove immediately
+    const before = events;
+    const remaining = before.filter((e) => String(e.id) !== String(id));
+    setEvents(remaining);
+    setSelectedEvent(null);
+    try {
+      await deleteEvent(id);
+    } catch (err) {
+      console.error('failed to delete event', err);
+      // rollback
+      setEvents(before);
+      alert('Failed to delete event — changes rolled back');
+    }
+  };
+
+  const handleEditEvent = (ev) => {
+    if (!ev) return;
+    setInitialFormData({
+      id: ev.id,
+      title: ev.title,
+      description: ev.description,
+      latitude: ev.position?.lat,
+      longitude: ev.position?.lng,
+    });
+    setShowModal(true);
+  };
+
+  // optimistic update tracking: store original event by id so we can rollback if update fails
+  const optimisticRef = useRef({});
+
+  const handleOptimisticUpdate = (optimisticServerEvent) => {
+    if (!optimisticServerEvent || !optimisticServerEvent.id) return;
+    const id = optimisticServerEvent.id;
+    setEvents((prev) => {
+      const idx = prev.findIndex((p) => String(p.id) === String(id));
+      const prevItem = idx >= 0 ? prev[idx] : null;
+      if (prevItem) optimisticRef.current[id] = prevItem;
+      const mapped = {
+        id,
+        title: optimisticServerEvent.title,
+        description: optimisticServerEvent.description,
+        position: { lat: Number(optimisticServerEvent.latitude ?? prevItem?.position?.lat), lng: Number(optimisticServerEvent.longitude ?? prevItem?.position?.lng) },
+      };
+      if (idx >= 0) {
+        return prev.map((p) => (String(p.id) === String(id) ? mapped : p));
+      }
+      return [...prev, mapped];
+    });
+    // show the optimistic result
+    setSelectedEvent((s) => (s && String(s.id) === String(optimisticServerEvent.id) ? { ...s, title: optimisticServerEvent.title, description: optimisticServerEvent.description, position: { lat: Number(optimisticServerEvent.latitude ?? s.position.lat), lng: Number(optimisticServerEvent.longitude ?? s.position.lng) } } : s));
+  };
+
+  const handleRollback = (originalData) => {
+    if (!originalData || !originalData.id) return;
+    const id = originalData.id;
+    const prev = optimisticRef.current[id];
+    if (prev) {
+      setEvents((vals) => vals.map((v) => (String(v.id) === String(id) ? prev : v)));
+      setSelectedEvent(prev);
+      delete optimisticRef.current[id];
+      alert('Update failed — changes rolled back');
+    }
+  };
+
+  // Load events from server
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const rows = await fetchEvents();
+        if (!mounted) return;
+        // normalize rows into { id, title, description, position: { lat, lng } }
+        const mapped = (rows || []).map((r) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          position: { lat: Number(r.latitude ?? r.lat ?? 0), lng: Number(r.longitude ?? r.lng ?? 0) },
+        }));
+        setEvents(mapped);
+      } catch (err) {
+        console.warn('failed to load events', err);
+      }
+    })();
+    return () => (mounted = false);
+  }, []);
+
+  // Realtime socket listeners for events
+  useEffect(() => {
+    function onCreated(ev) {
+      const mapped = { id: ev.id, title: ev.title, description: ev.description, position: { lat: Number(ev.latitude ?? ev.lat), lng: Number(ev.longitude ?? ev.lng) } };
+      setEvents((prev) => {
+        if (prev.find((p) => String(p.id) === String(mapped.id))) return prev;
+        return [...prev, mapped];
+      });
+    }
+    function onUpdated(ev) {
+      setEvents((prev) => prev.map((p) => (String(p.id) === String(ev.id) ? { id: ev.id, title: ev.title, description: ev.description, position: { lat: Number(ev.latitude ?? ev.lat), lng: Number(ev.longitude ?? ev.lng) } } : p)));
+      setSelectedEvent((s) => (s && String(s.id) === String(ev.id) ? { ...s, title: ev.title, description: ev.description, position: { lat: Number(ev.latitude ?? s.position.lat), lng: Number(ev.longitude ?? s.position.lng) } } : s));
+    }
+    function onDeleted(payload) {
+      setEvents((prev) => prev.filter((p) => String(p.id) !== String(payload.id)));
+      setSelectedEvent((s) => (s && String(s.id) === String(payload.id) ? null : s));
+    }
+
+    socket.on("event:created", onCreated);
+    socket.on("event:updated", onUpdated);
+    socket.on("event:deleted", onDeleted);
+
+    return () => {
+      socket.off("event:created", onCreated);
+      socket.off("event:updated", onUpdated);
+      socket.off("event:deleted", onDeleted);
     };
   }, []);
 
@@ -298,47 +444,7 @@ export default function EventMap() {
                         className="w-64 bg-transparent outline-none"
                       />
                     </label>
-                    <button
-                      className="btn btn-neutral rounded-full"
-                      onClick={() => {
-                        (async () => {
-                          // Prefer existing predictions
-                          let p = predictions && predictions.length > 0 ? predictions[0] : null;
-                          // If none are available, try a live lookup
-                          if (!p && inputValue && inputValue.length > 1) {
-                            const live = await getPredictions(inputValue);
-                            if (live && live.length > 0) p = live[0];
-                          }
-
-                          if (p) {
-                            setPredictions([]);
-                            setInputValue(p.description);
-                            lastSelectedRef.current = p.description;
-                            const place = await getPlaceDetails(p.place_id);
-                            if (place && place.geometry) {
-                              const lat = place.geometry.location.lat();
-                              const lng = place.geometry.location.lng();
-                              setInitialFormData({
-                                address: place.formatted_address || p.description,
-                                lat,
-                                lng,
-                              });
-                              setShowModal(true);
-                              if (mapRef.current) {
-                                try {
-                                  mapRef.current.panTo({ lat, lng });
-                                  mapRef.current.setZoom(15);
-                                } catch (err) {
-                                  console.warn(err);
-                                }
-                              }
-                            }
-                          } else {
-                            alert("Please pick an address from the suggestions.");
-                          }
-                        })();
-                      }}
-                    >
+                    <button className="btn btn-neutral rounded-full" onClick={handleSearchButton}>
                       Search
                     </button>
                   </div>
@@ -360,36 +466,7 @@ export default function EventMap() {
                       >
                         {predictions.map((p) => (
                           <li key={p.place_id}>
-                            <a
-                              onClick={() => {
-                                (async () => {
-                                  setPredictions([]);
-                                  setInputValue(p.description);
-                                  lastSelectedRef.current = p.description;
-                                  const place = await getPlaceDetails(p.place_id);
-                                  if (place && place.geometry) {
-                                    const lat = place.geometry.location.lat();
-                                    const lng = place.geometry.location.lng();
-                                    setInitialFormData({
-                                      address: place.formatted_address || p.description,
-                                      lat,
-                                      lng,
-                                    });
-                                    setShowModal(true);
-                                    if (mapRef.current) {
-                                      try {
-                                        mapRef.current.panTo({ lat, lng });
-                                        mapRef.current.setZoom(15);
-                                      } catch (err) {
-                                        console.warn(err);
-                                      }
-                                    }
-                                  }
-                                })();
-                              }}
-                            >
-                              {p.description}
-                            </a>
+                            <a onClick={() => handlePredictionSelect(p)}>{p.description}</a>
                           </li>
                         ))}
                       </ul>
@@ -397,6 +474,7 @@ export default function EventMap() {
                   )}
                 </div>
               </div>
+
               {/* user location marker */}
               {userPos && (
                 <Marker
@@ -406,7 +484,7 @@ export default function EventMap() {
                     url:
                       "data:image/svg+xml;utf-8," +
                       encodeURIComponent(
-                        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="36" height="36"><circle cx="12" cy="7" r="3" fill="#4285F4"/><path d="M12 11c-3.3 0-6 2.7-6 6v1h12v-1c0-3.3-2.7-6-6-6z" fill="#4285F4"/></svg>`
+                        `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 48 48"><path fill="#E8EAF6" d="M42 39H6V23L24 6l18 17z"/><path fill="#C5CAE9" d="m39 21l-5-5V9h5zM6 39h36v5H6z"/><path fill="#B71C1C" d="M24 4.3L4 22.9l2 2.2L24 8.4l18 16.7l2-2.2z"/><path fill="#D84315" d="M18 28h12v16H18z"/><path fill="#01579B" d="M21 17h6v6h-6z"/><path fill="#FF8A65" d="M27.5 35.5c-.3 0-.5.2-.5.5v2c0 .3.2.5.5.5s.5-.2.5-.5v-2c0-.3-.2-.5-.5-.5z"/></svg>`
                       ),
                     // scaledSize as plain object — Maps API will accept it in many runtimes
                     scaledSize: { width: 36, height: 36 },
@@ -424,6 +502,7 @@ export default function EventMap() {
                 />
               ))}
             </GoogleMap>
+
             {/* Modal for EventForm */}
             {showModal && (
               <div className="fixed inset-0 z-40 flex items-center justify-center">
@@ -435,9 +514,27 @@ export default function EventMap() {
                   <EventForm
                     initialData={initialFormData || {}}
                     onCancel={() => setShowModal(false)}
-                    onSaved={(newEvent) => {
-                      setEvents((prev) => [...prev, { id: `ev-${Date.now()}`, ...newEvent }]);
+                    onOptimistic={handleOptimisticUpdate}
+                    onRollback={handleRollback}
+                    onSaved={(serverEvent) => {
+                      // serverEvent is expected to be the created/updated event returned by the API
+                      const mapped = {
+                        id: serverEvent.id,
+                        title: serverEvent.title,
+                        description: serverEvent.description,
+                        position: { lat: Number(serverEvent.latitude ?? initialFormData?.latitude), lng: Number(serverEvent.longitude ?? initialFormData?.longitude) },
+                      };
+                      // if exists in list, replace; otherwise append
+                      setEvents((prev) => {
+                        const found = prev.find((p) => String(p.id) === String(mapped.id));
+                        if (found) return prev.map((p) => (String(p.id) === String(mapped.id) ? mapped : p));
+                        return [...prev, mapped];
+                      });
                       setShowModal(false);
+                      setSelectedEvent(mapped);
+                      panToPosition(mapped.position, 15);
+                      // clear any optimistic record for this id
+                      if (mapped?.id) delete optimisticRef.current[mapped.id];
                     }}
                   />
                 </div>
@@ -454,7 +551,12 @@ export default function EventMap() {
           }
           aria-hidden={!selectedEvent}
         >
-          <EventInfo event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+          <EventInfo
+            event={selectedEvent}
+            onClose={() => setSelectedEvent(null)}
+            onEdit={handleEditEvent}
+            onDelete={handleDeleteEvent}
+          />
         </aside>
       </div>
     </div>

@@ -1,0 +1,164 @@
+import React, { useEffect, useState } from "react";
+import {
+  fetchComments,
+  addComment,
+  removeComment,
+  getCurrentUser,
+} from "../services/commentsService";
+import socket from "../services/socket";
+
+export default function EventComments({ eventId }) {
+  const [comments, setComments] = useState([]);
+  const [text, setText] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const list = await fetchComments(eventId);
+      setComments(list);
+    } catch (err) {
+      console.warn("fetch comments failed", err);
+      setError("Failed to load comments");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdd = async (e) => {
+    e?.preventDefault();
+    const trimmed = (text || "").trim();
+    if (!trimmed) {
+      setError("Please enter a comment");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const created = await addComment(eventId, trimmed);
+      setComments((prev) => [created, ...prev]);
+      setText("");
+    } catch (err) {
+      console.warn("post failed", err);
+      setError("Failed to post comment");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    setLoading(true);
+    try {
+      await removeComment(eventId, id);
+      setComments((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      console.warn("delete failed", err);
+      setError("Failed to delete comment");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    // only load when mounted and eventId exists
+    if (!eventId) return;
+    (async () => {
+      if (!mounted) return;
+      await load();
+    })();
+
+    // realtime listeners for comments related to this event
+    function onCommentCreated(payload) {
+      try {
+        if (Number(payload.eventId) !== Number(eventId)) return;
+        setComments((prev) => [payload, ...prev]);
+      } catch {
+        // ignore
+      }
+    }
+
+    function onCommentDeleted(payload) {
+      try {
+        if (Number(payload.eventId) !== Number(eventId)) return;
+        setComments((prev) => prev.filter((c) => String(c.id) !== String(payload.id)));
+      } catch {
+        // ignore
+      }
+    }
+
+    socket.on("comment:created", onCommentCreated);
+    socket.on("comment:deleted", onCommentDeleted);
+
+    return () => {
+      mounted = false;
+      socket.off("comment:created", onCommentCreated);
+      socket.off("comment:deleted", onCommentDeleted);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
+
+  return (
+    <div className="mt-3">
+      <form onSubmit={handleAdd} className="mb-2">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={`Comment as ${getCurrentUser().name}...`}
+          className="textarea textarea-bordered min-h-[72px] w-full"
+        />
+        {error && <div className="text-error mt-1 text-xs">{error}</div>}
+        <div className="mt-2 flex justify-end">
+          <button type="submit" className="btn btn-neutral w-full" disabled={loading}>
+            {loading ? "Posting…" : "Post"}
+          </button>
+        </div>
+      </form>
+
+      <div className="divider mt-1 mb-1"></div>
+
+      <ul className="max-h-80 space-y-2 overflow-x-hidden overflow-y-auto">
+        {comments.length === 0 && (
+          <li className="text-base-content/60 text-sm">No comments yet.</li>
+        )}
+        {comments.map((c) => (
+          <li key={c.id}>
+            <div className="card card-dash bg-base-100 w-full">
+              <div className="card-body p-3">
+                <div className="text-sm font-semibold">{c.user?.name || "Anonymous"}</div>
+                <p className="mt-1 text-sm break-words whitespace-pre-wrap">{c.text}</p>
+                <div className="card-actions mt-2 w-full items-center justify-between">
+                  <div className="text-base-content/50 text-xs">
+                    {new Date(c.createdAt).toLocaleString()}
+                  </div>
+                  <div>
+                    <button
+                      className="btn btn-ghost btn-xs p-1"
+                      onClick={() => handleDelete(c.id)}
+                      disabled={loading}
+                      title="Delete comment"
+                      aria-label="Delete comment"
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 16 16"
+                      >
+                        <path
+                          fill="currentColor"
+                          d="m4.818 4.111l-.707.707a.5.5 0 0 0 0 .707L6.586 8L4.11 10.475a.5.5 0 0 0 0 .707l.707.707a.5.5 0 0 0 .707 0L8 9.414l2.475 2.475a.5.5 0 0 0 .707 0l.707-.707a.5.5 0 0 0 0-.707L9.414 8l2.475-2.475a.5.5 0 0 0 0-.707l-.707-.707a.5.5 0 0 0-.707 0L8 6.586L5.525 4.11a.5.5 0 0 0-.707 0"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
