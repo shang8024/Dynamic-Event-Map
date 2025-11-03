@@ -64,7 +64,12 @@ services:
       context: ./client
       dockerfile: Dockerfile.dev
     volumes:
-      - ./client:/app
+      - ./client/src:/app/src:ro
+      - ./client/public:/app/public:ro
+      - ./client/index.html:/app/index.html:ro
+      - ./client/vite.config.js:/app/vite.config.js:ro
+      - ./client/tailwind.config.js:/app/tailwind.config.js:ro
+      - ./client/eslint.config.js:/app/eslint.config.js:ro
     environment:
       VITE_API_BASE_URL: http://localhost:${BACKEND_PORT}
       VITE_GOOGLE_MAPS_KEY: ${VITE_GOOGLE_MAPS_KEY}

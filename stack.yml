@@ -108,11 +108,11 @@ services:
       REDIS_PORT: "${REDIS_PORT:-6379}"
       DB_PASSWORD_FILE: /run/secrets/pg_password
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      ALLOWED_ORIGINS: "http://165.22.238.134"
     secrets: [pg_password, redis_password]
     networks: [app_net]
     depends_on: [db, redis]
-    ports:
-      - "5000:5000"                    
+    # API only accessible through nginx proxy - no external port
     deploy:
       replicas: 2
       update_config: { order: start-first }
