@@ -3,7 +3,7 @@ import { useBookmarks } from "../hooks";
 import EventComments from "./EventComments.jsx";
 
 export default function EventInfo({ event, onClose, onEdit, onDelete }) {
-  const { isBookmarked, toggle } = useBookmarks();
+  const { isBookmarked, isPending, toggle } = useBookmarks();
 
   if (!event) return null;
 
@@ -20,9 +20,10 @@ export default function EventInfo({ event, onClose, onEdit, onDelete }) {
       ? `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${event.position.lat},${event.position.lng}&fov=90&heading=235&pitch=10&key=${API_KEY}`
       : null;
   const bookmarked = isBookmarked(event.id);
+  const pending = isPending(event.id);
 
   const handleBookmark = () => {
-    toggle(event.id, undefined, event);
+    if (!pending) toggle(event.id, undefined, event);
   };
 
   const handleEdit = () => {
@@ -44,24 +45,38 @@ export default function EventInfo({ event, onClose, onEdit, onDelete }) {
           className="h-56 w-full object-cover"
         />
         <button
-          className={`btn btn-circle btn-sm absolute top-2 left-2 ${bookmarked ? "btn-neutral" : "btn-circle btn-sm"}`}
+          className={`btn btn-circle btn-sm absolute top-2 left-2 ${
+            bookmarked ? "btn-neutral" : ""
+          }`}
           onClick={handleBookmark}
-          title={bookmarked ? "Remove from bookmarks" : "Add to bookmarks"}
+          disabled={pending}
+          aria-busy={pending}
+          title={
+            pending
+              ? "Updating..."
+              : bookmarked
+              ? "Remove from bookmarks"
+              : "Add to bookmarks"
+          }
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth="2.5"
-            stroke="currentColor"
-            className="size-[1.2em]"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"
-            />
-          </svg>
+          {pending ? (
+            <span className="loading loading-spinner loading-xs" />
+          ) : (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="2.5"
+              stroke="currentColor"
+              className="size-[1.2em]"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"
+              />
+            </svg>
+          )}
         </button>
 
         <button

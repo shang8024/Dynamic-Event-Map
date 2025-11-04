@@ -1,132 +1,147 @@
-// useBookmarks.js
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { postBatch } from '../services/api';
-import { K, readJSON, writeJSON } from '../utils/storage';
-
-const KEYS = { 
-  BOOKMARKS: K.BOOKMARKS, 
-  EVENTS: K.EVENTS, 
-  QUEUE: K.QUEUE, 
-  CURSOR: 'bm:eventsCursor' 
-};
+// src/hooks/useBookmarks.js
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { fetchBookmarks, addBookmark, removeBookmark } from "../services/bookmarksService.js";
 
 export function useBookmarks() {
-  const [_tick, setTick] = useState(0); // Trigger re-renders
-  const timer = useRef(null);
+  const [bookmarkedIds, setBookmarkedIds] = useState(() => new Set());
+  const [items, setItems] = useState([]);        // [{ data: eventRow, created_at }]
+  const [pendingIds, setPendingIds] = useState(() => new Set()); // <— NEW
+  const loadingRef = useRef(false);
 
-  const isBookmarked = useCallback((id) => {
-    const bm = readJSON(KEYS.BOOKMARKS, {});
-    return !!bm[id]?.on;
-  }, []); // Remove tick dependency - function will get fresh data on each call
-
-  const toggle = useCallback((id, next, eventData = null) => {
-    const bm = readJSON(KEYS.BOOKMARKS, {});
-    const ec = readJSON(KEYS.EVENTS, {}); // Events cache
-    const now = Date.now();
-    const target = typeof next === 'boolean' ? next : !bm[id]?.on;
-    
-    // Update bookmark status
-    bm[id] = { on: target, updatedAt: now };
-    writeJSON(KEYS.BOOKMARKS, bm);
-
-    // Store event data if provided and bookmarking
-    if (target && eventData) {
-      ec[id] = {
-        ...eventData,
-        updatedAt: now
-      };
-      writeJSON(KEYS.EVENTS, ec);
-    }
-
-    // Queue operation and merge (keep only last state)
-    const q = readJSON(KEYS.QUEUE, {});
-    q[id] = target;
-    writeJSON(KEYS.QUEUE, q);
-
-    // Debounced sync
-    if (timer.current) {
-      window.clearTimeout(timer.current);
-    }
-    timer.current = window.setTimeout(flushQueue, 1500);
-
-    setTick(t => t + 1);
+  const toEventData = useCallback((row) => {
+    if (!row) return null;
+    const { id, title, description, latitude, longitude, data } = row;
+    const img = data?.image?.url ?? data?.data?.image?.url ?? null;
+    const position =
+      typeof latitude === "number" && typeof longitude === "number"
+        ? { lat: latitude, lng: longitude }
+        : null;
+    return {
+      id,
+      title,
+      description: description ?? data?.raw?.short_description ?? null,
+      img,
+      position,
+      _row: row,
+    };
   }, []);
-
-  const listBookmarkedIds = useCallback(() => {
-    const bm = readJSON(KEYS.BOOKMARKS, {});
-    return Object.keys(bm).filter(id => bm[id].on);
-  }, []); // Remove tick dependency - function will get fresh data on each call
-
-  const listBookmarkedEvents = useCallback(() => {
-    const bm = readJSON(KEYS.BOOKMARKS, {});
-    const ec = readJSON(KEYS.EVENTS, {});
-    
-    return Object.keys(bm)
-      .filter(id => bm[id].on)
-      .map(id => ({
-        id,
-        bookmarkInfo: bm[id],
-        eventData: ec[id] || null // Event data might not exist for older bookmarks
-      }))
-      .sort((a, b) => b.bookmarkInfo.updatedAt - a.bookmarkInfo.updatedAt); // Most recent first
-  }, []);
-
-  async function flushQueue() {
-    const q = readJSON(KEYS.QUEUE, {});
-    const pairs = Object.entries(q);
-    if (pairs.length === 0) return;
-    
-    const payload = pairs.map(([eventId, on]) => ({ 
-      eventId, 
-      bookmarked: on 
-    }));
-    
-    try {
-      await postBatch(payload);
-      // Clear queue after successful sync
-      writeJSON(KEYS.QUEUE, {});
-    } catch (error) {
-      console.warn('Failed to sync bookmarks:', error);
-      // Network failure: keep queue, retry on online/visibilitychange
-    }
-  }
 
   useEffect(() => {
-    const onOnline = () => flushQueue();
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        flushQueue();
+    let cancelled = false;
+    (async () => {
+      if (loadingRef.current) return;
+      loadingRef.current = true;
+      try {
+        const { items: serverItems = [] } = await fetchBookmarks();
+        if (cancelled) return;
+        setItems(serverItems);
+        const ids = new Set();
+        for (const it of serverItems) {
+          const evId = it?.data?.id;
+          if (typeof evId === "number") ids.add(evId);
+        }
+        setBookmarkedIds(ids);
+      } finally {
+        loadingRef.current = false;
       }
-    };
-    
-    // Cross-tab sync
-    const onStorage = (e) => {
-      if (e.key && [KEYS.BOOKMARKS, KEYS.EVENTS].includes(e.key)) {
-        setTick(t => t + 1);
-      }
-    };
-
-    window.addEventListener('online', onOnline);
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('storage', onStorage);
-
-    // Initial flush on mount
-    flushQueue();
-
-    return () => {
-      window.removeEventListener('online', onOnline);
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('storage', onStorage);
-      if (timer.current) {
-        window.clearTimeout(timer.current);
-      }
-    };
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  return { 
-    isBookmarked, 
-    toggle, 
-    listBookmarkedIds,
-    listBookmarkedEvents
-  };
+  const isBookmarked = useCallback(
+    (eventId) => bookmarkedIds.has(eventId),
+    [bookmarkedIds]
+  );
+
+  // NEW: expose per-button loading state
+  const isPending = useCallback(
+    (eventId) => pendingIds.has(eventId),
+    [pendingIds]
+  );
+
+  const toggle = useCallback(
+    async (eventId, next, eventObj) => {
+      const prev = bookmarkedIds.has(eventId);
+      const willMark = typeof next === "boolean" ? next : !prev;
+
+      // optimistic state
+      setBookmarkedIds((old) => {
+        const ns = new Set(old);
+        if (willMark) ns.add(eventId);
+        else ns.delete(eventId);
+        return ns;
+      });
+
+      if (willMark) {
+        const already = items.some((it) => it?.data?.id === eventId);
+        if (!already && eventObj) {
+          const rowLike = {
+            id: eventId,
+            title: eventObj.title ?? `Event ${eventId}`,
+            description: eventObj.description ?? null,
+            latitude: eventObj.position?.lat ?? null,
+            longitude: eventObj.position?.lng ?? null,
+            data: eventObj.data ?? {},
+          };
+          setItems((old) => [
+            { data: rowLike, created_at: new Date().toISOString() },
+            ...old,
+          ]);
+        }
+      } else {
+        setItems((old) => old.filter((it) => it?.data?.id !== eventId));
+      }
+
+      // mark this id as pending
+      setPendingIds((s) => new Set(s).add(eventId));
+      try {
+        if (willMark) await addBookmark(eventId);
+        else await removeBookmark(eventId);
+      } catch {
+        // rollback
+        setBookmarkedIds((old) => {
+          const ns = new Set(old);
+          if (prev) ns.add(eventId);
+          else ns.delete(eventId);
+          return ns;
+        });
+        setItems((old) => {
+          if (willMark) return old.filter((it) => it?.data?.id !== eventId);
+          return old; // leaving as-is; user can refresh
+        });
+      } finally {
+        // clear pending
+        setPendingIds((s) => {
+          const ns = new Set(s);
+          ns.delete(eventId);
+          return ns;
+        });
+      }
+    },
+    [bookmarkedIds, items]
+  );
+
+  const listBookmarkedEvents = useCallback(() => {
+    return items.map((it) => {
+      const eventData = toEventData(it.data);
+      return {
+        id: it?.data?.id ?? eventData?.id,
+        eventData,
+        bookmarkInfo: {
+          updatedAt:
+            it?.created_at ?? it?.data?.updated_at ?? new Date().toISOString(),
+        },
+      };
+    });
+  }, [items, toEventData]);
+
+  return useMemo(
+    () => ({
+      isBookmarked,
+      isPending,         // <— NEW
+      toggle,
+      listBookmarkedEvents,
+    }),
+    [isBookmarked, isPending, toggle, listBookmarkedEvents]
+  );
 }

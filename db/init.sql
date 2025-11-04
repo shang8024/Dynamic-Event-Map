@@ -5,17 +5,27 @@ CREATE TABLE IF NOT EXISTS events (
     ref_id VARCHAR(100),
     description TEXT,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
-    starts_at TIMESTAMP,
-    ends_at TIMESTAMP,
+    starts_at TIMESTAMPTZ,
+    ends_at TIMESTAMPTZ,
     location_name TEXT,
     location_address TEXT,
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
-    calendar_date TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT events_external_unique UNIQUE (source, ref_id)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_events_natural_all
+ON events (
+  lower(btrim(title)),
+  starts_at,
+  ends_at,
+  round(latitude::numeric, 5),
+  round(longitude::numeric, 5)
+);
+
+CREATE INDEX IF NOT EXISTS ix_events_starts_at  ON events(starts_at);
 
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -24,19 +34,10 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS bookmarks (
-    id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    event_id INT,
-    external_source TEXT,
-    external_ref_id TEXT,
+    event_id INT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT bookmarks_one_target CHECK (
-        (event_id IS NOT NULL AND external_source IS NULL AND external_ref_id IS NULL)
-        OR
-        (event_id IS NULL AND external_source IS NOT NULL AND external_ref_id IS NOT NULL)
-    ),
-    CONSTRAINT bookmarks_unique_internal UNIQUE (user_id, event_id),
-    CONSTRAINT bookmarks_unique_external UNIQUE (user_id, external_source, external_ref_id)
+    PRIMARY KEY (user_id, event_id)
 );
 
 -- Comments table: store user comments for events

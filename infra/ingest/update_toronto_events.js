@@ -92,7 +92,6 @@ function normalizeTorontoEvents(raw) {
     ends_at: endsAt ? new Date(endsAt).toISOString() : null,
     latitude: lat,
     longitude: lng,
-    calendar_date: raw.calendar_date ? new Date(raw.calendar_date).toISOString() : new Date().toISOString(),
     location_name: loc ? loc.location_name : null,
     location_address: loc ? loc.location_address : null,
     data: {
@@ -147,41 +146,55 @@ async function main() {
   });
   await client.connect();
 
-  const upsertSQL = `
-    INSERT INTO events (
-      title, source, ref_id, description,
-      data, starts_at, ends_at, latitude, longitude,
-      location_name, location_address,
-      calendar_date,
-      updated_at
+  const mergeSQL = `
+    MERGE INTO events e
+    USING (
+      VALUES (
+        $1::text,            -- title
+        $2::text,            -- source
+        $3::text,            -- ref_id
+        $4::text,            -- description
+        $5::jsonb,           -- data
+        $6::timestamptz,     -- starts_at
+        $7::timestamptz,     -- ends_at
+        $8::double precision,-- latitude
+        $9::double precision,-- longitude
+        NULLIF($10,'')::text,-- location_name
+        NULLIF($11,'')::text -- location_address
+      )
+    ) AS v(title, source, ref_id, description, data, starts_at, ends_at, latitude, longitude, location_name, location_address)
+    ON (
+      lower(btrim(e.title)) = lower(btrim(v.title))
+      AND e.starts_at IS NOT DISTINCT FROM v.starts_at
+      AND e.ends_at   IS NOT DISTINCT FROM v.ends_at
+      AND round(e.latitude::numeric, 5)  IS NOT DISTINCT FROM round(v.latitude::numeric, 5)
+      AND round(e.longitude::numeric, 5) IS NOT DISTINCT FROM round(v.longitude::numeric, 5)
     )
-    VALUES (
-      $1, $2, $3, $4,
-      $5, $6, $7, $8, $9,
-      NULLIF($10, ''), NULLIF($11, ''),
-      $12,
-      NOW()
-    )
-    ON CONFLICT (source, ref_id)
-    DO UPDATE SET
-      title = EXCLUDED.title,
-      description = EXCLUDED.description,
-      data = EXCLUDED.data,
-      starts_at = EXCLUDED.starts_at,
-      ends_at = EXCLUDED.ends_at,
-      latitude = EXCLUDED.latitude,
-      longitude = EXCLUDED.longitude,
-      location_name = EXCLUDED.location_name,
-      location_address = EXCLUDED.location_address,
-      calendar_date = EXCLUDED.calendar_date,
-      updated_at = NOW();
-  `;
+    WHEN MATCHED THEN
+      UPDATE SET
+        source           = v.source,
+        ref_id           = v.ref_id,
+        description      = v.description,
+        data             = v.data,
+        starts_at        = v.starts_at,
+        ends_at          = v.ends_at,
+        latitude         = v.latitude,
+        longitude        = v.longitude,
+        location_name    = v.location_name,
+        location_address = v.location_address,
+        updated_at       = now()
+    WHEN NOT MATCHED THEN
+      INSERT (title, source, ref_id, description, data, starts_at, ends_at,
+              latitude, longitude, location_name, location_address, updated_at)
+      VALUES (v.title, v.source, v.ref_id, v.description, v.data, v.starts_at, v.ends_at,
+              v.latitude, v.longitude, v.location_name, v.location_address, now());
+    `;
 
   let ok = 0,
     fail = 0;
   for (const ev of events) {
     try {
-      await client.query(upsertSQL, [
+      await client.query(mergeSQL, [
         ev.title,
         ev.source,
         ev.ref_id,
@@ -193,7 +206,6 @@ async function main() {
         ev.longitude,
         ev.location_name,
         ev.location_address,
-        ev.calendar_date,
       ]);
       ok++;
     } catch (e) {
@@ -206,14 +218,10 @@ async function main() {
   await client.query(`
     DELETE FROM events e
     WHERE e.source = 'external'
-      AND (
-            (e.calendar_date IS NOT NULL AND e.calendar_date < NOW())
-         OR (e.ends_at IS NOT NULL AND e.ends_at < NOW())
-      )
+      AND e.ends_at IS NOT NULL AND e.ends_at < NOW()
       AND NOT EXISTS (
         SELECT 1 FROM bookmarks b
-        WHERE b.external_source = 'external'
-          AND b.external_ref_id = e.ref_id
+        WHERE b.event_id = e.id
       );
   `);
   await client.end();
