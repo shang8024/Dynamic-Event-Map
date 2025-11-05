@@ -20,6 +20,7 @@ const getBookmarks = async (req, res) => {
     const out = result.rows.map((r) => ({
       data: r.event,
       created_at: r.bookmarked_at,
+      id: r.id,
     }));
     res.json(out);
   } catch (err) {
@@ -29,13 +30,12 @@ const getBookmarks = async (req, res) => {
 };
 
 const createBookmark = async (req, res) => {
-  const { eventId, userId } = req.body;
+  const { eventId } = req.params;
+  const { userId } = req.body;
   try {
     const uid = userId || (await ensureMockUser());
     const created = await Bookmark.create({ eventId, userId: uid });
-    const event_id = created.rows[0].event_id || eventId;
-    const user_id = created.rows[0].user_id || uid;
-    res.json({ event_id, user_id });
+    res.json({ id: created.rows[0].id, eventId: created.rows[0].event_id, userId: created.rows[0].user_id, createdAt: created.rows[0].created_at });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create bookmark' });
@@ -44,11 +44,16 @@ const createBookmark = async (req, res) => {
 
 
 const deleteBookmark = async (req, res) => {
-  const { eventId } = req.params;
-  const { userId } = req.body;
+  const { bookmarkId } = req.params;
+  // const { userId } = req.body;
   try {
-    const uid = userId || (await ensureMockUser());
-    const result = await Bookmark.delete({ userId: uid, eventId });
+    // const uid = userId || (await ensureMockUser());
+    // // Check that the bookmark belongs to the user
+    // const bookmark = await pool.query('SELECT id FROM bookmarks WHERE id = $1 AND user_id = $2', [bookmarkId, uid]);
+    // if (bookmark.rows.length === 0) {
+    //   return res.status(404).json({ error: 'Bookmark not found or not owned by user' });
+    // }
+    const result = await Bookmark.delete({ bookmarkId });
     if (result.rowCount === 0) return res.status(404).json({ error: 'Bookmark not found' });
     res.json({ message: 'Bookmark deleted' });
   } catch (err) {

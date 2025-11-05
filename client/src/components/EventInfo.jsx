@@ -64,10 +64,10 @@ export default function EventInfo({ event, onClose, onEdit, onDelete }) {
           ) : (
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              fill="none"
               viewBox="0 0 24 24"
               strokeWidth="2.5"
               stroke="currentColor"
+              fill={bookmarked ? "currentColor" : "none"}
               className="size-[1.2em]"
             >
               <path

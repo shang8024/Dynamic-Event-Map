@@ -34,10 +34,11 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS bookmarks (
+    id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     event_id INT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, event_id)
+    UNIQUE(user_id, event_id)
 );
 
 -- Comments table: store user comments for events

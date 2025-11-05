@@ -5,10 +5,10 @@ const bookmarksController = require('../controllers/bookmarksController');
 // GET /api/bookmarks
 router.post('/', bookmarksController.getBookmarks);
 
-// POST /api/bookmarks
-router.post('/add', bookmarksController.createBookmark);
+// POST /api/bookmarks/:eventId
+router.post('/:eventId', bookmarksController.createBookmark);
 
-// DELETE /api/bookmarks/:eventId
-router.delete('/:eventId', bookmarksController.deleteBookmark);
+// DELETE /api/bookmarks/:bookmarkId
+router.delete('/:bookmarkId', bookmarksController.deleteBookmark);
 
 module.exports = router;
