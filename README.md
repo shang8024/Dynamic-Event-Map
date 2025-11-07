@@ -44,15 +44,34 @@ REDIS_PORT=
 BACKEND_PORT=
 FRONTEND_PORT=
 VITE_GOOGLE_MAPS_KEY=
-```
 
-### 3. Run with Docker Compose
+# Firebase client configuration
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+```
+## 3. Enable Firebase authentication
+When running as a developer, there should be code added which allows for token verification in Firebase without an account.
+To run authentication with your service account key:
+
+Create a file "firebase-service-account.json" in /api:
+```bash
+cd /Dynamic-Event-Map/api
+touch firebase-service-account.json
+```
+In Firebase: Project Overview -> Project Settings -> Service Accounts -> Generate new private key
+Copy the service account key JSON into firebase-service-account.json.
+
+### 4. Run with Docker Compose
 ```bash
 # Start all services
 docker-compose -f docker-compose.dev.yml up --build
 ```
 
-### 4. Access the Application
+### 5. Access the Application
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:5000
 - **Database**: localhost:5432

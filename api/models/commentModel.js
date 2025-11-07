@@ -5,7 +5,7 @@ module.exports = {
     pool.query(
       `SELECT c.id, c.text, c.created_at, u.id AS user_id, u.username
        FROM comments c
-       JOIN users u ON u.id = c.user_id
+       JOIN profiles u ON u.id = c.user_id
        WHERE c.event_id = $1
        ORDER BY c.created_at DESC`,
       [eventId]

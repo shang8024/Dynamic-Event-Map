@@ -3,10 +3,10 @@ const pool = require('../config/db');
 
 async function ensureMockUser() {
   // Ensure a mock user exists (username: mockuser)
-  const res = await pool.query('SELECT id FROM users WHERE username = $1 LIMIT 1', ['mockuser']);
+  const res = await pool.query('SELECT id FROM profiles WHERE username = $1 LIMIT 1', ['mockuser']);
   if (res.rows.length) return res.rows[0].id;
   const insert = await pool.query(
-    "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id",
+    "INSERT INTO profiles (username, password_hash) VALUES ($1, $2) RETURNING id",
     ['mockuser', 'mock-password']
   );
   return insert.rows[0].id;
@@ -35,7 +35,7 @@ const createBookmark = async (req, res) => {
   try {
     const uid = userId || (await ensureMockUser());
     const created = await Bookmark.create({ eventId, userId: uid });
-    res.json({ id: created.rows[0].id, eventId: created.rows[0].event_id, userId: created.rows[0].user_id, createdAt: created.rows[0].created_at });
+    res.json({ id: created.rows[0].id, eventId: created.rows[0].event_id, userId: created.rows[0].user_id, created_at: created.rows[0].created_at });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create bookmark' });

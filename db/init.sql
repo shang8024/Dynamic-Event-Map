@@ -27,15 +27,20 @@ ON events (
 
 CREATE INDEX IF NOT EXISTS ix_events_starts_at  ON events(starts_at);
 
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS profiles (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL
+    password_hash VARCHAR(255),
+    email VARCHAR(255) UNIQUE,
+    google_id VARCHAR(255) UNIQUE,
+    picture VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS bookmarks (
     id SERIAL PRIMARY KEY,
-    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     event_id INT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, event_id)
@@ -45,12 +50,12 @@ CREATE TABLE IF NOT EXISTS bookmarks (
 CREATE TABLE IF NOT EXISTS comments (
     id SERIAL PRIMARY KEY,
     event_id INT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     text TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Ensure a simple mock user exists for development
-INSERT INTO users (username, password_hash)
+INSERT INTO profiles (username, password_hash)
 SELECT 'mockuser', 'mock-password'
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'mockuser');
+WHERE NOT EXISTS (SELECT 1 FROM profiles WHERE username = 'mockuser');

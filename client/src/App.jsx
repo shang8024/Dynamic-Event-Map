@@ -4,6 +4,8 @@ import "./App.css";
 import { Link } from "react-router-dom";
 import BookmarksPage from "./feature/bookmarks/EventBookmarks.jsx";
 import EventMap from "./feature/events/EventMap.jsx";
+import { AuthProvider } from "./contexts/AuthContext.jsx";
+import Login from "./components/Login.jsx";
 
 function HomePage() {
   return (
@@ -12,6 +14,9 @@ function HomePage() {
       <div className="flex shrink-0 items-center">
         <img src="/logo.png" alt="Dynamic Event Map Logo" className="mt-2" width={50} height={50} />
         <h1 className="ml-2 text-2xl font-bold">Dynamic Events Map</h1>
+        <div className="ml-auto">
+          <Login />
+        </div>
       </div>
 
       {/* Map Section - fills remaining height */}
@@ -24,11 +29,13 @@ function HomePage() {
 
 export default function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/bookmarks" element={<BookmarksPage />} />
-        <Route path="*" element={<HomePage />} />
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/bookmarks" element={<BookmarksPage />} />
+          <Route path="*" element={<HomePage />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }

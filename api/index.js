@@ -5,6 +5,8 @@ const commentsRoutes = require("./routes/comments");
 const statsRoutes = require("./routes/stats");
 const bookmarksRoutes = require("./routes/bookmarks");
 const externalEventsRoutes = require("./routes/externalEvents");
+const authRoutes = require("./routes/auth");
+const profilesRoutes = require("./routes/profiles");
 
 require("dotenv").config();
 
@@ -56,6 +58,8 @@ app.use('/api/events/:eventId/comments', commentsRoutes);
 app.use("/stats", statsRoutes);
 app.use("/events/external", externalEventsRoutes);
 app.use("/api/bookmarks", bookmarksRoutes);
+app.use("/auth", authRoutes);
+app.use("/api/profiles", profilesRoutes);
 
 // Start server with socket.io
 const http = require("http");

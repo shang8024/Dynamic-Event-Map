@@ -6,8 +6,10 @@ import {
   getCurrentUser,
 } from "../services/commentsService";
 import socket from "../services/socket";
+import { useAuth } from "../contexts/AuthContext.jsx";
 
 export default function EventComments({ eventId }) {
+  const { user } = useAuth();
   const [comments, setComments] = useState([]);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
@@ -27,6 +29,11 @@ export default function EventComments({ eventId }) {
   };
 
   const handleAdd = async (e) => {
+    let userId = 1; // default mock user ID
+    if (user) {
+      console.log("Adding comment from user:", user.displayName || user.email);
+      userId = user.id;
+    }
     e?.preventDefault();
     const trimmed = (text || "").trim();
     if (!trimmed) {
@@ -36,7 +43,7 @@ export default function EventComments({ eventId }) {
     setError("");
     setLoading(true);
     try {
-      const created = await addComment(eventId, trimmed);
+      const created = await addComment(eventId, trimmed, userId);
       setComments((prev) => [created, ...prev]);
       setText("");
     } catch (err) {

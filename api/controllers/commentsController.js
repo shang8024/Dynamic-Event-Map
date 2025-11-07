@@ -4,10 +4,10 @@ const socket = require('../socket');
 
 async function ensureMockUser() {
   // Ensure a mock user exists (username: mockuser)
-  const res = await pool.query('SELECT id FROM users WHERE username = $1 LIMIT 1', ['mockuser']);
+  const res = await pool.query('SELECT id FROM profiles WHERE username = $1 LIMIT 1', ['mockuser']);
   if (res.rows.length) return res.rows[0].id;
   const insert = await pool.query(
-    "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id",
+    "INSERT INTO profiles (username, password_hash) VALUES ($1, $2) RETURNING id",
     ['mockuser', 'mock-password']
   );
   return insert.rows[0].id;
@@ -40,8 +40,8 @@ const createComment = async (req, res) => {
     const id = created.rows[0].id;
     // Return the created comment with username
     const found = await pool.query(
-      `SELECT c.id, c.text, c.created_at, u.id AS user_id, u.username
-       FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = $1 LIMIT 1`,
+      `SELECT c.id, c.text, c.created_at, p.id AS user_id, p.username
+       FROM comments c JOIN profiles p ON p.id = c.user_id WHERE c.id = $1 LIMIT 1`,
       [id]
     );
     const r = found.rows[0];
