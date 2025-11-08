@@ -35,7 +35,7 @@ const corsOptions = {
       }
     } else {
       // In development, allow localhost
-      const allowedOrigins = [`http://localhost:${process.env.FRONTEND_PORT || 3000}`];
+      const allowedOrigins = [`http://localhost:${process.env.FRONTEND_PORT || 3000}`, `http://localhost`];
       
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);

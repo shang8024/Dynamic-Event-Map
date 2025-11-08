@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, googleProvider } from '../firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { API_BASE } from '../services/apiService';
 
 const AuthContext = createContext(null);
 
 const getProfileByGoogleId = async (uid, token) => {
   try {
-    const response = await fetch(`http://localhost:5000/api/profiles/${uid}`, {
+    const response = await fetch(`${API_BASE}/profiles/${uid}`, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`

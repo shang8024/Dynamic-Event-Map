@@ -29,6 +29,8 @@ secrets:
     external: true
   redis_password:
     external: true
+  firebase_service_account.json:
+    external: true
 
 services:
   db:
@@ -109,7 +111,14 @@ services:
       DB_PASSWORD_FILE: /run/secrets/pg_password
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
       ALLOWED_ORIGINS: "http://165.22.238.134"
-    secrets: [pg_password, redis_password]
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-service-account.json
+    volumes:
+      - ./api/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
+    secrets:
+      - pg_password
+      - redis_password
+      - source: firebase_service_account.json
+        target: firebase_service_account.json
     networks: [app_net]
     depends_on: [db, redis]
     # API only accessible through nginx proxy - no external port
