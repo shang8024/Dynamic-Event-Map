@@ -21,6 +21,28 @@ const getProfileByGoogleId = async (uid, token) => {
   }
 }
 
+const addUserToBackend = async (user, token) => {
+  try {
+    const response = await fetch('http://localhost:5000/api/profiles', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL
+      })
+    });
+    if (!response.ok) throw new Error('Failed to add user');
+    console.log('User added to backend');
+  } catch (error) {
+    console.error('Error adding user to backend:', error);
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -31,6 +53,7 @@ export function AuthProvider({ children }) {
         const token = await fbUser.getIdToken();
         // store token for API usage (or keep in memory)
         localStorage.setItem('idToken', token);
+        await addUserToBackend(fbUser, token); // wait to update backend so profile ID is ready
         const profile = await getProfileByGoogleId(fbUser.uid, token);
         setUser({
           uid: fbUser.uid, // google ID

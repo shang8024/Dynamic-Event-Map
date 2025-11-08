@@ -1,12 +1,19 @@
 const pool = require('../config/db');
 
 const addUser = async (req, res) => {
-  const { uid, email, displayName } = req.body;
+  const { uid, email, displayName, photoURL } = req.body;
   const username = displayName || email;
+  const db_values = [username, uid, email];
+  const db_updates = ['username = EXCLUDED.username', 'updated_at = NOW()'];
+  if (photoURL !== undefined && photoURL !== null) {
+    db_values.push(photoURL);
+    db_updates.push('picture = EXCLUDED.picture');
+  }
   try {
     const result = await pool.query(
-        'INSERT INTO profiles (username, google_id) VALUES ($1, $2) ON CONFLICT (google_id) DO UPDATE SET username = $1, google_id = $2',
-        [username, uid]);
+        'INSERT INTO profiles (username, google_id, email, picture) VALUES ($1, $2, $3, $4) ' + 
+        'ON CONFLICT (google_id) DO UPDATE SET ' + db_updates.join(', '),
+        [username, uid, email, photoURL || null]);
     console.log('User added/updated:', uid);
     res.status(200).json({ message: 'User added/updated successfully' });
   } catch (error) {
