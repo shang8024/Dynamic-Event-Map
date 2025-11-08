@@ -2,8 +2,20 @@ import { io } from "socket.io-client";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://localhost:5000`;
 
-// Create a singleton socket connection
-const socket = io(API_BASE, { autoConnect: true });
+function socketTarget(apiBase, origin) {
+  const trimmed = apiBase.replace(/\/+$/, "");
+  if (/^https?:\/\//i.test(trimmed)) {
+    return { url: trimmed, path: "/socket.io" };
+  }
+  return { url: origin, path: `${trimmed || ""}/socket.io` };
+}
+
+const { url, path } = socketTarget(API_BASE, window.location.origin);
+
+const socket = io(url, {
+  path,
+  autoConnect: true,
+});
 
 export default socket;
 

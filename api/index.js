@@ -24,6 +24,7 @@ const corsOptions = {
       // In production: allow same-origin requests and configured allowed origins
       const allowedOrigins = [
         process.env.ALLOWED_ORIGINS, // From environment variable
+        "http://localhost", // Allow localhost for testing
       ].filter(Boolean); // Remove any undefined values
       
       // Allow same-origin requests (no origin header) OR requests from allowed origins

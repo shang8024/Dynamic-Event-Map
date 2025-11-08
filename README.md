@@ -102,9 +102,9 @@ or
 ```bash
 set -a; source .env; set +a
 ```
-### 3. Create Firebase service account secrete
+### 3. Create Firebase service account secret
 ```
-docker secret create firebase_service_account.json ./api/firebase-service-account.json
+docker secret create firebase-service-account.json ./api/firebase-service-account.json
 ```
 ### 4. Build Images
 ```powershell

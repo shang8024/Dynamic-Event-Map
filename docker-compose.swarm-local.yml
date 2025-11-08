@@ -1,5 +1,5 @@
 secrets:
-  firebase_service_account.json:
+  firebase-service-account.json:
     external: true
 services:
   db:
@@ -47,7 +47,7 @@ services:
   api:
     image: dynamic-event-map-api:latest
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: ${BACKEND_PORT}
       DB_HOST: db
       DB_PORT: ${DB_PORT}
@@ -56,11 +56,12 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: ${REDIS_PORT}
-      FRONTEND_PORT: 80
-      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_service_account.json
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-service-account.json
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
     secrets:
-      - source: firebase_service_account.json
-        target: firebase_service_account.json
+      - source: firebase-service-account.json
+        target: firebase-service-account.json
     depends_on:
       - redis
       - db
