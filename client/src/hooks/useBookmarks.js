@@ -4,7 +4,7 @@ import { fetchBookmarks, addBookmark, removeBookmark } from "../services/bookmar
 
 export function useBookmarks() {
   const [bookmarkedIds, setBookmarkedIds] = useState(() => new Set());
-  const [items, setItems] = useState([]);        // [{ data: eventRow, created_at }]
+  const [items, setItems] = useState([]); // [{ data: eventRow, created_at }]
   const [pendingIds, setPendingIds] = useState(() => new Set()); // <— NEW
   const latestRunRef = useRef(false);
 
@@ -26,37 +26,35 @@ export function useBookmarks() {
     };
   }, []);
 
-useEffect(() => {
-  let cancelled = false;
-  const runId = Symbol();            
-  latestRunRef.current = runId;      
+  useEffect(() => {
+    let cancelled = false;
+    const runId = Symbol();
+    latestRunRef.current = runId;
 
-  (async () => {
-    try {
-      const { items: serverItems = [] } = await fetchBookmarks();
-      if (cancelled || latestRunRef.current !== runId) return;
-      setItems(serverItems);
-      const ids = new Set(serverItems.map(it =>
-        typeof it?.data?.id === "number" ? it.data.id : undefined
-      ).filter(n => typeof n === "number"));
-      setBookmarkedIds(ids);
-    } finally {
-    }
-  })();
+    (async () => {
+      try {
+        const { items: serverItems = [] } = await fetchBookmarks();
+        if (cancelled || latestRunRef.current !== runId) return;
+        setItems(serverItems);
+        const ids = new Set(
+          serverItems
+            .map((it) => (typeof it?.data?.id === "number" ? it.data.id : undefined))
+            .filter((n) => typeof n === "number")
+        );
+        setBookmarkedIds(ids);
+      } finally {
+      }
+    })();
 
-  return () => { cancelled = true; };
-}, []);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const isBookmarked = useCallback(
-    (eventId) => bookmarkedIds.has(eventId),
-    [bookmarkedIds]
-  );
+  const isBookmarked = useCallback((eventId) => bookmarkedIds.has(eventId), [bookmarkedIds]);
 
   // NEW: expose per-button loading state
-  const isPending = useCallback(
-    (eventId) => pendingIds.has(eventId),
-    [pendingIds]
-  );
+  const isPending = useCallback((eventId) => pendingIds.has(eventId), [pendingIds]);
 
   const toggle = useCallback(
     async (eventId, next, eventObj) => {
@@ -135,8 +133,7 @@ useEffect(() => {
         id: it?.data?.id ?? eventData?.id,
         eventData,
         bookmarkInfo: {
-          updatedAt:
-            it?.created_at ?? it?.data?.updated_at ?? new Date().toISOString(),
+          updatedAt: it?.created_at ?? it?.data?.updated_at ?? new Date().toISOString(),
         },
       };
     });
@@ -145,7 +142,7 @@ useEffect(() => {
   return useMemo(
     () => ({
       isBookmarked,
-      isPending,         // <— NEW
+      isPending, // <— NEW
       toggle,
       listBookmarkedEvents,
     }),

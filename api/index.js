@@ -18,36 +18,39 @@ app.use(express.json());
 // Simple CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    const isProduction = process.env.NODE_ENV === 'production';
-    
+    const isProduction = process.env.NODE_ENV === "production";
+
     if (isProduction) {
       // In production: allow same-origin requests and configured allowed origins
       const allowedOrigins = [
         process.env.ALLOWED_ORIGINS, // From environment variable
         "http://localhost", // Allow localhost for testing
       ].filter(Boolean); // Remove any undefined values
-      
+
       // Allow same-origin requests (no origin header) OR requests from allowed origins
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         console.warn(`CORS blocked cross-origin request from: ${origin}`);
-        callback(new Error('Cross-origin requests not allowed'));
+        callback(new Error("Cross-origin requests not allowed"));
       }
     } else {
       // In development, allow localhost
-      const allowedOrigins = [`http://localhost:${process.env.FRONTEND_PORT || 3000}`, `http://localhost`];
-      
+      const allowedOrigins = [
+        `http://localhost:${process.env.FRONTEND_PORT || 3000}`,
+        `http://localhost`,
+      ];
+
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         console.warn(`CORS blocked request from origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
+        callback(new Error("Not allowed by CORS"));
       }
     }
   },
   credentials: false,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
@@ -55,7 +58,7 @@ app.use(cors(corsOptions));
 // Routes
 app.use("/api/events", eventsRoutes);
 // Nested comments route: /api/events/:eventId/comments
-app.use('/api/events/:eventId/comments', commentsRoutes);
+app.use("/api/events/:eventId/comments", commentsRoutes);
 app.use("/stats", statsRoutes);
 app.use("/events/external", externalEventsRoutes);
 app.use("/api/bookmarks", bookmarksRoutes);
@@ -68,4 +71,6 @@ const server = http.createServer(app);
 const socket = require("./socket");
 socket.init(server);
 
-server.listen(port, () => console.log(`API running on http://localhost:${port}`));
+server.listen(port, () =>
+  console.log(`API running on http://localhost:${port}`)
+);

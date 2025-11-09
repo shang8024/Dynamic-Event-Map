@@ -2,13 +2,6 @@ const admin = require('../config/firebaseAdmin');
 const User = require('../models/user');
 
 const firebaseAuth = async (req, res, next) => {
-  // Create local mock user in development without a token
-  if (process.env.NODE_ENV !== 'production' && !process.env.FIREBASE_SERVICE_ACCOUNT) {
-    req.firebase = { uid: 'MOCK_DEV_UID', email: 'dev@example.com' };
-    req.user = { id: 'mock-user', google_id: 'MOCK_DEV_UID', username: 'Developer' };
-    return next();
-  }
-
   try {
     const authHeader = req.headers.authorization || '';
     const match = authHeader.match(/^Bearer (.+)$/);

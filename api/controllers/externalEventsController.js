@@ -1,5 +1,88 @@
 // api/controllers/externalEventsController.js
 
+function categorizeEventByKeyword(event) {
+  const text = `${event.title} ${event.description || ""}`.toLowerCase();
+
+  const categories = [
+    {
+      name: "Entertainment & Leisure",
+      keywords: [
+        "music", "concert", "band", "festival", "show", "theater", "performance",
+        "comedy", "play", "movie", "cinema", "dance", "karaoke", "opera", "magic"
+      ],
+    },
+    {
+      name: "Arts & Culture",
+      keywords: [
+        "art", "gallery", "museum", "culture", "exhibit", "craft", "literature",
+        "painting", "sculpture", "photography", "heritage", "history", "culture walk"
+      ],
+    },
+    {
+      name: "Education & Workshops",
+      keywords: [
+        "workshop", "class", "lecture", "seminar", "training", "course", "webinar",
+        "tutorial", "bootcamp", "study", "learning", "skill", "lesson", "camp"
+      ],
+    },
+    {
+      name: "Sports & Fitness",
+      keywords: [
+        "sports", "run", "race", "marathon", "tournament", "soccer", "basketball",
+        "yoga", "fitness", "gym", "cycling", "swimming", "football", "tennis", "hike"
+      ],
+    },
+    {
+      name: "Food & Drink",
+      keywords: [
+        "food", "drink", "dinner", "festival", "market", "wine", "beer", "brewery",
+        "restaurant", "cafe", "cocktail", "barbecue", "gourmet", "cheese", "tasting"
+      ],
+    },
+    {
+      name: "Business & Networking",
+      keywords: [
+        "business", "network", "meetup", "conference", "startup", "entrepreneur",
+        "career", "pitch", "workshop", "corporate", "trade show", "summit", "forum"
+      ],
+    },
+    {
+      name: "Community & Social",
+      keywords: [
+        "community", "charity", "social", "fundraiser", "volunteer", "neighborhood",
+        "meetup", "support group", "public", "festival", "block party", "local"
+      ],
+    },
+    {
+      name: "Family & Kids",
+      keywords: [
+        "family", "kids", "child", "children", "parent", "baby", "toddler", "play",
+        "family-friendly", "school", "children's", "parenting", "youth", "teen"
+      ],
+    },
+    {
+      name: "Technology & Innovation",
+      keywords: [
+        "tech", "technology", "innovation", "startup", "ai", "robotics", "software",
+        "hardware", "coding", "hackathon", "programming", "digital", "electronics"
+      ],
+    },
+  ];
+
+  // Count how many keywords from each category are present
+  const categoryScores = categories.map((cat) => {
+    const score = cat.keywords.reduce((acc, kw) => acc + (text.includes(kw) ? 1 : 0), 0);
+    return { name: cat.name, score };
+  });
+
+  // Pick the category with the highest score
+  const bestCategory = categoryScores.reduce((prev, curr) =>
+    curr.score > prev.score ? curr : prev
+  );
+
+  return bestCategory.score > 0 ? bestCategory.name : "Other";
+}
+
 const TORONTO_BASE =
   "https://secure.toronto.ca/c3api_data/v2/DataAccess.svc/festivals_events/events";
 const calendars = [
@@ -81,9 +164,14 @@ function normalizeTorontoEvents(raw) {
 
   const startsAt = raw.event_startdate || raw.calendar_date || null;
   const endsAt = raw.event_enddate || null;
+  const category = categorizeEventByKeyword({
+    title: raw.short_name,
+    description: raw.short_description
+  });
   return {
     source: "external",
     external_id: String(raw.id),
+    user_id: 1, // system user
     title: raw.short_name || "Untitled",
     description: raw.short_description || null,
     starts_at: startsAt ? new Date(startsAt).toISOString() : null,
@@ -92,6 +180,7 @@ function normalizeTorontoEvents(raw) {
     longitude: lng,
     location_name: loc ? loc.location_name : null,
     location_address: loc ? loc.location_address : null,
+    category,
     data: {
       featured: raw.featured_event === "Yes",
       free: raw.free_event === "Yes",
@@ -125,5 +214,5 @@ const getTorontoEvents = async (req, res) => {
 };
 
 module.exports = {
-    getTorontoEvents,
+    getTorontoEvents
 };

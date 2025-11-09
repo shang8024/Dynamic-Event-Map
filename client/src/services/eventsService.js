@@ -4,8 +4,26 @@ export async function fetchEvents() {
   return get("/events");
 }
 
-export async function createEvent({ title, description, latitude, longitude }) {
-  return post("/events", { title, description, latitude, longitude });
+export async function createEvent({
+  title,
+  description,
+  category,
+  latitude,
+  longitude,
+  location_address,
+  starts_at,
+  ends_at,
+}) {
+  return post("/events", {
+    title,
+    description,
+    category,
+    latitude,
+    longitude,
+    location_address,
+    starts_at,
+    ends_at,
+  });
 }
 
 export async function deleteEvent(id) {

@@ -17,5 +17,5 @@ module.exports = {
       [eventId, userId]
     ),
 
-  delete: ({ bookmarkId }) => pool.query('DELETE FROM bookmarks WHERE id = $1 RETURNING *', [bookmarkId]),
+  delete: ({ bookmarkId, userId }) => pool.query('DELETE FROM bookmarks WHERE id = $1 AND user_id = $2 RETURNING *', [bookmarkId, userId]),
 };

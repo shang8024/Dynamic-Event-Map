@@ -1,4 +1,4 @@
-import { API_BASE, get, post, del } from "./apiService.js";
+import { API_BASE, post, del } from "./apiService.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
 
 export async function fetchBookmarks() {
@@ -14,11 +14,9 @@ export async function removeBookmark(bookmarkId) {
   return del(`/bookmarks/${bookmarkId}`);
 }
 
-export function getCurrentUser() {
+export function useCurrentUser() {
   const { user } = useAuth();
   if (user) {
     return { name: user.displayName || user.email };
   }
-  // Client-side mock user while auth is not implemented
-  return { id: '1', name: 'mockuser' };
 }

@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, googleProvider } from '../firebase';
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-import { API_BASE } from '../services/apiService';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { auth, googleProvider } from "../firebase";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { API_BASE } from "../services/apiService";
 
 const AuthContext = createContext(null);
 
@@ -9,39 +9,39 @@ const getProfileByGoogleId = async (uid, token) => {
   try {
     const response = await fetch(`${API_BASE}/profiles/${uid}`, {
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
     });
-    if (!response.ok) throw new Error('Failed to fetch profile');
+    if (!response.ok) throw new Error("Failed to fetch profile");
     return response.json();
   } catch (error) {
-    console.error('Error fetching profile:', error);
+    console.error("Error fetching profile:", error);
     return null;
   }
-}
+};
 
 const addUserToBackend = async (user, token) => {
   try {
-    const response = await fetch('http://localhost:5000/api/profiles', {
-      method: 'POST',
+    const response = await fetch("http://localhost:5000/api/profiles", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
-        photoURL: user.photoURL
-      })
+        photoURL: user.photoURL,
+      }),
     });
-    if (!response.ok) throw new Error('Failed to add user');
-    console.log('User added to backend');
+    if (!response.ok) throw new Error("Failed to add user");
+    console.log("User added to backend");
   } catch (error) {
-    console.error('Error adding user to backend:', error);
+    console.error("Error adding user to backend:", error);
   }
-}
+};
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -52,7 +52,7 @@ export function AuthProvider({ children }) {
       if (fbUser) {
         const token = await fbUser.getIdToken();
         // store token for API usage (or keep in memory)
-        localStorage.setItem('idToken', token);
+        localStorage.setItem("idToken", token);
         await addUserToBackend(fbUser, token); // wait to update backend so profile ID is ready
         const profile = await getProfileByGoogleId(fbUser.uid, token);
         setUser({
@@ -60,11 +60,11 @@ export function AuthProvider({ children }) {
           email: fbUser.email,
           displayName: fbUser.displayName,
           photoURL: fbUser.photoURL,
-          id: profile.id // primary key used for comments and bookmarks
+          id: profile.id, // primary key used for comments and bookmarks
         });
-        console.log('User logged in:', fbUser.displayName);
+        console.log("User logged in:", fbUser.displayName);
       } else {
-        localStorage.removeItem('idToken');
+        localStorage.removeItem("idToken");
         setUser(null);
       }
       setLoading(false);
@@ -81,10 +81,10 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await signOut(auth);
-      localStorage.removeItem('idToken');
+      localStorage.removeItem("idToken");
       setUser(null);
     } catch (err) {
-      console.error('Logout error', err);
+      console.error("Logout error", err);
     }
   };
 

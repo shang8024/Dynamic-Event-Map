@@ -12,6 +12,7 @@
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,md}\""
   },
   "dependencies": {
+    "@googlemaps/markerclusterer": "^2.6.2",
     "@react-google-maps/api": "^2.20.7",
     "@tailwindcss/vite": "^4.1.14",
     "cors": "^2.8.5",

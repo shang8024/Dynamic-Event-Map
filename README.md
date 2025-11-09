@@ -31,7 +31,7 @@ cd Dynamic-Event-Map
 ### 2. Create Environment File
 ```bash
 # Create .env file with your configuration
-cp .env.example .env && cp client/.env.example client/.env
+cp .env.example .env
 ```
 
 The env file should contains:

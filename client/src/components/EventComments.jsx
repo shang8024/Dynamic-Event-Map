@@ -1,19 +1,14 @@
 import React, { useEffect, useState } from "react";
-import {
-  fetchComments,
-  addComment,
-  removeComment,
-  getCurrentUser,
-} from "../services/commentsService";
+import { fetchComments, addComment, removeComment } from "../services/commentsService";
 import socket from "../services/socket";
 import { useAuth } from "../contexts/AuthContext.jsx";
 
 export default function EventComments({ eventId }) {
-  const { user } = useAuth();
   const [comments, setComments] = useState([]);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
   const load = async () => {
     setLoading(true);
@@ -29,10 +24,9 @@ export default function EventComments({ eventId }) {
   };
 
   const handleAdd = async (e) => {
-    let userId = 1; // default mock user ID
-    if (user) {
-      console.log("Adding comment from user:", user.displayName || user.email);
-      userId = user.id;
+    if (!user) {
+      setError("You must be logged in to post comments");
+      return;
     }
     e?.preventDefault();
     const trimmed = (text || "").trim();
@@ -43,12 +37,15 @@ export default function EventComments({ eventId }) {
     setError("");
     setLoading(true);
     try {
-      const created = await addComment(eventId, trimmed, userId);
-      setComments((prev) => [created, ...prev]);
+      const created = await addComment(eventId, trimmed);
+      setComments((prev) => {
+        if (prev.some((c) => String(c.id) === String(created.id))) return prev;
+        return [created, ...prev];
+      });
       setText("");
     } catch (err) {
       console.warn("post failed", err);
-      setError("Failed to post comment");
+      setError(err.message || "Failed to post comment");
     } finally {
       setLoading(false);
     }
@@ -61,7 +58,7 @@ export default function EventComments({ eventId }) {
       setComments((prev) => prev.filter((c) => c.id !== id));
     } catch (err) {
       console.warn("delete failed", err);
-      setError("Failed to delete comment");
+      setError(err.message || "Failed to delete comment");
     } finally {
       setLoading(false);
     }
@@ -80,7 +77,10 @@ export default function EventComments({ eventId }) {
     function onCommentCreated(payload) {
       try {
         if (Number(payload.eventId) !== Number(eventId)) return;
-        setComments((prev) => [payload, ...prev]);
+        setComments((prev) => {
+          if (prev.some((c) => String(c.id) === String(payload.id))) return prev;
+          return [payload, ...prev];
+        });
       } catch {
         // ignore
       }
@@ -109,17 +109,28 @@ export default function EventComments({ eventId }) {
   return (
     <div className="mt-3">
       <form onSubmit={handleAdd} className="mb-2">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={`Comment as ${getCurrentUser().name}...`}
-          className="textarea textarea-bordered min-h-[72px] w-full"
-        />
-        {error && <div className="text-error mt-1 text-xs">{error}</div>}
-        <div className="mt-2 flex justify-end">
-          <button type="submit" className="btn btn-neutral w-full" disabled={loading}>
-            {loading ? "Posting…" : "Post"}
-          </button>
+        {error && <div className="text-error mb-2 text-xs">{error}</div>}
+        <div className="flex items-stretch gap-2">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={
+              user ? `Comment as ${user.displayName || user.email}...` : "Please login to comment"
+            }
+            className="textarea textarea-bordered min-h-[72px] flex-1"
+            disabled={!user}
+          />
+
+          <div className="flex-shrink-0">
+            <button
+              type="submit"
+              className="btn btn-neutral h-full"
+              disabled={loading || !user}
+              title={!user ? "Please login to post comment" : ""}
+            >
+              {loading ? "Posting…" : "Post"}
+            </button>
+          </div>
         </div>
       </form>
 
@@ -140,25 +151,27 @@ export default function EventComments({ eventId }) {
                     {new Date(c.createdAt).toLocaleString()}
                   </div>
                   <div>
-                    <button
-                      className="btn btn-ghost btn-xs p-1"
-                      onClick={() => handleDelete(c.id)}
-                      disabled={loading}
-                      title="Delete comment"
-                      aria-label="Delete comment"
-                    >
-                      <svg
-                        width="14"
-                        height="14"
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 16 16"
+                    {user && String(user.id) === String(c.user?.id) && (
+                      <button
+                        className="btn btn-ghost btn-xs p-1"
+                        onClick={() => handleDelete(c.id)}
+                        disabled={loading}
+                        title="Delete comment"
+                        aria-label="Delete comment"
                       >
-                        <path
-                          fill="currentColor"
-                          d="m4.818 4.111l-.707.707a.5.5 0 0 0 0 .707L6.586 8L4.11 10.475a.5.5 0 0 0 0 .707l.707.707a.5.5 0 0 0 .707 0L8 9.414l2.475 2.475a.5.5 0 0 0 .707 0l.707-.707a.5.5 0 0 0 0-.707L9.414 8l2.475-2.475a.5.5 0 0 0 0-.707l-.707-.707a.5.5 0 0 0-.707 0L8 6.586L5.525 4.11a.5.5 0 0 0-.707 0"
-                        />
-                      </svg>
-                    </button>
+                        <svg
+                          width="14"
+                          height="14"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 16 16"
+                        >
+                          <path
+                            fill="currentColor"
+                            d="m4.818 4.111l-.707.707a.5.5 0 0 0 0 .707L6.586 8L4.11 10.475a.5.5 0 0 0 0 .707l.707.707a.5.5 0 0 0 .707 0L8 9.414l2.475 2.475a.5.5 0 0 0 .707 0l.707-.707a.5.5 0 0 0 0-.707L9.414 8l2.475-2.475a.5.5 0 0 0 0-.707l-.707-.707a.5.5 0 0 0-.707 0L8 6.586L5.525 4.11a.5.5 0 0 0-.707 0"
+                          />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

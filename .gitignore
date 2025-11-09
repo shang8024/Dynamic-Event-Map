@@ -1,4 +1,2 @@
 node_modules/
-
-# Firebase service account (should not be committed)
-api/firebase-service-account.json
+.env

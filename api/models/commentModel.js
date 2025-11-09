@@ -11,6 +11,8 @@ module.exports = {
       [eventId]
     ),
 
+  getById: (commentId) => pool.query('SELECT * FROM comments WHERE id = $1 LIMIT 1', [commentId]),
+
   create: ({ eventId, userId, text }) =>
     pool.query(
       'INSERT INTO comments (event_id, user_id, text) VALUES ($1, $2, $3) RETURNING *',
