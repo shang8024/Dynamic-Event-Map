@@ -23,7 +23,7 @@ const getProfileByGoogleId = async (uid, token) => {
 
 const addUserToBackend = async (user, token) => {
   try {
-    const response = await fetch("http://localhost:5000/api/profiles", {
+    const response = await fetch(`${API_BASE}/profiles`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

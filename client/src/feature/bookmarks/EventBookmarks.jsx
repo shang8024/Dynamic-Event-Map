@@ -1,9 +1,17 @@
 import React from "react";
-import { Link } from "react-router-dom";
 import { useBookmarks } from "../../hooks";
 import Navbar from "../../components/Navbar.jsx";
+const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 
 const bookmarkListItem = (id, eventData, bookmarkInfo, toggle, pending) => {
+  if (!eventData) {
+    return null;
+  }
+  const hasPosition = eventData && eventData.position && typeof eventData.position.lat === "number" && typeof eventData.position.lng === "number";
+  const googleStreetView =
+    hasPosition && API_KEY
+      ? `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${eventData.position.lat},${eventData.position.lng}&fov=90&heading=235&pitch=10&key=${API_KEY}`
+      : null;
   return (
     <div key={id} className="card bg-base-200 shadow-sm">
       <div className="card-body p-4">
@@ -12,7 +20,7 @@ const bookmarkListItem = (id, eventData, bookmarkInfo, toggle, pending) => {
           {eventData && (
             <div className="h-16 w-24 flex-shrink-0">
               <img
-                src={eventData.img || `https://picsum.photos/seed/${id}/200/150`}
+                src={eventData.img || googleStreetView || `https://picsum.photos/seed/${id}/200/150`}
                 alt={eventData.title || "Event"}
                 className="h-full w-full rounded object-cover"
               />

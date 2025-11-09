@@ -1,7 +1,88 @@
 import pg from "pg";
 import fs from "node:fs";
 const { Client } = pg;
+function categorizeEventByKeyword(event) {
+  const text = `${event.title} ${event.description || ""}`.toLowerCase();
 
+  const categories = [
+    {
+      name: "Entertainment & Leisure",
+      keywords: [
+        "music", "concert", "band", "festival", "show", "theater", "performance",
+        "comedy", "play", "movie", "cinema", "dance", "karaoke", "opera", "magic"
+      ],
+    },
+    {
+      name: "Arts & Culture",
+      keywords: [
+        "art", "gallery", "museum", "culture", "exhibit", "craft", "literature",
+        "painting", "sculpture", "photography", "heritage", "history", "culture walk"
+      ],
+    },
+    {
+      name: "Education & Workshops",
+      keywords: [
+        "workshop", "class", "lecture", "seminar", "training", "course", "webinar",
+        "tutorial", "bootcamp", "study", "learning", "skill", "lesson", "camp"
+      ],
+    },
+    {
+      name: "Sports & Fitness",
+      keywords: [
+        "sports", "run", "race", "marathon", "tournament", "soccer", "basketball",
+        "yoga", "fitness", "gym", "cycling", "swimming", "football", "tennis", "hike"
+      ],
+    },
+    {
+      name: "Food & Drink",
+      keywords: [
+        "food", "drink", "dinner", "festival", "market", "wine", "beer", "brewery",
+        "restaurant", "cafe", "cocktail", "barbecue", "gourmet", "cheese", "tasting"
+      ],
+    },
+    {
+      name: "Business & Networking",
+      keywords: [
+        "business", "network", "meetup", "conference", "startup", "entrepreneur",
+        "career", "pitch", "workshop", "corporate", "trade show", "summit", "forum"
+      ],
+    },
+    {
+      name: "Community & Social",
+      keywords: [
+        "community", "charity", "social", "fundraiser", "volunteer", "neighborhood",
+        "meetup", "support group", "public", "festival", "block party", "local"
+      ],
+    },
+    {
+      name: "Family & Kids",
+      keywords: [
+        "family", "kids", "child", "children", "parent", "baby", "toddler", "play",
+        "family-friendly", "school", "children's", "parenting", "youth", "teen"
+      ],
+    },
+    {
+      name: "Technology & Innovation",
+      keywords: [
+        "tech", "technology", "innovation", "startup", "ai", "robotics", "software",
+        "hardware", "coding", "hackathon", "programming", "digital", "electronics"
+      ],
+    },
+  ];
+
+  // Count how many keywords from each category are present
+  const categoryScores = categories.map((cat) => {
+    const score = cat.keywords.reduce((acc, kw) => acc + (text.includes(kw) ? 1 : 0), 0);
+    return { name: cat.name, score };
+  });
+
+  // Pick the category with the highest score
+  const bestCategory = categoryScores.reduce((prev, curr) =>
+    curr.score > prev.score ? curr : prev
+  );
+
+  return bestCategory.score > 0 ? bestCategory.name : "Other";
+}
 const TORONTO_BASE =
   "https://secure.toronto.ca/c3api_data/v2/DataAccess.svc/festivals_events/events";
 const calendars = [
@@ -81,6 +162,11 @@ function normalizeTorontoEvents(raw) {
     };
   }
 
+  const category = categorizeEventByKeyword({
+    title: raw.short_name,
+    description: raw.short_description
+  });
+
   const startsAt = raw.event_startdate || raw.calendar_date || null;
   const endsAt = raw.event_enddate || null;
   return {
@@ -91,6 +177,7 @@ function normalizeTorontoEvents(raw) {
     starts_at: startsAt ? new Date(startsAt).toISOString() : null,
     ends_at: endsAt ? new Date(endsAt).toISOString() : null,
     latitude: lat,
+    category: category,
     longitude: lng,
     location_name: loc ? loc.location_name : null,
     location_address: loc ? loc.location_address : null,
@@ -160,9 +247,10 @@ async function main() {
         $8::double precision,-- latitude
         $9::double precision,-- longitude
         NULLIF($10,'')::text,-- location_name
-        NULLIF($11,'')::text -- location_address
+        NULLIF($11,'')::text,-- location_address
+        NULLIF($12,'')::text -- category
       )
-    ) AS v(title, source, ref_id, description, data, starts_at, ends_at, latitude, longitude, location_name, location_address)
+    ) AS v(title, source, ref_id, description, data, starts_at, ends_at, latitude, longitude, location_name, location_address, category)
     ON (
       lower(btrim(e.title)) = lower(btrim(v.title))
       AND e.starts_at IS NOT DISTINCT FROM v.starts_at
@@ -182,12 +270,13 @@ async function main() {
         longitude        = v.longitude,
         location_name    = v.location_name,
         location_address = v.location_address,
-        updated_at       = now()
+        updated_at       = now(),
+        category         = v.category
     WHEN NOT MATCHED THEN
       INSERT (title, source, ref_id, description, data, starts_at, ends_at,
-              latitude, longitude, location_name, location_address, updated_at)
+              latitude, longitude, location_name, location_address, updated_at, user_id, category)
       VALUES (v.title, v.source, v.ref_id, v.description, v.data, v.starts_at, v.ends_at,
-              v.latitude, v.longitude, v.location_name, v.location_address, now());
+              v.latitude, v.longitude, v.location_name, v.location_address, now(), 1, v.category);
     `;
 
   let ok = 0,
@@ -206,6 +295,7 @@ async function main() {
         ev.longitude,
         ev.location_name,
         ev.location_address,
+        ev.category,
       ]);
       ok++;
     } catch (e) {

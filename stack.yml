@@ -140,8 +140,13 @@ services:
     image: ghcr.io/shang8024/dynamic-event-map-client:latest
     networks: [app_net]
     depends_on: [api]
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: ingress
     deploy:
-      replicas: 2
+      replicas: 1
       update_config: { order: start-first, parallelism: 1, delay: 5s }
       restart_policy: { condition: any, delay: 5s, max_attempts: 3 }
       resources:

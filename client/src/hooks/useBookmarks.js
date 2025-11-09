@@ -1,12 +1,14 @@
 // src/hooks/useBookmarks.js
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { fetchBookmarks, addBookmark, removeBookmark } from "../services/bookmarksService.js";
+import { useAuth } from "../contexts/AuthContext.jsx";
 
 export function useBookmarks() {
   const [bookmarkedIds, setBookmarkedIds] = useState(() => new Set());
   const [items, setItems] = useState([]); // [{ data: eventRow, created_at }]
   const [pendingIds, setPendingIds] = useState(() => new Set()); // <— NEW
   const latestRunRef = useRef(false);
+  const { user } = useAuth();
 
   const toEventData = useCallback((row) => {
     if (!row) return null;
@@ -28,6 +30,11 @@ export function useBookmarks() {
 
   useEffect(() => {
     let cancelled = false;
+    if (!user) {
+      setBookmarkedIds(new Set());
+      setItems([]);
+      return;
+    }
     const runId = Symbol();
     latestRunRef.current = runId;
 
@@ -49,7 +56,7 @@ export function useBookmarks() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user]);
 
   const isBookmarked = useCallback((eventId) => bookmarkedIds.has(eventId), [bookmarkedIds]);
 
@@ -58,6 +65,9 @@ export function useBookmarks() {
 
   const toggle = useCallback(
     async (eventId, next, eventObj) => {
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
       const prev = bookmarkedIds.has(eventId);
       const willMark = typeof next === "boolean" ? next : !prev;
 
@@ -123,10 +133,13 @@ export function useBookmarks() {
         });
       }
     },
-    [bookmarkedIds, items]
+    [bookmarkedIds, items, user]
   );
 
   const listBookmarkedEvents = useCallback(() => {
+    if (!user) {
+      return [];
+    }
     return items.map((it) => {
       const eventData = toEventData(it.data);
       return {
@@ -137,12 +150,12 @@ export function useBookmarks() {
         },
       };
     });
-  }, [items, toEventData]);
+  }, [items, toEventData, user]);
 
   return useMemo(
     () => ({
       isBookmarked,
-      isPending, // <— NEW
+      isPending,
       toggle,
       listBookmarkedEvents,
     }),

@@ -320,6 +320,7 @@ export default function EventMap() {
           ends_at: r.ends_at,
           user_id: r.user_id,
           category: r.category,
+          img: r.data?.image?.url || null,
         }));
         setEvents(mapped);
       } catch (err) {
@@ -339,6 +340,7 @@ export default function EventMap() {
         position: { lat: Number(ev.latitude ?? ev.lat), lng: Number(ev.longitude ?? ev.lng) },
         location_address: ev.location_address,
         starts_at: ev.starts_at,
+        img: ev.img || ev.data?.image?.url || null,
         ends_at: ev.ends_at,
         user_id: ev.user_id,
         category: ev.category ?? (ev.data && ev.data.category) ?? "",
@@ -365,6 +367,7 @@ export default function EventMap() {
                 ends_at: ev.ends_at,
                 user_id: ev.user_id,
                 category: ev.category,
+                img: ev.img || ev.data?.image?.url || null,
               }
             : p
         )
@@ -383,6 +386,7 @@ export default function EventMap() {
               starts_at: ev.starts_at,
               ends_at: ev.ends_at,
               user_id: ev.user_id,
+              img: ev.img || ev.data?.image?.url || null,
             }
           : s
       );
@@ -612,6 +616,7 @@ export default function EventMap() {
       category: ev.category,
       starts_at: ev.starts_at,
       ends_at: ev.ends_at,
+      img: ev.img || ev.data?.image?.url || null,
     });
     setShowModal(true);
   };
@@ -636,6 +641,8 @@ export default function EventMap() {
         starts_at: optimisticServerEvent.starts_at,
         ends_at: optimisticServerEvent.ends_at,
         user_id: optimisticServerEvent.user_id ?? prevItem?.user_id,
+        category: optimisticServerEvent.category ?? (prevItem?.category || "Other"),
+        img: optimisticServerEvent.img || optimisticServerEvent.data?.image?.url || prevItem?.img || null,
       };
       if (idx >= 0) {
         return prev.map((p) => (String(p.id) === String(id) ? mapped : p));
@@ -654,6 +661,8 @@ export default function EventMap() {
             },
             starts_at: optimisticServerEvent.starts_at,
             ends_at: optimisticServerEvent.ends_at,
+            img: optimisticServerEvent.img || optimisticServerEvent.data?.image?.url || s.img || null,
+            category: optimisticServerEvent.category ?? (s.category || "Other"),
           }
         : s
     );

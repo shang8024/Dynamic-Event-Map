@@ -52,7 +52,7 @@ export default function EventInfo({
       <div className="bg-base-100 rounded-md shadow-sm">
         <div className="bg-base-100 relative h-40 w-full overflow-hidden rounded-md">
           <img
-            src={googleStreetView || `https://picsum.photos/seed/${event.id}/800/400`}
+            src={event.img || googleStreetView || `https://picsum.photos/seed/${event.id}/800/400`}
             alt={event.title}
             className="h-56 w-full object-cover object-center"
           />
