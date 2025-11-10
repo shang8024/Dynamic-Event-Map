@@ -1,8 +1,12 @@
 version: "3.9"
 
 networks:
-  app_net:
+  proxy:
     driver: overlay
+    external: false
+  internal:
+    driver: overlay
+    external: false
 
 volumes:
   pgdata:
@@ -23,6 +27,8 @@ volumes:
       type: none
       o: bind
       device: /mnt/pgdata/redis-data
+  traefik-cert: {}
+  client-static: {}
 
 secrets:
   pg_password:
@@ -33,6 +39,53 @@ secrets:
     file: /root/deploy/firebase-service-account.json
 
 services:
+  traefik:
+    image: traefik:v3.1
+    command:
+      - --log.level=INFO
+      - --api.dashboard=true
+
+      # Use Swarm provider
+      - --providers.swarm=true
+      - --providers.swarm.endpoint=unix:///var/run/docker.sock
+      - --providers.swarm.network=eventmap_proxy
+
+      # Entrypoints
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+
+      # HTTP->HTTPS redirect
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+
+      # Let's Encrypt
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.le.acme.email=${EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+    ports:
+      - target: 80
+        published: 80
+        mode: ingress
+      - target: 443
+        published: 443
+        mode: ingress
+    volumes:
+      - traefik-cert:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy
+      - internal
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.${DOMAIN}`)"
+        - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+        - "traefik.http.routers.traefik-dashboard.tls.certresolver=le"
+        - "traefik.http.routers.traefik-dashboard.service=api@internal"
   db:
     image: postgres:16-alpine
     environment:
@@ -44,7 +97,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - dbinit:/docker-entrypoint-initdb.d:ro   
-    networks: [app_net]
+    networks: [internal]
     deploy:
       placement: { constraints: [node.role == manager] }
       restart_policy: { condition: any, delay: 5s, max_attempts: 3 }
@@ -74,7 +127,7 @@ services:
           --maxmemory 200mb --maxmemory-policy allkeys-lru \
           --requirepass "$$PASS";
       '
-    networks: [app_net]
+    networks: [internal]
     volumes:
       - redisdata:/data
     deploy:
@@ -84,6 +137,7 @@ services:
           memory: 256M
         reservations:
           memory: 64M
+      placement: { constraints: [node.role == manager] }
     healthcheck:
       test:
       - CMD-SHELL
@@ -110,18 +164,18 @@ services:
       REDIS_PORT: "${REDIS_PORT:-6379}"
       DB_PASSWORD_FILE: /run/secrets/pg_password
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
-      ALLOWED_ORIGINS: "http://165.22.238.134"
+      ALLOWED_ORIGINS: "https://dynamic-event-map.cloud,https://www.dynamic-event-map.cloud"
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-service-account.json
+      FRONTEND_PORT: 443
     secrets:
       - pg_password
       - redis_password
       - source: firebase_sa
         target: firebase-service-account.json
-    networks: [app_net]
+    networks: [proxy, internal]
     depends_on: [db, redis]
     deploy:
       replicas: 2
-      endpoint_mode: dnsrr
       update_config: { order: start-first }
       restart_policy: { condition: any }
       resources:
@@ -129,6 +183,18 @@ services:
           memory: 384M
         reservations:
           memory: 128M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=eventmap_proxy"
+        - "traefik.http.routers.api.rule=Host(`www.${DOMAIN}`) && PathPrefix(`/api`)"
+        - "traefik.http.routers.api.entrypoints=websecure"
+        - "traefik.http.routers.api.tls.certresolver=le"
+        - "traefik.http.routers.api.priority=10"
+        - "traefik.http.middlewares.api-strip.stripprefixregex.regex=/api"
+        - "traefik.http.routers.api.middlewares=api-strip"
+        - "traefik.http.services.api.loadbalancer.server.port=5000"
+        - "traefik.http.services.api.loadbalancer.sticky.cookie=true"
+        - "traefik.http.services.api.loadbalancer.sticky.cookie.name=sio_sticky"
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 ${BACKEND_PORT} || exit 1"]
       interval: 10s
@@ -138,17 +204,35 @@ services:
 
   client:
     image: ghcr.io/shang8024/dynamic-event-map-client:latest
-    networks: [app_net]
+    networks: [proxy]
     depends_on: [api]
-    ports:
-      - target: 80
-        published: 80
-        protocol: tcp
-        mode: ingress
     deploy:
       replicas: 1
       update_config: { order: start-first, parallelism: 1, delay: 5s }
       restart_policy: { condition: any, delay: 5s, max_attempts: 3 }
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=eventmap_proxy"
+        
+        # Main router for www subdomain
+        - "traefik.http.routers.client.rule=Host(`www.${DOMAIN}`)"
+        - "traefik.http.routers.client.entrypoints=websecure"
+        - "traefik.http.routers.client.tls.certresolver=le"
+        - "traefik.http.routers.client.priority=5"
+        
+        # Router for bare domain that redirects to www
+        - "traefik.http.routers.client-redirect.rule=Host(`${DOMAIN}`)"
+        - "traefik.http.routers.client-redirect.entrypoints=websecure"
+        - "traefik.http.routers.client-redirect.tls.certresolver=le"
+        - "traefik.http.routers.client-redirect.middlewares=redirect-to-www"
+        - "traefik.http.routers.client-redirect.priority=4"
+        
+        # Middleware to redirect to www
+        - "traefik.http.middlewares.redirect-to-www.redirectregex.regex=^https?://(?:www\\.)?(.*)$$"
+        - "traefik.http.middlewares.redirect-to-www.redirectregex.replacement=https://www.$$1"
+        - "traefik.http.middlewares.redirect-to-www.redirectregex.permanent=true"
+        
+        - "traefik.http.services.client.loadbalancer.server.port=80"
       resources:
         limits:
           memory: 128M
@@ -162,7 +246,7 @@ services:
       start_period: 10s
 
   events_ingest:
-    image: ghcr.io/shang8024/dynamic-event-map-events-ingest:latest
+    image: ghcr.io/shang8024/dynamic-event-map-events_ingest:latest
     secrets:
       - pg_password
       - redis_password
@@ -177,7 +261,7 @@ services:
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
     depends_on: [db, redis]
     networks:
-      - app_net
+      - internal
     deploy:
       mode: replicated
       replicas: 0

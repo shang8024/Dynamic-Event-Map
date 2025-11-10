@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    networks: [app-network]
+    networks: [app-net]
     deploy:
       replicas: 1
       placement:
@@ -30,7 +30,7 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
-    networks: [app-network]
+    networks: [app-net]
     deploy:
       replicas: 1
       placement:
@@ -56,6 +56,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: ${REDIS_PORT}
+      ALLOWED_ORIGINS: "http://localhost"
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-service-account.json
     ports:
       - "${BACKEND_PORT}:${BACKEND_PORT}"
@@ -65,7 +66,7 @@ services:
     depends_on:
       - redis
       - db
-    networks: [app-network]
+    networks: [app-net]
     deploy:
       replicas: 2
       update_config: { parallelism: 1, delay: 10s, failure_action: rollback }
@@ -74,40 +75,54 @@ services:
       # (removed Traefik labels)
 
   client:
-    image: dynamic-event-map-client:latest   # this image must be nginx-based and serve /usr/share/nginx/html on :80
-    networks: [app-network]
-    deploy:
-      replicas: 2
-      update_config: { parallelism: 1, delay: 10s, failure_action: rollback }
-      rollback_config: { parallelism: 1, delay: 10s }
-      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 3 }
-    # optional healthcheck to catch “blank page”
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
-  nginx:
-    image: nginx:alpine
+    image: dynamic-event-map-client:latest
+    networks: [app-net]
+    depends_on: [api]
     ports:
-      - "80:80"
-    volumes:
-      - ./client/nginx/nginx-local.conf:/etc/nginx/nginx.conf:ro
-    networks: [app-network]
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: ingress
     deploy:
       replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 3 }
+      update_config: { order: start-first, parallelism: 1, delay: 5s }
+      restart_policy: { condition: any, delay: 5s, max_attempts: 3 }
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+
+  events_ingest:
+    image: dynamic-event-map-events-ingest:latest
+    environment:
+      DB_HOST: db
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_NAME: "${DB_NAME:-eventsdb}"
+      DB_USER: "${DB_USER:-user}"
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      DB_PASSWORD: ${DB_PASSWORD}
+    depends_on: [db, redis]
+    networks:
+      - app-net
+    deploy:
+      mode: replicated
+      replicas: 0
+      restart_policy:
+        condition: none
 
 volumes:
   postgres-data:
   redis-data:
 
 networks:
-  app-network:
+  app-net:
     driver: overlay
     attachable: true
