@@ -165,13 +165,17 @@ services:
     image: ghcr.io/shang8024/dynamic-event-map-events-ingest:latest
     secrets:
       - pg_password
+      - redis_password
     environment:
       DB_HOST: db
       DB_PORT: "${DB_PORT:-5432}"
       DB_NAME: "${DB_NAME:-eventsdb}"
       DB_USER: "${DB_USER:-user}"
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
       DB_PASSWORD_FILE: /run/secrets/pg_password
-    depends_on: [db]
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+    depends_on: [db, redis]
     networks:
       - app_net
     deploy:
