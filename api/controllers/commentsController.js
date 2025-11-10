@@ -36,9 +36,16 @@ const createComment = async (req, res) => {
       [id]
     );
     const r = found.rows[0];
-    res.json({ id: r.id, text: r.text, user: { id: r.user_id, name: r.username }, createdAt: r.created_at });
+    const commentData = { id: r.id, text: r.text, user: { id: r.user_id, name: r.username }, createdAt: r.created_at };
+    res.json(commentData);
     // Emit realtime comment created
-    try { socket.getIO().emit('comment:created', { eventId: Number(eventId), id: r.id, text: r.text, user: { id: r.user_id, name: r.username }, createdAt: r.created_at }); } catch (e) {}
+    try { 
+      const payload = { eventId: Number(eventId), ...commentData };
+      socket.getIO().emit('comment:created', payload);
+      console.log(`[Socket.IO] Emitted comment:created for event ${eventId}, comment ${r.id}`);
+    } catch (e) {
+      console.error('[Socket.IO] Failed to emit comment:created:', e);
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create comment' });
@@ -57,7 +64,13 @@ const deleteComment = async (req, res) => {
     if (Number(row.user_id) !== Number(req.user.id)) return res.status(403).json({ error: 'Forbidden' });
     const result = await Comment.delete(commentId);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Comment not found' });
-    try { socket.getIO().emit('comment:deleted', { eventId: Number(req.params.eventId), id: Number(commentId) }); } catch (e) {}
+    try { 
+      const payload = { eventId: Number(req.params.eventId), id: Number(commentId) };
+      socket.getIO().emit('comment:deleted', payload);
+      console.log(`[Socket.IO] Emitted comment:deleted for event ${req.params.eventId}, comment ${commentId}`);
+    } catch (e) {
+      console.error('[Socket.IO] Failed to emit comment:deleted:', e);
+    }
     res.json({ message: 'Comment deleted' });
   } catch (err) {
     console.error(err);
