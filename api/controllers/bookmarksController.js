@@ -42,4 +42,16 @@ const deleteBookmark = async (req, res) => {
   }
 };
 
-module.exports = { createBookmark, deleteBookmark, getBookmarks };
+const getTodaysBookmarks = async (req, res) => {
+  const uid = req.user?.id || req.body?.userId;
+  const tz = req.query?.tz || 'America/Toronto';
+  try {
+    const result = await Bookmark.getTodaysByUser(uid, tz);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch today\'s bookmarks' });
+  }
+};
+
+module.exports = { createBookmark, deleteBookmark, getBookmarks, getTodaysBookmarks };

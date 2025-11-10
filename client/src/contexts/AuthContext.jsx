@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, googleProvider } from "../firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { API_BASE } from "../services/apiService";
+import { useNotifications } from "./NotificationContext";
 
 const AuthContext = createContext(null);
 
@@ -46,6 +47,7 @@ const addUserToBackend = async (user, token) => {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { push } = useNotifications();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
@@ -62,7 +64,7 @@ export function AuthProvider({ children }) {
           photoURL: fbUser.photoURL,
           id: profile.id, // primary key used for comments and bookmarks
         });
-        console.log("User logged in:", fbUser.displayName);
+        push({ type: "success", message: `Welcome, ${fbUser.displayName}!`, autoCloseMs: 3000 });
       } else {
         localStorage.removeItem("idToken");
         setUser(null);

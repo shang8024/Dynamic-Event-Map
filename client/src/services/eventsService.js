@@ -33,3 +33,6 @@ export async function deleteEvent(id) {
 export async function updateEvent(id, payload) {
   return put(`/events/${id}`, payload);
 }
+export async function fetchTodaySummary() {
+  return get("/stats/today");
+}

@@ -18,4 +18,48 @@ module.exports = {
     ),
 
   delete: ({ bookmarkId, userId }) => pool.query('DELETE FROM bookmarks WHERE id = $1 AND user_id = $2 RETURNING *', [bookmarkId, userId]),
+  getTodaysByUser: (userId, tz = 'America/Toronto') =>
+    pool.query(
+      `
+      (
+        SELECT
+          'starting'::text AS bucket,
+          COALESCE(json_agg(row_to_json(x)), '[]'::json) AS events,
+          COUNT(*)::int AS total
+        FROM (
+          SELECT
+            e.*,
+            b.created_at AS bookmarked_at,
+            b.id         AS bookmark_id
+          FROM bookmarks b
+          JOIN events e ON e.id = b.event_id
+          WHERE b.user_id = $1
+            AND e.starts_at IS NOT NULL
+            AND (e.starts_at AT TIME ZONE $2)::date = (NOW() AT TIME ZONE $2)::date
+          ORDER BY e.starts_at ASC
+        ) x
+      )
+      UNION ALL
+      (
+        SELECT
+          'ending'::text AS bucket,
+          COALESCE(json_agg(row_to_json(y)), '[]'::json) AS events,
+          COUNT(*)::int AS total
+        FROM (
+          SELECT
+            e.*,
+            b.created_at AS bookmarked_at,
+            b.id         AS bookmark_id
+          FROM bookmarks b
+          JOIN events e ON e.id = b.event_id
+          WHERE b.user_id = $1
+            AND e.ends_at IS NOT NULL
+            AND (e.ends_at AT TIME ZONE $2)::date = (NOW() AT TIME ZONE $2)::date
+          ORDER BY e.ends_at ASC
+        ) y
+      );
+      `,
+      [userId, tz]
+    ),
+  
 };

@@ -59,7 +59,7 @@ app.use(cors(corsOptions));
 app.use("/api/events", eventsRoutes);
 // Nested comments route: /api/events/:eventId/comments
 app.use("/api/events/:eventId/comments", commentsRoutes);
-app.use("/stats", statsRoutes);
+app.use("/api/stats", statsRoutes);
 app.use("/events/external", externalEventsRoutes);
 app.use("/api/bookmarks", bookmarksRoutes);
 app.use("/auth", authRoutes);

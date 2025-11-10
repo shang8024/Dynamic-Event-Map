@@ -307,8 +307,8 @@ async function main() {
   console.log(`[pull] done. upserted=${ok}, failed=${fail}`);
   await client.query(`
     DELETE FROM events e
-    WHERE e.source = 'external'
-      AND e.ends_at IS NOT NULL AND e.ends_at < NOW()
+    WHERE e.ends_at IS NOT NULL AND e.ends_at < NOW()
+      AND e.source = 'external'
       AND NOT EXISTS (
         SELECT 1 FROM bookmarks b
         WHERE b.event_id = e.id

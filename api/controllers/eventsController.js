@@ -2,6 +2,7 @@ const Event = require("../models/eventModel");
 const redisClient = require("../config/redis");
 const socket = require("../socket");
 const pool = require("../config/db");
+const { bumpEventCount } = require("./statsController");
 
 const getEvents = async (req, res) => {
   try {
@@ -73,7 +74,7 @@ const createEvent = async (req, res) => {
       ends_at,
       source,
     });
-    await redisClient.incr("eventCount");
+    await bumpEventCount(1);
     const ev = result.rows[0];
     // Emit realtime event
     try {
@@ -102,7 +103,7 @@ const deleteEvent = async (req, res) => {
     const result = await Event.delete(id);
     if (result.rowCount === 0)
       return res.status(404).json({ error: "Event not found" });
-    await redisClient.decr("eventCount");
+    await bumpEventCount(-1);
     try {
       socket.getIO().emit("event:deleted", { id: Number(id) });
     } catch (e) {}
@@ -152,6 +153,9 @@ const updateEvent = async (req, res) => {
     if (result.rowCount === 0)
       return res.status(404).json({ error: "Event not found" });
     const ev = result.rows[0];
+    if ((starts_at && found.rows[0].starts_at !== starts_at) || (ends_at && found.rows[0].ends_at !== ends_at)){
+      await bumpEventCount(0);
+    }
     try {
       socket.getIO().emit("event:updated", ev);
     } catch (e) {}

@@ -1,8 +1,8 @@
-import { API_BASE, post, del } from "./apiService.js";
+import { API_BASE, post, del, get } from "./apiService.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
 
 export async function fetchBookmarks() {
-  const result = await post(`/bookmarks`, {});
+  const result = await get(`/bookmarks`);
   return { items: result };
 }
 
@@ -12,6 +12,11 @@ export async function addBookmark(eventId) {
 
 export async function removeBookmark(bookmarkId) {
   return del(`/bookmarks/${bookmarkId}`);
+}
+
+export async function fetchTodaysBookmarks() {
+  const result = await get(`/bookmarks/today`);
+  return result;
 }
 
 export function useCurrentUser() {

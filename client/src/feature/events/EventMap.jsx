@@ -7,8 +7,9 @@ import EventForm from "../../components/EventForm.jsx";
 import { useAuth } from "../../contexts/AuthContext.jsx";
 
 // services
-import { fetchEvents, deleteEvent } from "../../services/eventsService";
+import { fetchEvents, deleteEvent, fetchTodaySummary } from "../../services/eventsService";
 import socket from "../../services/socket";
+import { useNotifications } from "../../contexts/NotificationContext.jsx";
 
 // -----------------------------
 // Constants
@@ -79,6 +80,7 @@ export default function EventMap() {
   // toggles for panels
   const [filterOpen, setFilterOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(true);
+  const [statsOpen, setStatsOpen] = useState(true);
   // filters
   const [filterTime, setFilterTime] = useState("all");
   const [filterCategory, setFilterCategory] = useState("");
@@ -89,6 +91,7 @@ export default function EventMap() {
   const [clusterIndex, setClusterIndex] = useState(0); // which event in cluster is shown
 
   const { user } = useAuth();
+  const { push } = useNotifications();
 
   // -----------------------------
   // Helpers
@@ -174,7 +177,7 @@ export default function EventMap() {
     const withinTime = (ev) => {
       if (!ev.ends_at) return true;
       const end = new Date(ev.ends_at).getTime();
-      if (filterTime === "all") return true;
+      if (filterTime === "all") return end >= now;
       if (filterTime === "24h") return end >= now && end <= now + 24 * 3600 * 1000;
       if (filterTime === "7d") return end >= now && end <= now + 7 * 24 * 3600 * 1000;
       if (filterTime === "30d") return end >= now && end <= now + 30 * 24 * 3600 * 1000;
@@ -325,6 +328,17 @@ export default function EventMap() {
         setEvents(mapped);
       } catch (err) {
         console.warn("failed to load events", err);
+        push({ type: "error", message: "Failed to load events", autoCloseMs: 5000 });
+      }
+    })();
+    (async () => {
+      try {
+        const stats = await fetchTodaySummary();
+        if (!mounted) return;
+        if (!stats || !(stats.starting || stats.ending)) return;
+        push({ type: "info", message: `There are ${stats.starting} events starting and ${stats.ending} events ending today.`, autoCloseMs: 10000 });
+      } catch (err) {
+        console.warn("failed to load today's summary", err);
       }
     })();
     return () => (mounted = false);
@@ -497,7 +511,7 @@ export default function EventMap() {
   const handlePredictionSelect = async (p) => {
     if (!p) return;
     if (!user) {
-      alert("Please sign in to create events");
+      push({ type: "error", message: "Please sign in to create events", autoCloseMs: 5000 });
       return;
     }
     setPredictions([]);
@@ -593,10 +607,11 @@ export default function EventMap() {
     setSelectedEvent(null);
     try {
       await deleteEvent(id);
+      push({ type: "success", message: "Event deleted successfully!", autoCloseMs: 3000 });
     } catch (err) {
       console.error("failed to delete event", err);
       setEvents(before); // rollback
-      alert("Failed to delete event — changes rolled back");
+      push({ type: "error", message: "Failed to delete event. Changes have been reverted.", autoCloseMs: 5000 });
     }
   };
 
@@ -676,7 +691,7 @@ export default function EventMap() {
       setEvents((vals) => vals.map((v) => (String(v.id) === String(id) ? prev : v)));
       setSelectedEvent(prev);
       delete optimisticRef.current[id];
-      alert("Update failed — changes rolled back");
+      push({ type: "error", message: "Update failed — changes rolled back", autoCloseMs: 5000 });
     }
   };
 
@@ -707,6 +722,17 @@ export default function EventMap() {
           />
           <span className="text-sm font-medium">Search</span>
         </label>
+
+        {/* Stats toggle */}
+        <label className="flex cursor-pointer items-center gap-1">
+          <input
+            type="checkbox"
+            defaultChecked
+            className="toggle toggle-sm"
+            onChange={() => setStatsOpen(!statsOpen)}
+          />
+          <span className="text-sm font-medium">Stats</span>
+        </label>
       </div>
 
       <div
@@ -726,6 +752,12 @@ export default function EventMap() {
             options={MAP_OPTIONS}
             onLoad={onMapLoad}
           >
+            {/* Stats container */}
+            {statsOpen && (
+              <div className="bg-base-200/90 absolute bottom-4 right-4 rounded-lg p-2 shadow">
+                <span className="text-sm font-medium">Total Events: {filteredEvents.length}</span>
+              </div>
+            )}
             {/* Filters container */}
             {filterOpen && (
               <div className="bg-base-200/90 absolute bottom-4 left-4 flex flex-col gap-3 rounded-lg p-2 shadow">

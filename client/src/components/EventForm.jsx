@@ -3,6 +3,7 @@ import {
   createEvent as apiCreateEvent,
   updateEvent as apiUpdateEvent,
 } from "../services/eventsService";
+import { useNotifications } from "../contexts/NotificationContext.jsx";
 
 export default function EventForm({
   initialData = {},
@@ -23,6 +24,7 @@ export default function EventForm({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { push } = useNotifications();
 
   function formatDateTimeLocal(date) {
     if (!date) return "";
@@ -105,9 +107,11 @@ export default function EventForm({
             ends_at: payload.ends_at,
           });
           onSaved(updated);
+          push({ type: "success", message: "Event updated successfully!", autoCloseMs: 3000 });
         } else {
           const created = await apiCreateEvent(payload);
           onSaved(created);
+          push({ type: "success", message: "Event created successfully!", autoCloseMs: 3000 });
         }
       } catch (err) {
         console.error("Failed to save event", err);
@@ -115,8 +119,10 @@ export default function EventForm({
         // notify parent to rollback optimistic change for edits
         try {
           onRollback?.(initialData);
+          push({ type: "error", message: "Failed to save event. Changes have been reverted.", autoCloseMs: 5000 });
         } catch (e) {
           console.warn("onRollback hook failed", e);
+          push({ type: "error", message: "Failed to save event. Rollback failed.", autoCloseMs: 5000 });
         }
       } finally {
         setLoading(false);

@@ -1,7 +1,8 @@
 // src/hooks/useBookmarks.js
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { fetchBookmarks, addBookmark, removeBookmark } from "../services/bookmarksService.js";
+import { fetchBookmarks, addBookmark, removeBookmark, fetchTodaysBookmarks } from "../services/bookmarksService.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
+import { useNotifications, isDismissedToday } from "../contexts/NotificationContext.jsx";
 
 export function useBookmarks() {
   const [bookmarkedIds, setBookmarkedIds] = useState(() => new Set());
@@ -9,6 +10,7 @@ export function useBookmarks() {
   const [pendingIds, setPendingIds] = useState(() => new Set()); // <— NEW
   const latestRunRef = useRef(false);
   const { user } = useAuth();
+  const { push } = useNotifications();
 
   const toEventData = useCallback((row) => {
     if (!row) return null;
@@ -49,7 +51,34 @@ export function useBookmarks() {
             .filter((n) => typeof n === "number")
         );
         setBookmarkedIds(ids);
-      } finally {
+      } catch {
+        push({ type: "error", message: "Failed to load bookmarks", autoCloseMs: 5000 });
+      }
+    })();
+    (async () => {
+      try {
+        // if currently is '/bookmarks', skip notification
+        if (window.location.pathname === "/bookmarks") return;
+        // if dimissed already, skip
+        if (isDismissedToday("todays-bookmarks")) return;
+        const todays = await fetchTodaysBookmarks();
+        if (cancelled || latestRunRef.current !== runId) return;
+        // push notification if there are any
+        const totalCount = (todays[0]?.total ?? 0) + (todays[1]?.total ?? 0);
+        if (totalCount > 0) {
+          push({
+            type: "info",
+            message: `You have ${todays[0]?.total ?? 0} bookmarked events starting and ${todays[1]?.total ?? 0} ending today.`,
+            autoCloseMs: 10000,
+            stickyKey: "todays-bookmarks",
+            action: {
+              label: "View",
+              onClick: () => {},
+              href: "/bookmarks",
+            }
+          });
+        }
+      } catch {
       }
     })();
 
@@ -66,6 +95,7 @@ export function useBookmarks() {
   const toggle = useCallback(
     async (eventId, next, eventObj) => {
       if (!user) {
+        push({ type: "error", message: "User not authenticated", autoCloseMs: 5000 });
         throw new Error("User not authenticated");
       }
       const prev = bookmarkedIds.has(eventId);
@@ -107,11 +137,13 @@ export function useBookmarks() {
               });
             });
           }
+          push({ type: "success", message: "Bookmark added successfully", autoCloseMs: 2000 });
         } else {
           let bookmarkId = items.find((it) => it?.data?.id === eventId)?.id;
           if (bookmarkId) {
             await removeBookmark(bookmarkId);
             setItems((old) => old.filter((it) => it?.data?.id !== eventId));
+            push({ type: "success", message: "Bookmark removed successfully", autoCloseMs: 2000 });
           } else {
             throw new Error("Bookmark ID not found for removal");
           }
@@ -124,6 +156,7 @@ export function useBookmarks() {
           else ns.delete(eventId);
           return ns;
         });
+        push({ type: "error", message: "Failed to update bookmark", autoCloseMs: 5000 });
       } finally {
         // clear pending
         setPendingIds((s) => {
