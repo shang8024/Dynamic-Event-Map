@@ -53,7 +53,7 @@ VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_APP_ID=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 ```
-## 3. Enable Firebase authentication
+### 3. Enable Firebase authentication
 When running as a developer, there should be code added which allows for token verification in Firebase without an account.
 To run authentication with your service account key:
 
@@ -62,8 +62,9 @@ Create a file "firebase-service-account.json" in /api:
 cd /Dynamic-Event-Map/api
 touch firebase-service-account.json
 ```
-In Firebase: Project Overview -> Project Settings -> Service Accounts -> Generate new private key
-Copy the service account key JSON into firebase-service-account.json.
+In Firebase, from Dynamic-Event-Map project, navigate to: 
+Project Overview -> Project Settings (gear icon next to Project Overview) -> Service Accounts -> Generate new private key
+Copy the JSON service account key into firebase-service-account.json.
 
 ### 4. Run with Docker Compose
 ```bash
@@ -74,7 +75,7 @@ docker-compose -f docker-compose.dev.yml up --build
 ### 5. Access the Application
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:5000
-- **Database**: localhost:5432
+- **Database**: http://localhost:5432
 
 ---
 
@@ -89,7 +90,7 @@ docker swarm init
 docker node update --label-add postgres=true $(docker info --format '{{.Swarm.NodeID}}')
 docker node update --label-add redis=true $(docker info --format '{{.Swarm.NodeID}}')
 ```
-### 2. local environment
+### 2. Local Environment
 ```powershell
 # Load .env variables into current PowerShell session
 Get-Content .env | ForEach-Object { 
@@ -168,7 +169,7 @@ docker service update --replicas 0 eventmap_events_ingest
 
 - A Domain owned by yourself and connected to your droplet (A records, service providers setup, ...)
 
-## First Deploy One-time setup
+## First Deployment - One-time setup
 
 ### 1. SSH into the droplet and install Docker
 ```
@@ -219,10 +220,11 @@ docker secret ls | grep redis_password
 cd /api
 touch firebase-service-account.json
 ```
-In Firebase: Project Overview -> Project Settings -> Service Accounts -> Generate new private key
+In Firebase, from Dynamic-Event-Map project, navigate to: 
+Project Overview -> Project Settings (gear icon next to Project Overview) -> Service Accounts -> Generate new private key
 Copy the service account key JSON into firebase-service-account.json.
 
-## Pull & Deploy, Go to github Action CI/CD section or manually following:
+## Pull & Deploy, Go to Github Action CI/CD section or manually follow:
 
 ### 6. Put your stack files and .env files on the droplet
 
@@ -281,7 +283,7 @@ docker service logs -f eventmap_api
 docker service logs -f eventmap_db
 ```
 
-## After first deploy, One-time Setup (on droplet)
+## After first deployment, One-time Setup (on droplet)
 
 ### 9. allow tcp ports:
 ```bash
@@ -298,7 +300,7 @@ Run `bash /root/deploy/infra/scripts/bootstrap/setup_infra.sh`.
 
 ## CI/CD pipelines
 
-On your repo, add those:
+On your repo, add the following:
 
 - Repository secretes:
 
@@ -330,4 +332,4 @@ On your repo, add those:
 
 - `PROD_API_BASE_URL` (e.g., `http://YOUR_IP:5000` or your https domain)
 
-- and other varaibles inn `.env.example` (except for `DB_PASSWORD`)
+- and other variables inn `.env.example` (except for `DB_PASSWORD`)

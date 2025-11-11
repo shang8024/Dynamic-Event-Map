@@ -19,6 +19,11 @@ export async function fetchTodaysBookmarks() {
   return result;
 }
 
+export async function fetchBookmarkStats(eventId) {
+  const result = await get(`/bookmarks/stats/${eventId}`);
+  return result;
+}
+
 export function useCurrentUser() {
   const { user } = useAuth();
   if (user) {

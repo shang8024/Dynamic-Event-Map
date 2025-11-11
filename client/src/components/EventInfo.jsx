@@ -2,6 +2,7 @@ import React from "react";
 import { useBookmarks } from "../hooks";
 import EventComments from "./EventComments.jsx";
 import { useAuth } from "../contexts/AuthContext.jsx";
+import { useGetBookmarksCount } from "../hooks/useBookmarks.js";
 
 export default function EventInfo({
   event,
@@ -15,6 +16,7 @@ export default function EventInfo({
 }) {
   const { isBookmarked, isPending, toggle } = useBookmarks();
   const { user } = useAuth();
+  const { bookmarksCount, getBookmarksCount } = useGetBookmarksCount(event?.id);
 
   if (!event) return null;
 
@@ -32,9 +34,12 @@ export default function EventInfo({
       : null;
   const bookmarked = isBookmarked(event.id);
   const pending = isPending(event.id);
-
-  const handleBookmark = () => {
-    if (!pending) toggle(event.id, undefined, event);
+  
+  const handleBookmark = async () => {
+    if (!pending) {
+      await toggle(event.id, undefined, event);
+      getBookmarksCount();
+    }
   };
 
   const handleEdit = () => {
@@ -140,6 +145,14 @@ export default function EventInfo({
                 <b>End:</b> {event.ends_at ? new Date(event.ends_at).toLocaleString() : "N/A"}
               </div>
             </div>
+            {bookmarksCount > 0 && (
+              <div className="text-base-content/60 my-3 text-sm">
+                <div>
+                  <b>{bookmarksCount} user{bookmarksCount !== 1 && 's'} ha{bookmarksCount !== 1 ? ('ve'):('s')} bookmarked this event.</b>
+                </div>
+              </div>
+            )}
+
             <div className="text-base-content/60 mt-1 max-h-25 overflow-y-auto pr-1 text-sm">
               {event.description}
             </div>
@@ -175,6 +188,11 @@ export default function EventInfo({
               </div>
             )}
           </div>
+        </div>
+      </div>
+      <div className="mt-2">
+        <div className="divider mb-2 mt-4">
+          <span className="text-sm text-base-content/50">Comments</span>
         </div>
       </div>
       {/* Event comments section */}

@@ -11,6 +11,14 @@ module.exports = {
       [userId]
     ),
 
+  getStatsByEvent: (eventId) =>
+    pool.query(
+      `SELECT COUNT(*) AS bookmark_count
+         FROM bookmarks
+         WHERE event_id = $1`,
+      [eventId]
+    ),
+
   create: ({ eventId, userId }) =>
     pool.query(
       'INSERT INTO bookmarks (event_id, user_id) VALUES ($1, $2) RETURNING *',

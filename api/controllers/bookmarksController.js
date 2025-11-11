@@ -1,3 +1,4 @@
+const { parse } = require('yargs');
 const Bookmark = require('../models/bookmarkModel');
 
 const getBookmarks = async (req, res) => {
@@ -13,6 +14,18 @@ const getBookmarks = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch bookmarks' });
+  }
+};
+
+const getBookmarksStatsByEvent = async (req, res) => {
+  const { eventId } = req.params;
+  try {
+    const result = await Bookmark.getStatsByEvent(eventId);
+    const count = parseInt(result.rows[0]?.bookmark_count, 10) || 0;
+    res.json({ bookmark_count: count });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch bookmark stats' });
   }
 };
 
@@ -54,4 +67,4 @@ const getTodaysBookmarks = async (req, res) => {
   }
 };
 
-module.exports = { createBookmark, deleteBookmark, getBookmarks, getTodaysBookmarks };
+module.exports = { createBookmark, deleteBookmark, getBookmarks, getTodaysBookmarks, getBookmarksStatsByEvent };

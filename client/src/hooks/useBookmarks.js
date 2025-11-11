@@ -1,8 +1,9 @@
 // src/hooks/useBookmarks.js
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { fetchBookmarks, addBookmark, removeBookmark, fetchTodaysBookmarks } from "../services/bookmarksService.js";
+import { fetchBookmarks, addBookmark, removeBookmark, fetchBookmarkStats, fetchTodaysBookmarks } from "../services/bookmarksService.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useNotifications, isDismissedToday } from "../contexts/NotificationContext.jsx";
+import { get } from "../services/apiService.js";
 
 export function useBookmarks() {
   const [bookmarkedIds, setBookmarkedIds] = useState(() => new Set());
@@ -194,4 +195,28 @@ export function useBookmarks() {
     }),
     [isBookmarked, isPending, toggle, listBookmarkedEvents]
   );
+}
+
+export function useGetBookmarksCount(eventId) {
+  const [bookmarksCount, setBookmarksCount] = useState(0);
+  
+  const getBookmarksCount = useCallback(async () => {
+    if (!eventId) return;
+    try {
+      const { bookmark_count: response } = await fetchBookmarkStats(eventId);
+      setBookmarksCount(response);
+    } catch (error) {
+      setBookmarksCount(0);
+      throw new error("Error retrieving bookmark count - set to", bookmarksCount);
+    } finally {
+      // no-op
+    }
+    return { bookmarksCount };
+  }, [eventId]);
+
+  useEffect(() => {
+    getBookmarksCount();
+  }, [getBookmarksCount]);
+
+  return { bookmarksCount, getBookmarksCount };
 }
