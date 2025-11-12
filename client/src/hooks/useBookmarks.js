@@ -70,7 +70,7 @@ export function useBookmarks() {
           push({
             type: "info",
             message: `You have ${todays[0]?.total ?? 0} bookmarked events starting and ${todays[1]?.total ?? 0} ending today.`,
-            stickyKey: "todays-bookmarks",
+            stickyKey: `todays-bookmarks:${user?.id}`,
             action: {
               label: "View",
               onClick: () => {},
