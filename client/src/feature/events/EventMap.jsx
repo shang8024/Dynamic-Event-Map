@@ -336,7 +336,11 @@ export default function EventMap() {
         const stats = await fetchTodaySummary();
         if (!mounted) return;
         if (!stats || !(stats.starting || stats.ending)) return;
-        push({ type: "info", message: `There are ${stats.starting} events starting and ${stats.ending} events ending today.`, autoCloseMs: 10000 });
+        push({
+          type: "info",
+          message: `There are ${stats.starting} events starting and ${stats.ending} events ending today.`,
+          autoCloseMs: 10000,
+        });
       } catch (err) {
         console.warn("failed to load today's summary", err);
       }
@@ -611,7 +615,11 @@ export default function EventMap() {
     } catch (err) {
       console.error("failed to delete event", err);
       setEvents(before); // rollback
-      push({ type: "error", message: "Failed to delete event. Changes have been reverted.", autoCloseMs: 5000 });
+      push({
+        type: "error",
+        message: "Failed to delete event. Changes have been reverted.",
+        autoCloseMs: 5000,
+      });
     }
   };
 
@@ -657,7 +665,11 @@ export default function EventMap() {
         ends_at: optimisticServerEvent.ends_at,
         user_id: optimisticServerEvent.user_id ?? prevItem?.user_id,
         category: optimisticServerEvent.category ?? (prevItem?.category || "Other"),
-        img: optimisticServerEvent.img || optimisticServerEvent.data?.image?.url || prevItem?.img || null,
+        img:
+          optimisticServerEvent.img ||
+          optimisticServerEvent.data?.image?.url ||
+          prevItem?.img ||
+          null,
       };
       if (idx >= 0) {
         return prev.map((p) => (String(p.id) === String(id) ? mapped : p));
@@ -676,7 +688,8 @@ export default function EventMap() {
             },
             starts_at: optimisticServerEvent.starts_at,
             ends_at: optimisticServerEvent.ends_at,
-            img: optimisticServerEvent.img || optimisticServerEvent.data?.image?.url || s.img || null,
+            img:
+              optimisticServerEvent.img || optimisticServerEvent.data?.image?.url || s.img || null,
             category: optimisticServerEvent.category ?? (s.category || "Other"),
           }
         : s
@@ -698,8 +711,28 @@ export default function EventMap() {
   // -----------------------------
   // Render
   // -----------------------------
+
+  // Styles Constants
+  const SEARCH_STYLES = {
+    mobile: `fixed right-4 right-4 z-30 flex flex-col items-start gap-3`,
+    desktop: `md:absolute md:top-4 md:right-4 md:z-30 md:flex md:items-start md:gap-3`,
+  };
+  const FILTER_STYLES = {
+    mobile: `fixed bottom-0 left-0 right-0 z-40 w-100 p-3 rounded-t-2xl shadow-lg ${filterOpen ? "translate-y-0" : "translate-y-full"}`,
+    desktop: ` bg-base-200/90 md:absolute md:bottom-4 md:left-4 md:flex md:flex-col md:gap-3 md:rounded-lg md:p-2 md:shadow md:w-64`,
+  };
+  const EVENTINFO_STYLES = {
+    mobile: ` fixed top-0 right-0 bottom-0 z-50 w-100 bg-base-100 shadow-lg transition-transform duration-300 ${
+      selectedEvent ? "translate-x-0" : "translate-x-full"
+    }`,
+    desktop: `bg-base-100 md:absolute md:top-0 md:right-0 md:bottom-4 md:z-20 md:w-1/4 md:overflow-auto md:transition-transform md:duration-300 ${
+      selectedEvent ? "md:translate-x-0" : "md:translate-x-full"
+    }`,
+  };
+
   return (
     <div>
+      {/* Toggles */}
       <div className="mt-1 flex items-center gap-4">
         {/* Filter toggle */}
         <label className="flex cursor-pointer items-center gap-1">
@@ -735,8 +768,9 @@ export default function EventMap() {
         </label>
       </div>
 
+      {/* Map area */}
       <div
-        className="relative mt-3 flex h-full w-full overflow-hidden"
+        className="relative mt-4 flex h-full w-full flex-col md:flex-row"
         ref={wrapperRef}
         style={{ paddingBottom: "1rem" }}
       >
@@ -754,13 +788,13 @@ export default function EventMap() {
           >
             {/* Stats container */}
             {statsOpen && (
-              <div className="bg-base-200/90 absolute bottom-4 right-4 rounded-lg p-2 shadow">
+              <div className="bg-base-200/90 absolute right-4 bottom-4 rounded-lg p-2 shadow">
                 <span className="text-sm font-medium">Total Events: {filteredEvents.length}</span>
               </div>
             )}
             {/* Filters container */}
             {filterOpen && (
-              <div className="bg-base-200/90 absolute bottom-4 left-4 flex flex-col gap-3 rounded-lg p-2 shadow">
+              <div className={FILTER_STYLES.mobile + " " + FILTER_STYLES.desktop}>
                 {/* Time filter */}
                 <div className="flex items-center justify-between gap-2">
                   <span className="w-32 text-sm font-medium">Time window:</span>
@@ -816,22 +850,24 @@ export default function EventMap() {
                 </div>
               </div>
             )}
-            {/* Search & Add controls */}
+
             {searchOpen && (
-              <div className="absolute top-4 right-4 z-30 flex items-start gap-3">
-                <div className="relative">
-                  <div className="bg-base-200/90 relative flex items-center gap-2 rounded-full p-2 shadow">
+              <div className={SEARCH_STYLES.mobile + " " + SEARCH_STYLES.desktop}>
+                <div className="relative w-screen left-4 md:w-auto">
+                  <div className="bg-base-200/90 flex w-screen flex-col gap-2 rounded-lg p-2 shadow-lg md:w-lg md:flex-row md:items-center md:gap-2 md:rounded-full md:p-2 md:shadow-inner">
+                    {/* Mode select */}
                     <select
                       value={mode}
                       onChange={(e) => setMode(e.target.value)}
-                      className="select select-sm select-ghost bg-base-200/90 rounded-full shadow-inner"
+                      className="select select-sm select-ghost bg-base-200/90 w-full rounded-full shadow-inner md:w-auto"
                     >
                       <option value="search">Search Location</option>
                       <option value="add">Add Event</option>
                       <option value="event">Search Event</option>
                     </select>
 
-                    <label className="input relative flex items-center gap-2 rounded-full">
+                    {/* Input field */}
+                    <label className="input relative w-full flex-1 items-center gap-2 rounded-full md:w-auto">
                       <svg
                         className="h-[1em] opacity-50"
                         xmlns="http://www.w3.org/2000/svg"
@@ -869,12 +905,13 @@ export default function EventMap() {
                             lastSelectedRef.current = null;
                           setInputValue(v);
                         }}
-                        className="w-64 bg-transparent outline-none"
+                        className="w-full bg-transparent outline-none"
                       />
                     </label>
 
+                    {/* Action button */}
                     <button
-                      className="btn btn-neutral rounded-full"
+                      className="btn btn-neutral w-full rounded-full md:w-auto"
                       onClick={handleSearchButton}
                       disabled={mode === "add" && !user}
                       title={mode === "add" && !user ? "Please login to create events" : ""}
@@ -998,12 +1035,9 @@ export default function EventMap() {
           )}
         </div>
 
-        {/* Right: Event Info + cluster pagination controls */}
+        {/* Event Info + cluster pagination controls (right for desktop and bottom for mobile) */}
         <aside
-          className={
-            "bg-base-100 absolute top-0 right-0 bottom-4 z-20 w-1/4 overflow-auto transition-transform duration-300 " +
-            (selectedEvent ? "translate-x-0" : "translate-x-full")
-          }
+          className={EVENTINFO_STYLES.mobile + " " + EVENTINFO_STYLES.desktop}
           aria-hidden={!selectedEvent}
         >
           <EventInfo
