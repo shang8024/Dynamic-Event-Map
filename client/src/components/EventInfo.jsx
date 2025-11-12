@@ -52,6 +52,14 @@ export default function EventInfo({
     onDelete(event.id);
   };
 
+  const dateFormatOptions = {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  };
+
   return (
     <div className="bg-base-200 border-base-300 flex h-full w-full flex-col border-l p-4">
       <div className="bg-base-100 rounded-md shadow-sm">
@@ -139,10 +147,10 @@ export default function EventInfo({
                 <b>Address:</b> {event.location_address || "N/A"}
               </div>
               <div>
-                <b>Start:</b> {event.starts_at ? new Date(event.starts_at).toLocaleString() : "N/A"}
+                <b>Start:</b> {event.starts_at ? new Date(event.starts_at).toLocaleString(undefined, dateFormatOptions) : "N/A"}
               </div>
               <div>
-                <b>End:</b> {event.ends_at ? new Date(event.ends_at).toLocaleString() : "N/A"}
+                <b>End:</b> {event.ends_at ? new Date(event.ends_at).toLocaleString(undefined, dateFormatOptions) : "N/A"}
               </div>
             </div>
             {bookmarksCount > 0 && (

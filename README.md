@@ -5,7 +5,7 @@ A cloud-native web application for discovering local events in real time. Users 
 
 ## Description
 
-The **Dynamic Event Map** centralizes user-submitted and public event information, providing a real-time, interactive map to discover local activities such as concerts, festivals, food markets, and community gatherings. The platform supports community engagement, spontaneous participation, and local exploration.
+The **Dynamic Event Map** centralizes user-submitted and public event information, providing a real-time, interactive map to discover local activities such as concerts, festivals, food markets, and community gatherings within Toronto. The platform supports community engagement, spontaneous participation, and local exploration in the city.
 
 The project demonstrates **scalable, reliable cloud deployment** using Docker Swarm on DigitalOcean, integrating CI/CD pipelines, automated backups, and external services like Google Maps.
 
@@ -62,8 +62,9 @@ Create a file "firebase-service-account.json" in /api:
 cd /Dynamic-Event-Map/api
 touch firebase-service-account.json
 ```
-In Firebase, from Dynamic-Event-Map project, navigate to: 
+In Firebase, open the Dynamic-Event-Map project. Navigate to: 
 Project Overview -> Project Settings (gear icon next to Project Overview) -> Service Accounts -> Generate new private key
+
 Copy the JSON service account key into firebase-service-account.json.
 
 ### 4. Run with Docker Compose
@@ -220,8 +221,9 @@ docker secret ls | grep redis_password
 cd /api
 touch firebase-service-account.json
 ```
-In Firebase, from Dynamic-Event-Map project, navigate to: 
+In Firebase, open the Dynamic-Event-Map project. Navigate to: 
 Project Overview -> Project Settings (gear icon next to Project Overview) -> Service Accounts -> Generate new private key
+
 Copy the service account key JSON into firebase-service-account.json.
 
 ## Pull & Deploy, Go to Github Action CI/CD section or manually follow:
@@ -333,3 +335,10 @@ On your repo, add the following:
 - `PROD_API_BASE_URL` (e.g., `http://YOUR_IP:5000` or your https domain)
 
 - and other variables inn `.env.example` (except for `DB_PASSWORD`)
+
+## User Guide and Features
+
+The main page features the layout of Toronto from the Google Maps API, which can be navigated by dragging along the map and zooming in/out by scrolling. Red markers and blue markers with numbers indicate an event or events in the area. Zooming in allows more events to be easily spotted and more accessible with red markers, while zooming out will bunch events in the same general location together as blue markers. All events represented by a blue marker can be accessed by clicking on one and scrolling through using the arrows in the side bar.
+
+Any user can navigate the map and search for events using the search bar provided. When a user clicks on an event, they can view its address, start time and end time, as well as a short description if provided. Interested users who are authenticated can bookmark an event by toggling the heart icon at the top left of an event page and leave comments on any event. The total number of users who have bookmarked an event is given to indicate overall interest and possible attendance. Logging in also allows for users to post their own events by selecting a designated location and filling out the necessary fields (address, time, type of event and description). Users can edit and delete their own events after posting.
+
