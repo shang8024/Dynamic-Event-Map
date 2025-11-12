@@ -246,7 +246,7 @@ services:
       start_period: 10s
 
   events_ingest:
-    image: ghcr.io/shang8024/dynamic-event-map-events_ingest:latest
+    image: ghcr.io/shang8024/dynamic-event-map-events-ingest:latest
     secrets:
       - pg_password
       - redis_password

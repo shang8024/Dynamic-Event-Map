@@ -70,7 +70,6 @@ export function useBookmarks() {
           push({
             type: "info",
             message: `You have ${todays[0]?.total ?? 0} bookmarked events starting and ${todays[1]?.total ?? 0} ending today.`,
-            autoCloseMs: 10000,
             stickyKey: "todays-bookmarks",
             action: {
               label: "View",
