@@ -1,4 +1,4 @@
-name: Docker Clean Now
+name: Docker Cleanup
 on:
   workflow_dispatch: {}
 

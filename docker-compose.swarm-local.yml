@@ -72,7 +72,6 @@ services:
       update_config: { parallelism: 1, delay: 10s, failure_action: rollback }
       rollback_config: { parallelism: 1, delay: 10s }
       restart_policy: { condition: on-failure, delay: 5s, max_attempts: 3 }
-      # (removed Traefik labels)
 
   client:
     image: dynamic-event-map-client:latest
@@ -110,8 +109,7 @@ services:
       REDIS_PORT: "${REDIS_PORT:-6379}"
       DB_PASSWORD: ${DB_PASSWORD}
     depends_on: [db, redis]
-    networks:
-      - app-net
+    networks: [app-net]
     deploy:
       mode: replicated
       replicas: 0

@@ -1,0 +1,10 @@
+[Unit]
+Description=Database Backup Timer (Weekly on Sundays at 3 AM)
+Requires=db-backup.service
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

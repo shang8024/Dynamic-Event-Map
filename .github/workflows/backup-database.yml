@@ -1,0 +1,96 @@
+name: Database Backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 0" # weekly backup at 04:00 UTC every Sunday
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}-db-backup
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Trigger backup on droplet
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ vars.DO_SSH_HOST }}
+          username: ${{ vars.DO_SSH_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          script: |
+            set -e
+
+            # Make sure service exists
+            if ! docker service ls --format '{{.Name}}' | grep -q '^eventmap_db_backup$'; then
+              echo "FATAL: service eventmap_db_backup not found. Deploy stack first."
+              docker service ls
+              exit 1
+            fi
+            
+            # Run backup
+            echo "[*] Starting backup service..."
+            docker service update --detach=true --replicas 1 eventmap_db_backup
+            
+            # Wait for task to complete (check every 5 seconds for up to 5 minutes)
+            echo "[*] Waiting for backup to complete..."
+            for i in {1..60}; do
+              sleep 5
+              
+              # Get current task state
+              STATE=$(docker service ps eventmap_db_backup --format '{{.CurrentState}}' --no-trunc | head -n1)
+              echo "[$i] Current state: $STATE"
+              
+              # Check if task completed
+              if echo "$STATE" | grep -q "Complete"; then
+                echo "[✓] Backup task completed successfully"
+                
+                # Get task logs and save for verification
+                TID=$(docker service ps --no-trunc --format '{{.ID}}' eventmap_db_backup | head -n1)
+                echo "[*] Task ID: $TID"
+                echo "[*] Fetching logs..."
+                LOGS=$(docker service logs eventmap_db_backup --no-trunc --tail 50 2>&1)
+                echo "$LOGS"
+                
+                # Verify backup was uploaded by checking logs for success message
+                if echo "$LOGS" | grep -q "Backup uploaded successfully"; then
+                  echo "[✓] Backup verified - uploaded to Spaces successfully"
+                  
+                  # Scale back to 0
+                  echo "[*] Scaling service back to 0 replicas..."
+                  docker service update --detach=true --replicas 0 eventmap_db_backup
+                  exit 0
+                else
+                  echo "[✗] Backup may have failed - upload success message not found"
+                  
+                  # Scale back to 0
+                  echo "[*] Scaling service back to 0 replicas..."
+                  docker service update --detach=true --replicas 0 eventmap_db_backup
+                  exit 1
+                fi
+              fi
+              
+              # Check if task failed with error
+              if echo "$state" | grep -q "Failed\|Rejected"; then
+                echo "[✗] Backup task failed"
+                docker service logs eventmap_db_backup --no-trunc --tail 50
+                docker service update --replicas 0 eventmap_db_backup
+                exit 1
+              fi
+            done
+            
+            # Timeout - task didn't complete in 5 minutes
+            echo "[✗] Timeout waiting for backup to complete"
+            docker service logs eventmap_db_backup --no-trunc --tail 50
+            docker service update --replicas 0 eventmap_db_backup
+            exit 1
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "Database backup failed. Check logs for details."

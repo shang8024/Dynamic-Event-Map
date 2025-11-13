@@ -20,6 +20,37 @@ The project demonstrates **scalable, reliable cloud deployment** using Docker Sw
 
 # Quick Start Guide
 
+## Environment Files
+```bash
+DB_USER=user
+DB_PASSWORD=password # (dev/local swarm only)
+DB_NAME=eventsdb
+DB_PORT=5432
+REDIS_PORT=6379
+BACKEND_PORT=5000
+FRONTEND_PORT=3000 #3000 (dev/local swarm), 443 (production)
+VITE_GOOGLE_MAPS_KEY=
+VITE_API_BASE_URL=http://localhost:5000/api # /api (in swarm)
+
+# Firebase client configuration
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+
+# Domain Configuration (Production only)
+DOMAIN=<your-domain.com>
+EMAIL=<your-LE-domain-email>
+
+# Digital Ocean Space configuration (Production only)
+DO_SPACES_BUCKET=eventmap-space
+DO_SPACES_ENDPOINT=tor1.digitaloceanspaces.com
+DO_SPACES_ACCESS_KEY=
+DO_SPACES_SECRET_KEY=
+```
+
 ## Local Development (Docker Compose)
 
 ### 1. Clone and Setup
@@ -34,25 +65,6 @@ cd Dynamic-Event-Map
 cp .env.example .env
 ```
 
-The env file should contains:
-```
-DB_USER=
-DB_PASSWORD=
-DB_NAME=
-DB_PORT=
-REDIS_PORT=
-BACKEND_PORT=
-FRONTEND_PORT=
-VITE_GOOGLE_MAPS_KEY=
-
-# Firebase client configuration
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_APP_ID=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-```
 ### 3. Enable Firebase authentication
 When running as a developer, there should be code added which allows for token verification in Firebase without an account.
 To run authentication with your service account key:
@@ -170,16 +182,16 @@ docker service update --replicas 0 eventmap_events_ingest
 
 - A Domain owned by yourself and connected to your droplet (A records, service providers setup, ...)
 
-## First Deployment - One-time setup
+### First Deployment - One-time setup
 
-### 1. SSH into the droplet and install Docker
+#### 1. SSH into the droplet and install Docker
 ```
 # As root (or sudo -i to become root)
 apt-get update
 curl -fsSL https://get.docker.com | sh
 usermod -aG docker $USER
 ```
-### 2. Mount the DigitalOcean Volume at /mnt/pgdata
+#### 2. Mount the DigitalOcean Volume at /mnt/pgdata
 ```
 ls -l /dev/disk/by-id/           # find the DO volume (e.g., scsi-0DO_Volume_...)
 mkfs.ext4 -F /dev/disk/by-id/<YOUR_VOLUME_ID>
@@ -199,7 +211,7 @@ chmod 700 /mnt/pgdata/postgres-data
 chmod 777 /mnt/pgdata/redis-data
 ```
 
-### 3. Initialize Docker Swarm
+#### 3. Initialize Docker Swarm
 ```
 docker swarm init --advertise-addr <YOUR_PUBLIC_IPV4>
 
@@ -207,7 +219,7 @@ docker node update --label-add postgres=true $(docker info --format '{{.Swarm.No
 docker node update --label-add redis=true $(docker info --format '{{.Swarm.NodeID}}')
 ```
 
-### 4. Create the Postgres and redis password secret
+#### 4. Create the Postgres and redis password secret
 ```
 echo -n 'YOUR_STRONG_DB_PASSWORD' | docker secret create pg_password -
 docker secret ls | grep pg_password
@@ -216,7 +228,7 @@ echo -n 'YOUR_STRONG_REDIS_PASSWORD' | docker secret create redis_password -
 docker secret ls | grep redis_password
 ```
 
-### 5. Create a file "firebase-service-account.json" in /api:
+#### 5. Create a file "firebase-service-account.json" in /api:
 ```bash
 cd /api
 touch firebase-service-account.json
@@ -226,9 +238,9 @@ Project Overview -> Project Settings (gear icon next to Project Overview) -> Ser
 
 Copy the service account key JSON into firebase-service-account.json.
 
-## Pull & Deploy, Go to Github Action CI/CD section or manually follow:
+### Pull & Deploy, Go to Github Action CI/CD section or manually follow:
 
-### 6. Put your stack files and .env files on the droplet
+#### 6. Put your stack files and .env files on the droplet
 
 Create a deploy directory and copy your files (via scp or any secure method):
 ```
@@ -236,24 +248,9 @@ mkdir -p /root/deploy
 # From your laptop:
 # scp -r stack.yml db/ root@<YOUR_PUBLIC_IPV4>:/root/deploy/
 ```
-Also add/copy a `.env` file to `/root/deploy`. It should contains following:
-```
-BACKEND_PORT=5000
-DB_PORT=5432
-DB_NAME=eventsdb
-DB_USER=user
-REDIS_PORT=6379
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_APP_ID=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-DOMAIN=<your-domain.com>
-EMAIL=<your-LE-domain-email>
-```
+Also add/copy a `.env` file to `/root/deploy`.
 
-### 7. Log into your registry on the droplet and pull images
+#### 7. Log into your registry on the droplet and pull images
 ```
 docker login ghcr.io -u <GH_USERNAME>
 # (enter your GHCR PAT with packages:read when prompted)
@@ -304,7 +301,7 @@ Run `bash /root/deploy/infra/scripts/bootstrap/setup_infra.sh`.
 
 On your repo, add the following:
 
-- Repository secretes:
+- Repository secrets:
 
   - `GHCR_USER` (your GH username or org service account)
 
@@ -326,15 +323,56 @@ On your repo, add the following:
 
   - `EMAIL`
 
+  - `DO_SPACES_BUCKET` (DigitalOcean Spaces bucket name for backups)
+
+  - `DO_SPACES_ENDPOINT` (e.g., nyc3.digitaloceanspaces.com)
+
+  - `DO_SPACES_ACCESS_KEY` (Spaces access key)
+
+  - `DO_SPACES_SECRET_KEY` (Spaces secret key)
+
 - Repository variables:
 
-- `DO_SSH_HOST` (droplet IP)
+  - `DO_SSH_HOST` (droplet IP)
 
-- `DO_SSH_USER` (e.g., `root` or your sudo user)
+  - `DO_SSH_USER` (e.g., `root` or your sudo user)
 
-- `PROD_API_BASE_URL` (e.g., `http://YOUR_IP:5000` or your https domain)
+  - `PROD_API_BASE_URL` (e.g., `http://YOUR_IP:5000` or your https domain)
 
-- and other variables inn `.env.example` (except for `DB_PASSWORD`)
+  - and other non-secret variables in `.env.example`
+
+### Database Backup & Restore
+
+The application includes automated database backup to DigitalOcean Spaces with restore capabilities.
+
+1. Create a DigitalOcean Space for backups
+2. Add Spaces credentials to `.env` on droplet and GitHub Secrets
+3. Build & push backup imges once (by `deploy.yml`)
+
+Manually trigger:
+
+**Backup**:
+- Go to Github ACTIONS → Database Backup
+
+**Restore**:
+- Go to GitHub Actions → Database Restore
+- Select backup file and run workflow
+
+### Toronto Events Ingest
+
+The application includes automated daily pull from Toronto Event&Festival Calendar backup to PostgreSQL database and expired events cleanup.
+
+Manually trigger:
+
+- Go to GitHub ACTIONS → Daily Toronto Ingest
+
+### Cleanup
+
+The application includes automated weekly cleanup of outdated images, logs and system caches using system service & timer on droplet.
+
+It can also be triggered manually with:
+
+- Go to GitHub ACTIONS → Docker Cleanup
 
 ## User Guide and Features
 

@@ -1,0 +1,150 @@
+name: Database Restore
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_file:
+        description: 'Backup filename (e.g., backup_eventsdb_20231110_120000.dump) or leave empty to list available backups'
+        required: false
+        type: string
+      list_backups:
+        description: 'List available backups instead of restoring'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{secrets.GHCR_USER}}/dynamic-event-map-db-backup
+
+jobs:
+  list-backups:
+    if: ${{ inputs.list_backups }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: List available backups
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ vars.DO_SSH_HOST }}
+          username: ${{ vars.DO_SSH_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          script: |
+            # Install s3cmd if not present
+            if ! command -v s3cmd >/dev/null 2>&1; then
+              if command -v apt-get >/dev/null 2>&1; then
+                apt-get update && apt-get install -y s3cmd
+              else
+                echo "Error: s3cmd not found and apt-get is not available. Please install s3cmd manually or ensure the system is Debian/Ubuntu-based."
+                exit 1
+              fi
+            fi
+            
+            # Configure s3cmd
+            cat > /tmp/.s3cfg <<EOF
+            [default]
+            access_key = ${{ secrets.DO_SPACES_ACCESS_KEY }}
+            secret_key = ${{ secrets.DO_SPACES_SECRET_KEY }}
+            host_base = ${{ secrets.DO_SPACES_ENDPOINT }}
+            host_bucket = %(bucket)s.${{ secrets.DO_SPACES_ENDPOINT }}
+            use_https = True
+            EOF
+            
+            echo "Available backups:"
+            s3cmd -c /tmp/.s3cfg ls s3://${{ secrets.DO_SPACES_BUCKET }}/backups/ | sort -r | head -n 20
+            
+            rm -f /tmp/.s3cfg
+
+  restore:
+    if: ${{ !inputs.list_backups && inputs.backup_file != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Confirm restore operation
+        run: |
+          echo "⚠️  WARNING: This will restore the database from backup!"
+          echo "Backup file: ${{ inputs.backup_file }}"
+          echo "This operation will OVERWRITE the current database."
+          echo "Make sure you have a recent backup before proceeding."
+
+      - name: Restore database on droplet
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ vars.DO_SSH_HOST }}
+          username: ${{ vars.DO_SSH_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          script: |
+            cd /root/deploy
+
+            # Check if restore service exists
+            if ! docker service ls --format '{{.Name}}' | grep -q '^eventmap_db_restore$'; then
+              echo "FATAL: service eventmap_db_restore not found. Deploy stack first."
+              docker service ls
+              exit 1
+            fi
+            
+            # Update service with backup filename and start restore
+            echo "[*] Starting restore service..."
+            docker service update \
+              --detach=true \
+              --env-add BACKUP_FILE=${{ inputs.backup_file }} \
+              --replicas 1 \
+              eventmap_db_restore
+            
+            # Wait for restore to complete (max 30 minutes)
+            echo "[*] Waiting for restore to complete..."
+            timeout=1800
+            elapsed=0
+            while [ $elapsed -lt $timeout ]; do
+              sleep 10
+              elapsed=$((elapsed + 10))
+              
+              # Get current task state
+              state=$(docker service ps eventmap_db_restore --format "{{.CurrentState}}" --no-trunc | head -n1)
+              echo "[$elapsed s] Current state: $state"
+              
+              # Check if task completed successfully
+              if echo "$state" | grep -q "Complete"; then
+                echo "✅ Database restored successfully"
+                LOGS=$(docker service logs eventmap_db_restore --no-trunc --tail 100 2>&1)
+                echo "$LOGS"
+                
+                # Verify restore success
+                if echo "$LOGS" | grep -q "Database restored successfully"; then
+                  echo "[✓] Restore verified successfully"
+                  docker service update --replicas 0 eventmap_db_restore
+                  exit 0
+                else
+                  echo "[✗] Restore may have failed - success message not found"
+                  docker service update --replicas 0 eventmap_db_restore
+                  exit 1
+                fi
+              fi
+              
+              # Check if task failed or rejected
+              if echo "$state" | grep -q "Failed\|Rejected"; then
+                echo "❌ Database restore failed"
+                docker service logs eventmap_db_restore --no-trunc --tail 100
+                docker service update --replicas 0 eventmap_db_restore
+                exit 1
+              fi
+              
+              # Still running - continue waiting
+            done
+            
+            echo "⏱️  Restore timed out after $timeout seconds"
+            docker service logs eventmap_db_restore --no-trunc --tail 100
+            docker service update --replicas 0 eventmap_db_restore
+            exit 1
+
+      - name: Notify on success
+        if: success()
+        run: echo "✅ Database restored successfully from ${{ inputs.backup_file }}"
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "❌ Database restore failed. Check logs for details."

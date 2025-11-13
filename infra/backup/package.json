@@ -1,0 +1,9 @@
+{
+  "name": "dynamic-event-map-backup",
+  "version": "1.0.0",
+  "description": "Database backup service for Dynamic Event Map",
+  "scripts": {
+    "backup": "bash backup.sh",
+    "restore": "bash restore.sh"
+  }
+}

@@ -1,4 +1,4 @@
-name: daily-toronto-ingest
+name: Daily Toronto Ingest
 
 on:
   schedule:

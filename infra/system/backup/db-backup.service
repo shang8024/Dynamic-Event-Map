@@ -1,0 +1,17 @@
+[Unit]
+Description=Database Backup Service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/deploy
+EnvironmentFile=/root/deploy/.env
+ExecStart=/usr/bin/docker service update --replicas 1 eventmap_db_backup
+ExecStartPost=/bin/bash -c 'sleep 5; while [ "$(/usr/bin/docker service ps eventmap_db_backup --filter "desired-state=running" --format "{{.CurrentState}}")" != "Complete" ]; do sleep 10; done'
+ExecStop=/usr/bin/docker service update --replicas 0 eventmap_db_backup
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
