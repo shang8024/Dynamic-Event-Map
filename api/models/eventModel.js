@@ -1,9 +1,11 @@
 const pool = require("../config/db");
 
 module.exports = {
-  getAll: () => pool.query("SELECT * FROM events ORDER BY id ASC"),
+  getAll: () => pool.query("SELECT e.*, COUNT(b.event_id) as bookmarks_count FROM events e " + 
+    "LEFT JOIN bookmarks b ON e.id = b.event_id GROUP BY e.id ORDER BY e.id ASC"),
   getById: (id) =>
-    pool.query("SELECT * FROM events WHERE id = $1 LIMIT 1", [id]),
+    pool.query("SELECT e.*, COUNT(b.event_id) as bookmarks_count FROM events e " +
+      "LEFT JOIN bookmarks b ON e.id = b.event_id WHERE e.id = $1 GROUP BY e.id LIMIT 1", [id]),
   create: ({
     user_id = null,
     title,

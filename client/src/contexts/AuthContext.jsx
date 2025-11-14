@@ -54,7 +54,7 @@ export function AuthProvider({ children }) {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
         const token = await fbUser.getIdToken();
-        // store token for API usage (or keep in memory)
+        // store token for API usage
         localStorage.setItem("idToken", token);
         await addUserToBackend(fbUser, token); // wait to update backend so profile ID is ready
         const profile = await getProfileByGoogleId(fbUser.uid, token);

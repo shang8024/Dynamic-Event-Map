@@ -1,8 +1,7 @@
 import React from "react";
-import { useBookmarks } from "../hooks";
+import { useBookmarks, useCountBookmarks } from "../hooks";
 import EventComments from "./EventComments.jsx";
 import { useAuth } from "../contexts/AuthContext.jsx";
-import { useGetBookmarksCount } from "../hooks/useBookmarks.js";
 
 export default function EventInfo({
   event,
@@ -16,7 +15,7 @@ export default function EventInfo({
 }) {
   const { isBookmarked, isPending, toggle } = useBookmarks();
   const { user } = useAuth();
-  const { bookmarksCount, getBookmarksCount } = useGetBookmarksCount(event?.id);
+  const numBookmarks = useCountBookmarks(event?.id);
 
   if (!event) return null;
 
@@ -34,11 +33,11 @@ export default function EventInfo({
       : null;
   const bookmarked = isBookmarked(event.id);
   const pending = isPending(event.id);
+  const liveBookmarkCount = numBookmarks ?? event.num_bookmarks;
   
   const handleBookmark = async () => {
     if (!pending) {
       await toggle(event.id, undefined, event);
-      getBookmarksCount();
     }
   };
 
@@ -153,10 +152,10 @@ export default function EventInfo({
                 <b>End:</b> {event.ends_at ? new Date(event.ends_at).toLocaleString(undefined, dateFormatOptions) : "N/A"}
               </div>
             </div>
-            {bookmarksCount > 0 && (
+            {liveBookmarkCount > 0 && (
               <div className="text-base-content/60 my-3 text-sm">
                 <div>
-                  <b>{bookmarksCount} user{bookmarksCount !== 1 && 's'} ha{bookmarksCount !== 1 ? ('ve'):('s')} bookmarked this event.</b>
+                  <b>{liveBookmarkCount} user{liveBookmarkCount !== 1 && 's'} ha{liveBookmarkCount !== 1 ? ('ve'):('s')} bookmarked this event.</b>
                 </div>
               </div>
             )}

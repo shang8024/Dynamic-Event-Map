@@ -10,6 +10,7 @@ import { useAuth } from "../../contexts/AuthContext.jsx";
 import { fetchEvents, deleteEvent, fetchTodaySummary } from "../../services/eventsService";
 import socket from "../../services/socket";
 import { useNotifications } from "../../contexts/NotificationContext.jsx";
+import { fetchBookmarks } from "../../services/bookmarksService.js";
 
 // -----------------------------
 // Constants
@@ -324,6 +325,7 @@ export default function EventMap() {
           user_id: r.user_id,
           category: r.category,
           img: r.data?.image?.url || null,
+          num_bookmarks: parseInt(r.bookmarks_count, 10)
         }));
         setEvents(mapped);
       } catch (err) {

@@ -1,5 +1,6 @@
 const { parse } = require('yargs');
 const Bookmark = require('../models/bookmarkModel');
+const socket = require("../socket");
 
 const getBookmarks = async (req, res) => {
   const uid = req.user?.id || req.body?.userId;
@@ -22,6 +23,11 @@ const getBookmarksStatsByEvent = async (req, res) => {
   try {
     const result = await Bookmark.getStatsByEvent(eventId);
     const count = parseInt(result.rows[0]?.bookmark_count, 10) || 0;
+    try {
+      socket.getIO().emit("bookmark:updated", {eventId, count: count});
+    } catch (e) {
+      // no-op
+    }
     res.json({ bookmark_count: count });
   } catch (err) {
     console.error(err);
