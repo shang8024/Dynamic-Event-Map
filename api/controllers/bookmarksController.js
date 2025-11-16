@@ -39,8 +39,16 @@ const createBookmark = async (req, res) => {
   const { eventId } = req.params;
   const uid = req.user?.id || req.body?.userId;
   try {
-    const created = await Bookmark.create({ eventId: eventId, userId: uid });
-    res.json({ id: created.rows[0].id, eventId: created.rows[0].event_id, userId: created.rows[0].user_id, created_at: created.rows[0].created_at });
+    const result = await Bookmark.create({ eventId: eventId, userId: uid });
+    const bookmark = result.rows[0];
+    const isNew = bookmark.inserted;
+    res.status(isNew ? 201 : 200).json({
+      id: bookmark.id,
+      eventId: bookmark.event_id,
+      userId: bookmark.user_id,
+      created_at: bookmark.created_at,
+      alreadyExists: !isNew
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create bookmark' });
@@ -49,10 +57,10 @@ const createBookmark = async (req, res) => {
 
 
 const deleteBookmark = async (req, res) => {
-  const { bookmarkId } = req.params;
+  const { eventId } = req.params;
   const uid = req.user?.id || req.body?.userId;
   try {
-    const result = await Bookmark.delete({ bookmarkId: bookmarkId, userId: uid });
+    const result = await Bookmark.delete({ eventId: eventId, userId: uid });
     if (result.rowCount === 0) return res.status(404).json({ error: 'Bookmark not found' });
     res.json({ message: 'Bookmark deleted' });
   } catch (err) {

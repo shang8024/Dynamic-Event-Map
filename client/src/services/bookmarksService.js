@@ -10,8 +10,8 @@ export async function addBookmark(eventId) {
   return post(`/bookmarks/${eventId}`, {});
 }
 
-export async function removeBookmark(bookmarkId) {
-  return del(`/bookmarks/${bookmarkId}`);
+export async function removeBookmark(eventId) {
+  return del(`/bookmarks/${eventId}`);
 }
 
 export async function fetchTodaysBookmarks() {

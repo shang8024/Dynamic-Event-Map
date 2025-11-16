@@ -9,8 +9,8 @@ router.get('/', firebaseAuth, bookmarksController.getBookmarks);
 // POST /api/bookmarks/:eventId
 router.post('/:eventId', firebaseAuth, bookmarksController.createBookmark);
 
-// DELETE /api/bookmarks/:bookmarkId
-router.delete('/:bookmarkId', firebaseAuth, bookmarksController.deleteBookmark);
+// DELETE /api/bookmarks/:eventId
+router.delete('/:eventId', firebaseAuth, bookmarksController.deleteBookmark);
 
 // GET /api/bookmarks/today
 router.get('/today', firebaseAuth, bookmarksController.getTodaysBookmarks);

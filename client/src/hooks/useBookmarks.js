@@ -33,6 +33,32 @@ export function useBookmarks() {
     };
   }, []);
 
+  const refetchBookmarks = useCallback(async () => {
+    if (!user) {
+      setBookmarkedIds(new Set());
+      setItems([]);
+      return;
+    }
+    
+    const runId = Symbol();
+    latestRunRef.current = runId;
+    
+    try {
+      const { items: serverItems = [] } = await fetchBookmarks();
+      if (latestRunRef.current !== runId) return; // Check if this is still the latest call
+      setItems(serverItems);
+      const ids = new Set(
+        serverItems
+          .map((it) => (typeof it?.data?.id === "number" ? it.data.id : undefined))
+          .filter((n) => typeof n === "number")
+      );
+      setBookmarkedIds(ids);
+    } catch {
+      if (latestRunRef.current !== runId) return; // Don't show error if outdated
+      push({ type: "error", message: "Failed to load bookmarks", autoCloseMs: 5000 });
+    }
+  }, [user, push]);
+
   useEffect(() => {
     let cancelled = false;
     if (!user) {
@@ -117,51 +143,62 @@ export function useBookmarks() {
         if (willMark) {
           const result = await addBookmark(eventId);
           await fetchBookmarkStats(eventId);
-          const already = items.some((it) => it?.data?.id === eventId);
-          if (!already && eventObj) {
-            const rowLike = {
-              id: eventId,
-              title: eventObj.title ?? `Event ${eventId}`,
-              description: eventObj.description ?? null,
-              latitude: eventObj.position?.lat ?? null,
-              longitude: eventObj.position?.lng ?? null,
-              data: eventObj.data ?? {},
-            };
-            setItems((old) => [
-              { data: rowLike, created_at: new Date().toISOString(), id: result.id },
-              ...old,
-            ]);
-          } else {
-            setItems((old) => {
-              return old.map((it) => {
-                if (it?.data?.id === eventId && it.id !== result.id) {
-                  return { data: it.data, created_at: it.created_at, id: result.id };
-                }
-                return it;
+          
+          // Only show success for newly created bookmarks (201)
+          if (!result.alreadyExists) {
+            const already = items.some((it) => it?.data?.id === eventId);
+            if (!already && eventObj) {
+              const rowLike = {
+                id: eventId,
+                title: eventObj.title ?? `Event ${eventId}`,
+                description: eventObj.description ?? null,
+                latitude: eventObj.position?.lat ?? null,
+                longitude: eventObj.position?.lng ?? null,
+                data: eventObj.data ?? {},
+              };
+              setItems((old) => [
+                { data: rowLike, created_at: new Date().toISOString(), id: result.id },
+                ...old,
+              ]);
+            } else {
+              setItems((old) => {
+                return old.map((it) => {
+                  if (it?.data?.id === eventId && it.id !== result.id) {
+                    return { data: it.data, created_at: it.created_at, id: result.id };
+                  }
+                  return it;
+                });
               });
-            });
+            }
+            push({ type: "success", message: "Bookmark added successfully", autoCloseMs: 2000 });
+          } else {
+            // Already exists, just refetch to sync state
+            await refetchBookmarks();
           }
-          push({ type: "success", message: "Bookmark added successfully", autoCloseMs: 2000 });
         } else {
-          let bookmarkId = items.find((it) => it?.data?.id === eventId)?.id;
-          if (bookmarkId) {
-            await removeBookmark(bookmarkId);
+          try {
+            await removeBookmark(eventId);
             await fetchBookmarkStats(eventId);
             setItems((old) => old.filter((it) => it?.data?.id !== eventId));
             push({ type: "success", message: "Bookmark removed successfully", autoCloseMs: 2000 });
-          } else {
-            throw new Error("Bookmark ID not found for removal");
+          } catch (e) {
+            // If 404, bookmark was already deleted (possibly on another device)
+            // Just refetch to sync state, don't show error
+            await refetchBookmarks();
           }
         }
-      } catch {
-        // Handle errors (e.g., revert optimistic update)
+      } catch (error) {
+        // Handle unexpected errors (network issues, server errors, etc.)
+        console.error('Failed to toggle bookmark:', error);
+        push({ type: "error", message: "Failed to update bookmark", autoCloseMs: 5000 });
+
+        // revert optimistic state
         setBookmarkedIds((old) => {
           const ns = new Set(old);
-          if (prev) ns.add(eventId);
-          else ns.delete(eventId);
+          if (willMark) ns.delete(eventId);
+          else ns.add(eventId);
           return ns;
         });
-        push({ type: "error", message: "Failed to update bookmark", autoCloseMs: 5000 });
       } finally {
         // clear pending
         setPendingIds((s) => {
@@ -169,9 +206,9 @@ export function useBookmarks() {
           ns.delete(eventId);
           return ns;
         });
-      }; 
+      }
     },
-    [bookmarkedIds, items, user]
+    [bookmarkedIds, items, user, push, refetchBookmarks]
   );
 
   // useEffect(() => {
@@ -214,7 +251,8 @@ export function useBookmarks() {
       isPending,
       toggle,
       listBookmarkedEvents,
+      refetchBookmarks,
     }),
-    [isBookmarked, isPending, toggle, listBookmarkedEvents]
+    [isBookmarked, isPending, toggle, listBookmarkedEvents, refetchBookmarks]
   );
 }

@@ -21,11 +21,13 @@ module.exports = {
 
   create: ({ eventId, userId }) =>
     pool.query(
-      'INSERT INTO bookmarks (event_id, user_id) VALUES ($1, $2) RETURNING *',
+      `INSERT INTO bookmarks (event_id, user_id) VALUES ($1, $2)
+       ON CONFLICT (user_id, event_id) DO UPDATE SET created_at = bookmarks.created_at
+       RETURNING *, (xmax = 0) AS inserted`,
       [eventId, userId]
     ),
 
-  delete: ({ bookmarkId, userId }) => pool.query('DELETE FROM bookmarks WHERE id = $1 AND user_id = $2 RETURNING *', [bookmarkId, userId]),
+  delete: ({ eventId, userId }) => pool.query('DELETE FROM bookmarks WHERE event_id = $1 AND user_id = $2 RETURNING *', [eventId, userId]),
   getTodaysByUser: (userId, tz = 'America/Toronto') =>
     pool.query(
       `
