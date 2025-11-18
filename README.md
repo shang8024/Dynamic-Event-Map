@@ -386,3 +386,19 @@ The main page features the layout of Toronto from the Google Maps API, which can
 
 Any user can navigate the map and search for events using the search bar provided. When a user clicks on an event, they can view its address, start time and end time, as well as a short description if provided. Interested users who are authenticated can bookmark an event by toggling the heart icon at the top left of an event page and leave comments on any event. The total number of users who have bookmarked an event is given to indicate overall interest and possible attendance. Logging in also allows for users to post their own events by selecting a designated location and filling out the necessary fields (address, time, type of event and description). Users can edit and delete their own events after posting.
 
+
+## Data Attribution & Licensing
+
+### Toronto Open Data
+
+This application uses public event data from the **City of Toronto's Open Data Portal** under the [Open Government Licence – Toronto](https://www.toronto.ca/city-government/data-research-maps/open-data/open-data-licence/).
+
+**Data Source**: [Toronto Festivals & Events Calendar](https://open.toronto.ca/dataset/festivals-events/)
+### Copyright Compliance
+
+- **Event Data**: Licensed under Open Data, no copyright restrictions
+- **Event Images**: Provided via the Open Data API, included under the same license
+- **User-Generated Content**: All user-submitted events and content remain the property of their respective creators
+
+For questions about data usage, contact Toronto Open Data at opendata@toronto.ca
+
