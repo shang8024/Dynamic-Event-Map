@@ -1,6 +1,7 @@
 import pg from "pg";
 import fs from "node:fs";
 import redis from "redis";
+import puppeteer from "puppeteer";
 const { Client } = pg;
 function categorizeEventByKeyword(event) {
   const text = `${event.title} ${event.description || ""}`.toLowerCase();
@@ -210,16 +211,54 @@ async function main() {
   const url = getTorontoEventsURL({ from, to });
   console.log("[pull] fetch:", url);
 
-  const resp = await fetch(url);
-  if (!resp.ok) {
-    throw new Error(`fetch failed: ${resp.status} ${resp.statusText}`);
-  }
-  const json = await resp.json();
+  // Use headless browser to bypass Akamai bot detection
+  console.log("[pull] launching headless browser...");
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu'
+    ]
+  });
+  
+  let rawArr = [];
+  try {
+    const page = await browser.newPage();
+    
+    // Set a realistic viewport and user agent
+    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+    
+    console.log("[pull] navigating to API...");
+    const response = await page.goto(url, { 
+      waitUntil: 'networkidle0',
+      timeout: 60000 
+    });
+    
+    if (!response.ok()) {
+      throw new Error(`fetch failed: ${response.status()} ${response.statusText()}`);
+    }
+    
+    // Get the JSON content from the page
+    const json = await page.evaluate(() => {
+      return JSON.parse(document.body.innerText);
+    });
+    
+    console.log("[pull] successfully fetched data");
+    await browser.close();
 
-  const rawArr = Array.isArray(json?.value) ? json.value : [];
-  console.log(`[pull] got ${rawArr.length} events`);
+    rawArr = Array.isArray(json?.value) ? json.value : [];
+    console.log(`[pull] got ${rawArr.length} events`);
+  } catch (err) {
+    await browser.close();
+    throw err;
+  }
 
   const events = rawArr.map(normalizeTorontoEvents);
+  
+  // Try Docker secrets first (for Swarm), then env vars (for GitHub Actions)
   const secretPass =
     readSecret("/run/secrets/pg_password") ||
     process.env.PGPASSWORD ||
@@ -233,7 +272,10 @@ async function main() {
     user: process.env.PGUSER || process.env.DB_USER || "user",
     password: secretPass,
   });
+  
+  console.log(`[pull] connecting to DB at ${client.host}:${client.port}/${client.database}`);
   await client.connect();
+  console.log("[pull] DB connected.");
 
   const redisPass =
     readSecret("/run/secrets/redis_password") ||
@@ -248,7 +290,10 @@ async function main() {
     },
     password: redisPass,
   });
+  
+  console.log(`[pull] connecting to Redis at ${redisClient.options.socket.host}:${redisClient.options.socket.port}`);
   await redisClient.connect();
+  console.log("[pull] Redis connected.");
 
   const mergeSQL = `
     MERGE INTO events e

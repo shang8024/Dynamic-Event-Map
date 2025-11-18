@@ -3,7 +3,28 @@ name: deploy
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      build_api:
+        description: 'Build API image'
+        required: false
+        type: boolean
+        default: true
+      build_client:
+        description: 'Build Client image'
+        required: false
+        type: boolean
+        default: true
+      build_ingest:
+        description: 'Build Ingest image'
+        required: false
+        type: boolean
+        default: true
+      build_backup:
+        description: 'Build Backup image'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -41,6 +62,7 @@ jobs:
           password: ${{ secrets.GHCR_PAT }}
 
       - name: Build & push API
+        if: github.event_name == 'push' || inputs.build_api == true
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 10
@@ -55,6 +77,7 @@ jobs:
               ./api
 
       - name: Build & push Ingest
+        if: github.event_name == 'push' || inputs.build_ingest == true
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 10
@@ -69,6 +92,7 @@ jobs:
               ./infra/ingest
 
       - name: Build & push Backup
+        if: github.event_name == 'push' || inputs.build_backup == true
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 10
@@ -83,6 +107,7 @@ jobs:
               ./infra/backup
 
       - name: Build & push Client (inject prod API base URL)
+        if: github.event_name == 'push' || inputs.build_client == true
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 10
@@ -182,10 +207,23 @@ jobs:
             fi
 
             echo "[*] Pulling freshly built images by SHA..."
-            docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-api:${{ github.sha }}
-            docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-client:${{ github.sha }}
-            docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-events-ingest:${{ github.sha }}
-            docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-db-backup:${{ github.sha }}
+            
+            # Only pull images that were actually built
+            if [[ "${{ github.event_name }}" == "push" ]] || [[ "${{ inputs.build_api }}" == "true" ]]; then
+              docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-api:${{ github.sha }}
+            fi
+            
+            if [[ "${{ github.event_name }}" == "push" ]] || [[ "${{ inputs.build_client }}" == "true" ]]; then
+              docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-client:${{ github.sha }}
+            fi
+            
+            if [[ "${{ github.event_name }}" == "push" ]] || [[ "${{ inputs.build_ingest }}" == "true" ]]; then
+              docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-events-ingest:${{ github.sha }}
+            fi
+            
+            if [[ "${{ github.event_name }}" == "push" ]] || [[ "${{ inputs.build_backup }}" == "true" ]]; then
+              docker pull ${{ env.REGISTRY }}/${{ secrets.GHCR_USER }}/${{ env.REPO_LC }}-db-backup:${{ github.sha }}
+            fi
             echo "[*] Deploying/Updating stack: ${{ env.STACK }}"
 
             set -a
