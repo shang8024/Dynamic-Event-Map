@@ -382,10 +382,14 @@ It can also be triggered manually with:
 
 ## User Guide and Features
 
-The main page features the layout of Toronto from the Google Maps API, which can be navigated by dragging along the map and zooming in/out by scrolling. Red markers and blue markers with numbers indicate an event or events in the area. Zooming in allows more events to be easily spotted and more accessible with red markers, while zooming out will bunch events in the same general location together as blue markers. All events represented by a blue marker can be accessed by clicking on one and scrolling through using the arrows in the side bar.
+The main page of the **Dynamic Event Map** application features the layout of Toronto from the Google Maps API, which can be navigated by dragging along the map and zooming in/out by scrolling. Red markers and blue markers with numbers indicate an event or events in the area. Zooming in allows more events to be easily spotted and more accessible with red markers, while zooming out will bunch events in the same general location together as blue markers. All events represented by a blue marker can be accessed by clicking on one and scrolling through using the arrows in the side bar.
 
 Any user can navigate the map and search for events using the search bar provided. When a user clicks on an event, they can view its address, start time and end time, as well as a short description if provided. Interested users who are authenticated can bookmark an event by toggling the heart icon at the top left of an event page and leave comments on any event. The total number of users who have bookmarked an event is given to indicate overall interest and possible attendance. Logging in also allows for users to post their own events by selecting a designated location and filling out the necessary fields (address, time, type of event and description). Users can edit and delete their own events after posting.
 
+For questions about data usage, contact Toronto Open Data at opendata@toronto.ca
+Users can customize their UI to show varying amounts of information on local events. The filter toggle displays a menu allowing the user to filter event markers shown based on time window, event category, and max distance from the user's current position in kilometers. The search toggle activates the search bar allowing users to find and add events as described above. The stats toggle displays the total number of events which can be found on the map. This total adjusts with the filter applied by the user, providing the user with an idea of how many events can be found in a given area or within a specific timeframe. All of these menus can be toggled allowing the user to balance wider visibility of the map with important functionality and information while maintaining an intuitive user interface.
+
+If a user is not logged in, they are able to search for locations and events, view event details and comments, and apply all UI customization described earlier. A user can log in with their Google account using the Sign In with Google button on the top right. Accepting the basic permissions required from Google grants users access to add, edit and delete their own events, add and delete their own comments, and bookmark any events of interest. Any logged in user can easily view all their bookmarked events by clicking on the dropdown menu at the top right and selecting the bookmark page. Users can order their bookmarked events by alphabetical order or chronological order by start date, with both available in an ascending or descending manner. Users can navigate back to the home page by clicking on the logo in the top left. If a user has finished all necessary tasks needed with an account, they can log out through the dropdown menu in the top right at any time.
 
 ## Data Attribution & Licensing
 
@@ -400,5 +404,4 @@ This application uses public event data from the **City of Toronto's Open Data P
 - **Event Images**: Provided via the Open Data API, included under the same license
 - **User-Generated Content**: All user-submitted events and content remain the property of their respective creators
 
-For questions about data usage, contact Toronto Open Data at opendata@toronto.ca
 

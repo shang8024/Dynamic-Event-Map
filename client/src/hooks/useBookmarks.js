@@ -3,15 +3,12 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { fetchBookmarks, addBookmark, removeBookmark, fetchBookmarkStats, fetchTodaysBookmarks } from "../services/bookmarksService.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useNotifications, isDismissedToday } from "../contexts/NotificationContext.jsx";
-import { get } from "../services/apiService.js";
-import socket from "../services/socket";
 
 export function useBookmarks() {
   const [bookmarkedIds, setBookmarkedIds] = useState(() => new Set());
   const [items, setItems] = useState([]); // [{ data: eventRow, created_at }]
   const [pendingIds, setPendingIds] = useState(() => new Set()); // <— NEW
   const latestRunRef = useRef(false);
-  const [numBookmarks, setNumBookmarks] = useState(null);
   const { user } = useAuth();
   const { push } = useNotifications();
 
@@ -206,28 +203,10 @@ export function useBookmarks() {
           ns.delete(eventId);
           return ns;
         });
-      }
+      }; 
     },
     [bookmarkedIds, items, user, push, refetchBookmarks]
   );
-
-  // useEffect(() => {
-  //   console.log("socket on bookmark:updated", socket);
-  //   if (!socket) return;
-
-  //   function onUpdateBookmark(bookmark) {
-  //     console.log("socket bookmark:updated received for", bookmark.count);
-  //     if (typeof bookmark.count == 'number') setNumBookmarks(bookmark.count);
-  //     console.log("Update num bookmarks to", numBookmarks);
-  //   }
-
-  //   socket.on("bookmark:updated", onUpdateBookmark);
-  //   console.log("socket on bookmark:updated");
-    
-  //   return () => { 
-  //     socket.off('bookmark:updated');
-  //   };
-  // }, [socket, toEventData])
 
   const listBookmarkedEvents = useCallback(() => {
     if (!user) {

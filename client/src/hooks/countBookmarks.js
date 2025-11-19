@@ -16,7 +16,7 @@ export function useCountBookmarks(eventId) {
     fetchInitial();
 
     function onUpdateBookmark(bookmark) {
-      console.log("[SOCKET] update count on bookmark:updated", bookmark.count);
+      console.log("[Socket.IO] update count on bookmark:updated", bookmark.count);
       if (typeof bookmark.count === 'number') setNumBookmarks(bookmark.count);
     }
 
