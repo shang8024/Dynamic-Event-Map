@@ -96,8 +96,11 @@ docker-compose -f docker-compose.dev.yml up --build
 
 Run the following script to automatically deploy a local Docker Swarm stack for development and testing:
 
-```
+```powershell
 .\infra\scripts\deploy_local_swarm.ps1
+
+#or
+.\infra\scripts\deploy_local_swarm.ps1 -NoBuild
 ```
 
 ### 1. Initialize Docker Swarm

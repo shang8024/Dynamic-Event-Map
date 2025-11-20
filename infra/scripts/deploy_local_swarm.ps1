@@ -1,5 +1,11 @@
 # PowerShell Script to Deploy Local Docker Swarm Stack
-# Usage: .\deploy_local_swarm.ps1
+# Usage: .\deploy_local_swarm.ps1 [-NoBuild]
+# Options:
+#   -NoBuild    Skip building images and use existing local images
+
+param(
+    [switch]$NoBuild
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -126,47 +132,53 @@ docker secret create firebase-service-account.json $FirebaseFile | Out-Null
 Write-Host "[OK] Docker secret created" -ForegroundColor Green
 Write-Host ""
 
-# Build images
-Write-Host "[6/8] Building Docker images..." -ForegroundColor Yellow
-Write-Host "This may take several minutes..." -ForegroundColor Gray
-Write-Host ""
+# Build images (unless -NoBuild flag is set)
+if ($NoBuild) {
+    Write-Host "[6/8] Skipping build (using existing images)..." -ForegroundColor Yellow
+    Write-Host "[OK] Using existing local images" -ForegroundColor Green
+    Write-Host ""
+} else {
+    Write-Host "[6/8] Building Docker images..." -ForegroundColor Yellow
+    Write-Host "This may take several minutes..." -ForegroundColor Gray
+    Write-Host ""
 
-# Build API
-Write-Host "  Building API image..." -ForegroundColor Cyan
-docker build -t dynamic-event-map-api:latest -f (Join-Path $ProjectRoot "api\Dockerfile") (Join-Path $ProjectRoot "api")
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [FAIL] API build failed" -ForegroundColor Red
-    exit 1
-}
-Write-Host "  [OK] API image built" -ForegroundColor Green
+    # Build API
+    Write-Host "  Building API image..." -ForegroundColor Cyan
+    docker build -t dynamic-event-map-api:latest -f (Join-Path $ProjectRoot "api\Dockerfile") (Join-Path $ProjectRoot "api")
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [FAIL] API build failed" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  [OK] API image built" -ForegroundColor Green
 
-# Build Client
-Write-Host "  Building Client image..." -ForegroundColor Cyan
-$ClientEnvArgs = @(
-    "--build-arg", "VITE_GOOGLE_MAPS_KEY=$env:VITE_GOOGLE_MAPS_KEY",
-    "--build-arg", "VITE_FIREBASE_API_KEY=$env:VITE_FIREBASE_API_KEY",
-    "--build-arg", "VITE_FIREBASE_AUTH_DOMAIN=$env:VITE_FIREBASE_AUTH_DOMAIN",
-    "--build-arg", "VITE_FIREBASE_PROJECT_ID=$env:VITE_FIREBASE_PROJECT_ID",
-    "--build-arg", "VITE_FIREBASE_STORAGE_BUCKET=$env:VITE_FIREBASE_STORAGE_BUCKET",
-    "--build-arg", "VITE_FIREBASE_APP_ID=$env:VITE_FIREBASE_APP_ID",
-    "--build-arg", "VITE_FIREBASE_MESSAGING_SENDER_ID=$env:VITE_FIREBASE_MESSAGING_SENDER_ID"
-)
-& docker build -t dynamic-event-map-client:latest @ClientEnvArgs -f (Join-Path $ProjectRoot "client\Dockerfile") (Join-Path $ProjectRoot "client")
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [FAIL] Client build failed" -ForegroundColor Red
-    exit 1
-}
-Write-Host "  [OK] Client image built" -ForegroundColor Green
+    # Build Client
+    Write-Host "  Building Client image..." -ForegroundColor Cyan
+    $ClientEnvArgs = @(
+        "--build-arg", "VITE_GOOGLE_MAPS_KEY=$env:VITE_GOOGLE_MAPS_KEY",
+        "--build-arg", "VITE_FIREBASE_API_KEY=$env:VITE_FIREBASE_API_KEY",
+        "--build-arg", "VITE_FIREBASE_AUTH_DOMAIN=$env:VITE_FIREBASE_AUTH_DOMAIN",
+        "--build-arg", "VITE_FIREBASE_PROJECT_ID=$env:VITE_FIREBASE_PROJECT_ID",
+        "--build-arg", "VITE_FIREBASE_STORAGE_BUCKET=$env:VITE_FIREBASE_STORAGE_BUCKET",
+        "--build-arg", "VITE_FIREBASE_APP_ID=$env:VITE_FIREBASE_APP_ID",
+        "--build-arg", "VITE_FIREBASE_MESSAGING_SENDER_ID=$env:VITE_FIREBASE_MESSAGING_SENDER_ID"
+    )
+    & docker build -t dynamic-event-map-client:latest @ClientEnvArgs -f (Join-Path $ProjectRoot "client\Dockerfile") (Join-Path $ProjectRoot "client")
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [FAIL] Client build failed" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  [OK] Client image built" -ForegroundColor Green
 
-# Build Events Ingest
-Write-Host "  Building Events Ingest image..." -ForegroundColor Cyan
-docker build -t dynamic-event-map-events-ingest:latest -f (Join-Path $ProjectRoot "infra\ingest\Dockerfile") (Join-Path $ProjectRoot "infra\ingest")
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [FAIL] Events Ingest build failed" -ForegroundColor Red
-    exit 1
+    # Build Events Ingest
+    Write-Host "  Building Events Ingest image..." -ForegroundColor Cyan
+    docker build -t dynamic-event-map-events-ingest:latest -f (Join-Path $ProjectRoot "infra\ingest\Dockerfile") (Join-Path $ProjectRoot "infra\ingest")
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [FAIL] Events Ingest build failed" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  [OK] Events Ingest image built" -ForegroundColor Green
+    Write-Host ""
 }
-Write-Host "  [OK] Events Ingest image built" -ForegroundColor Green
-Write-Host ""
 
 # Deploy stack
 Write-Host "[7/8] Deploying stack..." -ForegroundColor Yellow
