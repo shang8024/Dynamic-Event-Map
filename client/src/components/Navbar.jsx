@@ -40,6 +40,9 @@ export default function Navbar() {
                       <Link to="/bookmarks">Bookmarks</Link>
                     </li>
                     <li>
+                      <Link to="/comments">My Comments</Link>
+                    </li>
+                    <li>
                       <button onClick={logout} className="w-full text-left">
                         Logout
                       </button>

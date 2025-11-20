@@ -1,94 +1,15 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef, useLayoutEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { useBookmarks } from "../../hooks";
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
-
-function status(eventData) {
-  const now = new Date();
-  const starts = eventData._row?.starts_at ? new Date(eventData._row.starts_at) : null;
-  const ends = eventData._row?.ends_at ? new Date(eventData._row.ends_at) : null;
-  let status = null;
-  if (ends && ends < now) status = "Expired";
-  else if (starts && starts <= now && (!ends || ends >= now)) status = "In progress";
-  return status;
-}
-
-function normalize(s) {
-  return (s || "").toString().toLowerCase();
-}
-
-function Description({ text, valid = true }) {
-  const pRef = useRef(null);
-  const [expanded, setExpanded] = useState(false);
-  const [collapsedMax, setCollapsedMax] = useState(40);
-  const [hasOverflow, setHasOverflow] = useState(false);
-  useLayoutEffect(() => {
-    const el = pRef.current;
-    if (!el) return;
-    const compute = () => {
-      const cs = getComputedStyle(el);
-      const lh = parseFloat(cs.lineHeight) || 20;
-      const limit = Math.round(lh * 3);
-      setCollapsedMax(limit);
-      setHasOverflow(el.scrollHeight > limit + 1);
-    };
-    compute();
-    const ro = new ResizeObserver(compute);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [text]);
-  return (
-    <div className="mt-1 text-sm text-base-content/60">
-      <div className="relative" style={{maxHeight: expanded ? "none" : `${collapsedMax}px`, overflow: "hidden"}}>
-        <p ref={pRef}>{text}</p>
-        {!expanded && hasOverflow && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-base-200 to-transparent" />
-        )}
-      </div>
-      {hasOverflow && (
-        <button
-          className="mt-2 text-xs text-primary underline opacity-80 hover:opacity-100"
-          disabled={!valid}
-          onClick={(e) => {
-            e.stopPropagation();
-            setExpanded((v) => !v);
-          }}
-          aria-label={expanded ? "Show less" : "Show more"}
-        >
-          {expanded ? "Show less" : "Show more"}
-        </button>
-      )}
-    </div>
-  );
-}
+import { getEventStatus, normalize } from "../../utils/date";
+import EventStatusBadge from "../../components/EventStatusBadge";
+import EventImage from "../../components/EventImage";
+import SearchInput from "../../components/SearchInput";
+import EmptyState from "../../components/EmptyState";
+import Description from "../../components/Description";
 
 const BookmarkListItem = ({id, eventData, bookmarkInfo, toggle, pending}) => {
-  const [expanded, setExpanded] = useState(false);
-  const descBoxRef = useRef(null);
-  const [needsToggle, setNeedsToggle] = useState(false);
-  const hasPosition = eventData && eventData.position && typeof eventData.position.lat === "number" && typeof eventData.position.lng === "number";
-  const googleStreetView =
-    hasPosition && API_KEY
-      ? `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${eventData.position.lat},${eventData.position.lng}&fov=90&heading=235&pitch=10&key=${API_KEY}`
-      : null;
-  const eventStatus = status(eventData);
+  const eventStatus = getEventStatus(eventData);
   const isExpired = eventStatus === "Expired";
-  useEffect(() => {
-    const el = descBoxRef.current;
-    if (!el) return;
-    const checkOverflow = () => {
-      if (!el) return;
-      const overflows = el.scrollHeight > el.clientHeight + 1;
-      setNeedsToggle(overflows);
-    };
-    checkOverflow();
-    const ro = new ResizeObserver(checkOverflow);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [eventData?.description, expanded]);
-  // const [expanded, setExpanded] = useState(false);
-  const onRowClick = useCallback(() => {
-    if (needsToggle) setExpanded((v) => !v);
-  }, [needsToggle]);
   const stop = (e) => e.stopPropagation(); 
   return (
     <div
@@ -97,50 +18,16 @@ const BookmarkListItem = ({id, eventData, bookmarkInfo, toggle, pending}) => {
         "card relative bg-base-200 shadow-sm transition",
         isExpired ? "grayscale opacity-60" : "",
       ].join(" ")}
-      onClick={onRowClick}
-      role={needsToggle ? "button" : undefined}
-      tabIndex={needsToggle ? 0 : -1}
-      aria-expanded={needsToggle ? expanded : undefined}
     >
-      {eventStatus && (
-        <span
-          className={[
-            "absolute left-4 top-4 rounded-md px-2 py-0.5 text-xs font-semibold",
-            eventStatus === "In progress"
-              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-              : "",
-            eventStatus === "Expired"
-              ? "bg-slate-200 text-slate-700 border border-slate-300"
-              : "",
-          ].join(" ")}
-        >
-          {eventStatus}
-        </span>
-      )}
+      <EventStatusBadge event={eventData} position="absolute left-4 top-4" />
 
       <div className="card-body p-4">
         <div className="flex items-start gap-4">
           {/* Image column */}
           {eventData && (
-            <div className="flex-none w-40 md:w-56 aspect-[4/3]">
-              <img
-                src={eventData.img || googleStreetView || `https://picsum.photos/seed/${id}/400/300`}
-                alt={eventData.title || "Event"}
-                className="h-full w-full rounded object-cover"
-              />
-              {eventData._row?.starts_at && (
-                <div className="mt-1 text-xs text-base-content/50">
-                  <strong>Starts:</strong>{" "}
-                  {new Date(eventData._row.starts_at).toLocaleDateString()}
-                </div>
-              )}
-              {eventData._row?.ends_at && (
-                <div className="mt-1 text-xs text-base-content/50">
-                  <strong>Ends:</strong>{" "}
-                  {new Date(eventData._row.ends_at).toLocaleDateString()}
-                </div>
-              )}
-            </div>
+            <EventImage 
+              event={eventData} 
+            />
           )}
 
           {/* Details */}
@@ -262,7 +149,7 @@ export default function BookmarksPage() {
   }, [bookmarkedEvents, q, sortKey]);
 
   const expiredCount = useMemo(
-    () => bookmarkedEvents.filter(({ eventData }) => status(eventData) === "Expired").length,
+    () => bookmarkedEvents.filter(({ eventData }) => getEventStatus(eventData) === "Expired").length,
     [bookmarkedEvents]
   );
 
@@ -272,16 +159,15 @@ export default function BookmarksPage() {
     const ok = window.confirm(`Remove ${expiredCount} expired bookmark(s)?`);
     if (!ok) return;
 
-    // fire-and-forget toggles; your hook can coalesce requests if needed
     const tasks = bookmarkedEvents
-      .filter(({ eventData }) => status(eventData) === "Expired")
+      .filter(({ eventData }) => getEventStatus(eventData) === "Expired")
       .map(({ id }) => toggle(id, false));
     await Promise.allSettled(tasks);
   }, [bookmarkedEvents, expiredCount, toggle]);
   return (
     <div className="card bg-base-100">
       <div className="card-body">
-<div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="card-title">Bookmarked Events</h2>
             <p className="text-sm opacity-70">
@@ -292,35 +178,10 @@ export default function BookmarksPage() {
           {/* Toolbar */}
           <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
             {/* Search */}
-            <label className="input input-sm flex items-center gap-2 w-full" aria-label="Search bookmarks">
-              <svg
-                className="h-4 opacity-60"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-              >
-                <g strokeLinejoin="round" strokeLinecap="round" strokeWidth="2" fill="none" stroke="currentColor">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <path d="m21 21-4.3-4.3"></path>
-                </g>
-              </svg>
-              <input
-                type="search"
-                placeholder="Search title/description/address"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                className="min-w-0 flex-1 bg-transparent outline-none"
-                aria-label="Search bookmarks"
-              />
-              {q && (
-                <button
-                  className="text-xs opacity-60 hover:opacity-100"
-                  onClick={() => setQ("")}
-                  type="button"
-                >
-                  Clear
-                </button>
-              )}
-            </label>
+            <SearchInput 
+              value={q}
+              onChange={setQ}
+            />
 
             {/* Sort */}
             <select
@@ -352,24 +213,7 @@ export default function BookmarksPage() {
         {/* Display bookmarked events */}
         <div className="mt-4 grid gap-4">
           {filteredSorted.length === 0 ? (
-            <div className="alert alert-info">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                className="h-6 w-6 shrink-0 stroke-current"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                ></path>
-              </svg>
-              <span>{
-                q ? "No bookmarked events match your search." : "No bookmarked events yet."
-              }</span>
-            </div>
+            <EmptyState message={q ? "No bookmarked events match your search." : "No bookmarked events yet."} />
           ) : (
             filteredSorted.map(({ id, eventData, bookmarkInfo }) =>
               <BookmarkListItem

@@ -69,6 +69,11 @@ app.use("/api/bookmarks", bookmarksRoutes);
 app.use("/auth", authRoutes);
 app.use("/api/profiles", profilesRoutes);
 
+// User comments route
+const { getUserComments } = require("./controllers/commentsController");
+const firebaseAuth = require("./middleware/auth");
+app.get("/api/comments/me", firebaseAuth, getUserComments);
+
 // Start server with socket.io
 const http = require("http");
 const server = http.createServer(app);

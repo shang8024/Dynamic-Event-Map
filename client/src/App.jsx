@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
 import BookmarksPage from "./feature/bookmarks/EventBookmarks.jsx";
+import UserComments from "./feature/comments/UserComments.jsx";
 import { LoadScript } from "@react-google-maps/api";
 import EventMap from "./feature/events/EventMap.jsx";
 import { useAuth, AuthProvider } from "./contexts/AuthContext.jsx";
@@ -50,6 +51,7 @@ export default function App() {
             <Router>
               <Routes>
                 <Route path="/bookmarks" element={<AuthorizedRoute><BookmarksPage /></AuthorizedRoute>} />
+                <Route path="/comments" element={<AuthorizedRoute><UserComments /></AuthorizedRoute>} />
                 <Route path="*" element={<PageWrapper><EventMap /></PageWrapper>} />
               </Routes>
             </Router>

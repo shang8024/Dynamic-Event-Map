@@ -19,6 +19,33 @@ const getComments = async (req, res) => {
   }
 };
 
+const getUserComments = async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  try {
+    const result = await Comment.getByUser(req.user.id);
+    const out = result.rows.map((r) => ({
+      comment: {
+        id: r.id,
+        text: r.text,
+        createdAt: r.created_at,
+      },
+      event: r.event_id ? {
+        id: r.event_id,
+        title: r.title,
+        data: r.data,
+        position: (r.latitude && r.longitude) ? { lat: r.latitude, lng: r.longitude } : null,
+        locationAddress: r.location_address,
+        startsAt: r.starts_at,
+        endsAt: r.ends_at,
+      } : null,
+    }));
+    res.json(out);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch user comments' });
+  }
+};
+
 const createComment = async (req, res) => {
   const { eventId } = req.params;
   const { text } = req.body;
@@ -78,4 +105,4 @@ const deleteComment = async (req, res) => {
   }
 };
 
-module.exports = { getComments, createComment, deleteComment };
+module.exports = { getComments, getUserComments, createComment, deleteComment };
