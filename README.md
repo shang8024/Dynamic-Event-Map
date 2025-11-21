@@ -392,6 +392,7 @@ When a user is not logged in, they can access the following:
   - Distance: adjust radius of events from current position in km. When set at 0 km, all events satisfying the other criteria is shown.
   - Category: can view all event categories or select from individual categories - 
   - Time: can filter from events starting within 24 hours, 7 days, or 30 days of the current time, or starting at any time
+
 Data ingestion is performed automatically and weekly from the official Toronto Events and Festivals Calendar API, which includes a cleanup of expired events and clearing of the Redis cache. This ensures the map remains up-to-date on included events.
 
 Users can authenticate themselves by logging in with their Google account to gain access to the following features:
