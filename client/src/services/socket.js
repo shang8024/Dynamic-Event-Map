@@ -15,6 +15,12 @@ const { url, path } = socketTarget(API_BASE, window.location.origin);
 const socket = io(url, {
   path,
   autoConnect: true,
+  transports: ["polling", "websocket"],
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  reconnectionAttempts: 5,
+  timeout: 20000,
 });
 
 export default socket;

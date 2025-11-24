@@ -14,6 +14,7 @@ const redisClient = createClient({
     host,
     port,
   },
+  database: 0,
   ...(password ? { password } : {}),
 });
 

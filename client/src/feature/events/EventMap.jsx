@@ -10,12 +10,11 @@ import { useAuth } from "../../contexts/AuthContext.jsx";
 import { fetchEvents, deleteEvent, fetchTodaySummary } from "../../services/eventsService";
 import socket from "../../services/socket";
 import { useNotifications } from "../../contexts/NotificationContext.jsx";
-import { fetchBookmarks } from "../../services/bookmarksService.js";
 
 // -----------------------------
 // Constants
 // -----------------------------
-const MAP_STYLES = [
+const MAP_STYLES_DAY = [
   { elementType: "geometry", stylers: [{ color: "#ebe3cd" }] },
   { elementType: "labels.text.fill", stylers: [{ color: "#523735" }] },
   { elementType: "labels.text.stroke", stylers: [{ color: "#f5f1e6" }] },
@@ -32,19 +31,40 @@ const MAP_STYLES = [
   { featureType: "transit.line", elementType: "geometry", stylers: [{ color: "#dfd2ae" }] },
   { featureType: "water", elementType: "geometry.fill", stylers: [{ color: "#b9d3c2" }] },
 ];
+const MAP_STYLES_NIGHT = [
+  { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+  {
+    featureType: "administrative.locality",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#d59563" }],
+  },
+  { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#263c3f" }] },
+  { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#6b9a76" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b3" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#746855" }] },
+  { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#1f2835" }] },
+  { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#f3d19c" }] },
+  { featureType: "transit", elementType: "geometry", stylers: [{ color: "#2f3948" }] },
+  {
+    featureType: "transit.station",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#d59563" }],
+  },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
+  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#515c6d" }] },
+  { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] },
+];
 
 const TORONTO_BOUNDS = {
   north: 43.855457,
   south: 43.581024,
   west: -79.639219,
   east: -79.115219,
-};
-
-const MAP_OPTIONS = {
-  styles: MAP_STYLES,
-  restriction: { latLngBounds: TORONTO_BOUNDS, strictBounds: true },
-  disableDefaultUI: true,
-  gestureHandling: "greedy",
 };
 
 // MarkerClusterer options: disable zoom-on-click so our handler controls behavior
@@ -63,6 +83,7 @@ export default function EventMap() {
   const searchTimeoutRef = useRef(null);
   const lastSelectedRef = useRef(null);
   const optimisticRef = useRef({});
+  const hasLoadedRef = useRef(false);
 
   // core state
   const [center, setCenter] = useState({ lat: 43.7, lng: -79.42 });
@@ -78,19 +99,31 @@ export default function EventMap() {
   const [inputValue, setInputValue] = useState("");
   const [predictions, setPredictions] = useState([]);
   const [mode, setMode] = useState("search"); // 'search' | 'add' | 'event'
+  const [isDarkMode, setIsDarkMode] = useState(
+    window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
+  const mapOptions = {
+    styles: isDarkMode ? MAP_STYLES_NIGHT : MAP_STYLES_DAY,
+    restriction: { latLngBounds: TORONTO_BOUNDS, strictBounds: true },
+    disableDefaultUI: true,
+    gestureHandling: "greedy",
+  };
+
   // toggles for panels
   const [filterOpen, setFilterOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(true);
   const [statsOpen, setStatsOpen] = useState(true);
+
   // filters
   const [filterTime, setFilterTime] = useState("all");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterDistanceKm, setFilterDistanceKm] = useState(0);
 
-  // Cluster pagination state
+  // cluster pagination state
   const [clusterEvents, setClusterEvents] = useState([]); // array of events in current cluster
   const [clusterIndex, setClusterIndex] = useState(0); // which event in cluster is shown
 
+  // other
   const { user } = useAuth();
   const { push } = useNotifications();
 
@@ -165,6 +198,13 @@ export default function EventMap() {
   // -----------------------------
   // Effects
   // -----------------------------
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e) => setIsDarkMode(e.matches);
+
+    mediaQuery.addEventListener("change", handler);
+    return () => mediaQuery.removeEventListener("change", handler);
+  }, []);
   useEffect(() => {
     if (mode === "add") {
       setInputValue("");
@@ -304,133 +344,136 @@ export default function EventMap() {
     };
   }, []);
 
-  // load events from server
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const rows = await fetchEvents();
-        if (!mounted) return;
-        const mapped = (rows || []).map((r) => ({
-          id: r.id,
-          title: r.title,
-          description: r.description,
-          position: {
-            lat: Number(r.latitude),
-            lng: Number(r.longitude),
-          },
-          location_address: r.location_address,
-          starts_at: r.starts_at,
-          ends_at: r.ends_at,
-          user_id: r.user_id,
-          category: r.category,
-          img: r.data?.image?.url || null,
-          num_bookmarks: parseInt(r.bookmarks_count, 10)
-        }));
-        setEvents(mapped);
-      } catch (err) {
-        console.warn("failed to load events", err);
-        push({ type: "error", message: "Failed to load events", autoCloseMs: 5000 });
-      }
-    })();
-    (async () => {
-      try {
-        const stats = await fetchTodaySummary();
-        if (!mounted) return;
-        if (!stats || !(stats.starting || stats.ending)) return;
-        push({
-          type: "info",
-          message: `There are ${stats.starting} events starting and ${stats.ending} events ending today.`,
-          autoCloseMs: 10000,
-        });
-      } catch (err) {
-        console.warn("failed to load today's summary", err);
-      }
-    })();
-    return () => (mounted = false);
-  }, []);
+  // Handle events
+  const loadEvents = useCallback(async () => {
+    try {
+      const rows = await fetchEvents();
+      const mapped = (rows || []).map((r) => ({
+        id: r.id,
+        title: r.title,
+        description: r.description,
+        position: {
+          lat: Number(r.latitude),
+          lng: Number(r.longitude),
+        },
+        location_address: r.location_address,
+        starts_at: r.starts_at,
+        ends_at: r.ends_at,
+        user_id: r.user_id,
+        category: r.category,
+        img: r.data?.image?.url || null,
+        num_bookmarks: parseInt(r.bookmarks_count, 10),
+      }));
+      setEvents(mapped);
+    } catch (err) {
+      console.warn("failed to load events", err);
+      push({ type: "error", message: "Failed to load events", autoCloseMs: 5000 });
+    }
+  }, [push]);
 
-  // realtime socket listeners
-  useEffect(() => {
-    function onCreated(ev) {
-      const mapped = {
-        id: ev.id,
-        title: ev.title,
-        description: ev.description,
-        position: { lat: Number(ev.latitude ?? ev.lat), lng: Number(ev.longitude ?? ev.lng) },
-        location_address: ev.location_address,
-        starts_at: ev.starts_at,
-        img: ev.img || ev.data?.image?.url || null,
-        ends_at: ev.ends_at,
-        user_id: ev.user_id,
-        category: ev.category ?? (ev.data && ev.data.category) ?? "",
-      };
-      setEvents((prev) => {
-        if (prev.find((p) => String(p.id) === String(mapped.id))) return prev;
-        return [...prev, mapped];
+  const loadTodayStats = useCallback(async () => {
+    try {
+      const stats = await fetchTodaySummary();
+      if (!stats || !(stats.starting || stats.ending)) return;
+      push({
+        type: "info",
+        message: `There are ${stats.starting} events starting and ${stats.ending} events ending today.`,
+        autoCloseMs: 10000,
       });
+    } catch (err) {
+      console.warn("failed to load today's summary", err);
     }
-    function onUpdated(ev) {
-      setEvents((prev) =>
-        prev.map((p) =>
-          String(p.id) === String(ev.id)
-            ? {
-                id: ev.id,
-                title: ev.title,
-                description: ev.description,
-                position: {
-                  lat: Number(ev.latitude),
-                  lng: Number(ev.longitude),
-                },
-                location_address: ev.location_address,
-                starts_at: ev.starts_at,
-                ends_at: ev.ends_at,
-                user_id: ev.user_id,
-                category: ev.category,
-                img: ev.img || ev.data?.image?.url || null,
-              }
-            : p
-        )
-      );
-      setSelectedEvent((s) =>
-        s && String(s.id) === String(ev.id)
-          ? {
-              ...s,
-              title: ev.title,
-              description: ev.description,
-              position: {
-                lat: Number(ev.latitude ?? s.position.lat),
-                lng: Number(ev.longitude ?? s.position.lng),
-              },
-              location_address: ev.location_address,
-              starts_at: ev.starts_at,
-              ends_at: ev.ends_at,
-              user_id: ev.user_id,
-              img: ev.img || ev.data?.image?.url || null,
-            }
-          : s
-      );
-    }
-    function onDeleted(payload) {
-      setEvents((prev) => prev.filter((p) => String(p.id) !== String(payload.id)));
-      setSelectedEvent((s) => (s && String(s.id) === String(payload.id) ? null : s));
-      // if deleted event was in clusterEvents, remove it
-      setClusterEvents((prev) => prev.filter((c) => String(c.id) !== String(payload.id)));
-      if (clusterEvents.length && clusterIndex >= clusterEvents.length - 1) {
-        setClusterIndex(0);
-      }
-    }
+  }, [push]);
 
-    socket.on("event:created", onCreated);
-    socket.on("event:updated", onUpdated);
-    socket.on("event:deleted", onDeleted);
+  // initial mount
+  useEffect(() => {
+    // prevent duplicate runs in Strict Mode
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
+    loadEvents();
+    loadTodayStats();
+  }, [loadEvents, loadTodayStats]);
+
+  const handleCreated = useCallback((ev) => {
+    const mapped = {
+      id: ev.id,
+      title: ev.title,
+      description: ev.description,
+      position: { lat: Number(ev.latitude ?? ev.lat), lng: Number(ev.longitude ?? ev.lng) },
+      location_address: ev.location_address,
+      starts_at: ev.starts_at,
+      ends_at: ev.ends_at,
+      user_id: ev.user_id,
+      category: ev.category ?? ev.data?.category ?? "",
+      img: ev.img || ev.data?.image?.url || null,
+    };
+
+    setEvents((prev) => {
+      if (prev.some((p) => String(p.id) === String(mapped.id))) return prev;
+      return [...prev, mapped];
+    });
+    loadTodayStats();
+  }, [loadTodayStats]);
+
+  const handleUpdated = useCallback((ev) => {
+    const mapped = {
+      id: ev.id,
+      title: ev.title,
+      description: ev.description,
+      position: {
+        lat: Number(ev.latitude),
+        lng: Number(ev.longitude),
+      },
+      location_address: ev.location_address,
+      starts_at: ev.starts_at,
+      ends_at: ev.ends_at,
+      user_id: ev.user_id,
+      img: ev.img || ev.data?.image?.url || null,
+      category: ev.category ?? ev.data?.category ?? "",
+    };
+    setEvents((prev) => prev.map((p) => (String(p.id) === String(ev.id) ? mapped : p)));
+    setSelectedEvent((s) => (s && String(s.id) === String(ev.id) ? { ...s, ...mapped } : s));
+    loadTodayStats();
+  }, [loadTodayStats]);
+
+  const handleDeleted = useCallback((payload) => {
+    const id = String(payload.id);
+
+    setEvents((prev) => prev.filter((p) => String(p.id) !== id));
+    setSelectedEvent((s) => (s && String(s.id) === id ? null : s));
+    setClusterEvents((prev) => prev.filter((c) => String(c.id) !== id));
+
+    setClusterIndex((prev) => {
+      return prev > 0 ? prev - 1 : 0;
+    });
+    loadTodayStats();
+  }, [loadTodayStats]);
+
+  // Join event room
+  useEffect(() => {
+    if (!selectedEvent?.id) return;
+
+    socket.emit("joinEventRoom", selectedEvent.id);
+    console.log("Joined room for event", selectedEvent.id);
 
     return () => {
-      socket.off("event:created", onCreated);
-      socket.off("event:updated", onUpdated);
-      socket.off("event:deleted", onDeleted);
+      socket.emit("leaveEventRoom", selectedEvent.id);
+      console.log("Left room for event", selectedEvent.id);
     };
-  }, [clusterEvents, clusterIndex]);
+  }, [selectedEvent]);
+
+  useEffect(() => {
+    socket.on("event:created", handleCreated);
+    socket.on("event:updated", handleUpdated);
+    socket.on("event:deleted", handleDeleted);
+
+    return () => {
+      socket.off("event:created", handleCreated);
+      socket.off("event:updated", handleUpdated);
+      socket.off("event:deleted", handleDeleted);
+    };
+  }, [handleCreated, handleUpdated, handleDeleted]);
 
   // -----------------------------
   // Handlers
@@ -724,7 +767,7 @@ export default function EventMap() {
     desktop: ` bg-base-200/90 md:absolute md:bottom-4 md:left-4 md:flex md:flex-col md:gap-3 md:rounded-lg md:p-2 md:shadow md:w-64`,
   };
   const EVENTINFO_STYLES = {
-    mobile: ` fixed top-0 right-0 bottom-0 z-50 w-100 bg-base-100 shadow-lg transition-transform duration-300 ${
+    mobile: ` fixed top-0 right-0 bottom-0 z-50 w-100 bg-base-100 shadow-lg transition-transform duration-300 overflow-hidden ${
       selectedEvent ? "translate-x-0" : "translate-x-full"
     }`,
     desktop: `bg-base-100 md:absolute md:top-0 md:right-0 md:bottom-4 md:z-20 md:w-1/4 md:overflow-auto md:transition-transform md:duration-300 ${
@@ -785,7 +828,7 @@ export default function EventMap() {
             mapContainerStyle={{ width: "100%", height: `${mapHeight}px` }}
             center={center}
             zoom={14}
-            options={MAP_OPTIONS}
+            options={mapOptions}
             onLoad={onMapLoad}
           >
             {/* Stats container */}
@@ -855,7 +898,7 @@ export default function EventMap() {
 
             {searchOpen && (
               <div className={SEARCH_STYLES.mobile + " " + SEARCH_STYLES.desktop}>
-                <div className="relative w-screen left-4 md:w-auto">
+                <div className="relative left-4 w-screen md:w-auto">
                   <div className="bg-base-200/90 flex w-screen flex-col gap-2 rounded-lg p-2 shadow-lg md:w-lg md:flex-row md:items-center md:gap-2 md:rounded-full md:p-2 md:shadow-inner">
                     {/* Mode select */}
                     <select

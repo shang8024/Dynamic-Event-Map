@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { fetchComments, addComment, removeComment } from "../services/commentsService";
 import socket from "../services/socket";
 import { useAuth } from "../contexts/AuthContext.jsx";
@@ -9,109 +9,124 @@ export default function EventComments({ eventId }) {
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
   const { user } = useAuth();
   const { push } = useNotifications();
 
-  const load = async () => {
+  // ---------------------------
+  // Load Comments
+  // ---------------------------
+  const loadComments = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
       const list = await fetchComments(eventId);
-      setComments(list);
+      setComments(list || []);
     } catch (err) {
       console.warn("fetch comments failed", err);
       setError("Failed to load comments");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleAdd = async (e) => {
-    if (!user) {
-      setError("You must be logged in to post comments");
-      return;
-    }
-    e?.preventDefault();
-    const trimmed = (text || "").trim();
-    if (!trimmed) {
-      setError("Please enter a comment");
-      return;
-    }
-    setError("");
-    setLoading(true);
-    try {
-      const created = await addComment(eventId, trimmed);
-      setComments((prev) => {
-        if (prev.some((c) => String(c.id) === String(created.id))) return prev;
-        return [created, ...prev];
-      });
-      setText("");
-      push({ type: "success", message: "Comment posted successfully", autoCloseMs: 2000 });
-    } catch (err) {
-      console.warn("post failed", err);
-      setError(err.message || "Failed to post comment");
-      push({ type: "error", message: err.message || "Failed to post comment", autoCloseMs: 5000 });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    setLoading(true);
-    try {
-      await removeComment(eventId, id);
-      setComments((prev) => prev.filter((c) => c.id !== id));
-      push({ type: "success", message: "Comment deleted successfully", autoCloseMs: 2000 });
-    } catch (err) {
-      console.warn("delete failed", err);
-      setError(err.message || "Failed to delete comment");
-      push({ type: "error", message: err.message || "Failed to delete comment", autoCloseMs: 5000 });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    let mounted = true;
-    // only load when mounted and eventId exists
-    if (!eventId) return;
-    (async () => {
-      if (!mounted) return;
-      await load();
-    })();
-
-    // realtime listeners for comments related to this event
-    function onCommentCreated(payload) {
-      try {
-        if (Number(payload.eventId) !== Number(eventId)) return;
-        setComments((prev) => {
-          if (prev.some((c) => String(c.id) === String(payload.id))) return prev;
-          return [payload, ...prev];
-        });
-      } catch {
-        // ignore
-      }
-    }
-
-    function onCommentDeleted(payload) {
-      try {
-        if (Number(payload.eventId) !== Number(eventId)) return;
-        setComments((prev) => prev.filter((c) => String(c.id) !== String(payload.id)));
-      } catch {
-        // ignore
-      }
-    }
-
-    socket.on("comment:created", onCommentCreated);
-    socket.on("comment:deleted", onCommentDeleted);
-
-    return () => {
-      mounted = false;
-      socket.off("comment:created", onCommentCreated);
-      socket.off("comment:deleted", onCommentDeleted);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
+  // ---------------------------
+  // Add Comment
+  // ---------------------------
+  const handleAdd = useCallback(
+    async (e) => {
+      e?.preventDefault();
+      if (!user) return setError("You must be logged in to post comments");
+
+      const trimmed = text.trim();
+      if (!trimmed) return setError("Please enter a comment");
+
+      setLoading(true);
+      setError("");
+
+      try {
+        const created = await addComment(eventId, trimmed);
+        setComments((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
+        setText("");
+        push({ type: "success", message: "Comment posted successfully", autoCloseMs: 2000 });
+      } catch (err) {
+        console.warn("post failed", err);
+        push({
+          type: "error",
+          message: err.message || "Failed to post comment",
+          autoCloseMs: 5000,
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user, text, eventId, push]
+  );
+
+  // ---------------------------
+  // Delete Comment
+  // ---------------------------
+  const handleDelete = useCallback(
+    async (id) => {
+      setLoading(true);
+      try {
+        await removeComment(eventId, id);
+        setComments((prev) => prev.filter((c) => c.id !== id));
+        push({ type: "success", message: "Comment deleted successfully", autoCloseMs: 2000 });
+      } catch (err) {
+        console.warn("delete failed", err);
+        push({
+          type: "error",
+          message: err.message || "Failed to delete comment",
+          autoCloseMs: 5000,
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [eventId, push]
+  );
+
+  // ---------------------------
+  // Real-time Handlers (room-based)
+  // ---------------------------
+  const onCommentCreated = useCallback(
+    (payload) => {
+      if (Number(payload.eventId) !== Number(eventId)) return;
+      setComments((prev) => [payload, ...prev.filter((c) => String(c.id) !== String(payload.id))]);
+    },
+    [eventId]
+  );
+
+  const onCommentDeleted = useCallback(
+    (payload) => {
+      if (Number(payload.eventId) !== Number(eventId)) return;
+      setComments((prev) => prev.filter((c) => String(c.id) !== String(payload.id)));
+    },
+    [eventId]
+  );
+
+  // ---------------------------
+  // Effects
+  // ---------------------------
+  useEffect(() => {
+    if (!eventId) return;
+
+    loadComments();
+
+    // Subscribe to room-specific events
+    socket.on(`comment:created:${eventId}`, onCommentCreated);
+    socket.on(`comment:deleted:${eventId}`, onCommentDeleted);
+
+    return () => {
+      socket.off(`comment:created:${eventId}`, onCommentCreated);
+      socket.off(`comment:deleted:${eventId}`, onCommentDeleted);
+    };
+  }, [eventId, loadComments, onCommentCreated, onCommentDeleted]);
+  
+  // ---------------------------
+  // Render
+  // ---------------------------
   return (
     <div className="mt-3">
       <form onSubmit={handleAdd} className="mb-2">

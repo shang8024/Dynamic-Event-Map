@@ -68,7 +68,7 @@ const createComment = async (req, res) => {
     // Emit realtime comment created
     try { 
       const payload = { eventId: Number(eventId), ...commentData };
-      socket.getIO().emit('comment:created', payload);
+      socket.getIO().to(`event_${eventId}`).emit(`comment:created:${eventId}`, payload);
       console.log(`[Socket.IO] Emitted comment:created for event ${eventId}, comment ${r.id}`);
     } catch (e) {
       console.error('[Socket.IO] Failed to emit comment:created:', e);
@@ -93,7 +93,7 @@ const deleteComment = async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Comment not found' });
     try { 
       const payload = { eventId: Number(req.params.eventId), id: Number(commentId) };
-      socket.getIO().emit('comment:deleted', payload);
+      socket.getIO().to(`event_${req.params.eventId}`).emit(`comment:deleted:${req.params.eventId}`, payload);
       console.log(`[Socket.IO] Emitted comment:deleted for event ${req.params.eventId}, comment ${commentId}`);
     } catch (e) {
       console.error('[Socket.IO] Failed to emit comment:deleted:', e);
