@@ -123,55 +123,28 @@ export default function EventComments({ eventId }) {
       socket.off(`comment:deleted:${eventId}`, onCommentDeleted);
     };
   }, [eventId, loadComments, onCommentCreated, onCommentDeleted]);
-  
+
   // ---------------------------
   // Render
   // ---------------------------
   return (
-    <div className="mt-3">
-      <form onSubmit={handleAdd} className="mb-2">
-        {error && <div className="text-error mb-2 text-xs">{error}</div>}
-        <div className="flex items-stretch gap-2">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={
-              user ? `Comment as ${user.displayName || user.email}...` : "Please login to comment"
-            }
-            className="textarea textarea-bordered min-h-[72px] flex-1"
-            disabled={!user}
-          />
-
-          <div className="flex-shrink-0">
-            <button
-              type="submit"
-              className="btn btn-neutral h-full"
-              disabled={loading || !user}
-              title={!user ? "Please login to post comment" : ""}
-            >
-              {loading ? "Posting…" : "Post"}
-            </button>
-          </div>
-        </div>
-      </form>
-
-      <div className="divider mt-1 mb-1"></div>
-
-      <ul className="max-h-80 space-y-2 overflow-x-hidden overflow-y-auto">
-        {comments.length === 0 && (
-          <li className="text-base-content/60 text-sm">No comments yet.</li>
-        )}
-        {comments.map((c) => (
-          <li key={c.id}>
-            <div className="card card-dash bg-base-100 w-full">
-              <div className="card-body p-3">
-                <div className="text-sm font-semibold">{c.user?.name || "Anonymous"}</div>
-                <p className="mt-1 text-sm break-words whitespace-pre-wrap">{c.text}</p>
-                <div className="card-actions mt-2 w-full items-center justify-between">
-                  <div className="text-base-content/50 text-xs">
-                    {new Date(c.createdAt).toLocaleString()}
-                  </div>
-                  <div>
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Scrollable comments list */}
+      <div className="flex-1 overflow-y-auto p-2 pb-[100px]">
+        <ul className="flex w-full flex-col gap-2">
+          {comments.length === 0 && (
+            <li className="text-base-content/60 text-sm">No comments yet.</li>
+          )}
+          {comments.map((c) => (
+            <li key={c.id}>
+              <div className="card card-dash bg-base-100 w-full">
+                <div className="card-body p-3">
+                  <div className="text-sm font-semibold">{c.user?.name || "Anonymous"}</div>
+                  <p className="mt-1 text-sm break-words whitespace-pre-wrap">{c.text}</p>
+                  <div className="card-actions w-full items-center justify-between">
+                    <div className="text-base-content/50 text-xs">
+                      {new Date(c.createdAt).toLocaleString()}
+                    </div>
                     {user && String(user.id) === String(c.user?.id) && (
                       <button
                         className="btn btn-ghost btn-xs p-1"
@@ -180,12 +153,7 @@ export default function EventComments({ eventId }) {
                         title="Delete comment"
                         aria-label="Delete comment"
                       >
-                        <svg
-                          width="14"
-                          height="14"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 16 16"
-                        >
+                        <svg width="14" height="14" viewBox="0 0 16 16">
                           <path
                             fill="currentColor"
                             d="m4.818 4.111l-.707.707a.5.5 0 0 0 0 .707L6.586 8L4.11 10.475a.5.5 0 0 0 0 .707l.707.707a.5.5 0 0 0 .707 0L8 9.414l2.475 2.475a.5.5 0 0 0 .707 0l.707-.707a.5.5 0 0 0 0-.707L9.414 8l2.475-2.475a.5.5 0 0 0 0-.707l-.707-.707a.5.5 0 0 0-.707 0L8 6.586L5.525 4.11a.5.5 0 0 0-.707 0"
@@ -196,10 +164,35 @@ export default function EventComments({ eventId }) {
                   </div>
                 </div>
               </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Fixed bottom form */}
+      <div className="bg-base-200 fixed bottom-0 left-0 z-50 w-full p-4">
+        <form onSubmit={handleAdd} className="flex flex-row gap-3">
+          {error && <div className="text-error mb-1 text-xs">{error}</div>}
+
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={
+              user ? `Comment as ${user.displayName || user.email}...` : "Please login to comment"
+            }
+            className="textarea textarea-bordered w-4/5 resize-none"
+            disabled={!user}
+          />
+
+          <button
+            type="submit"
+            className="btn btn-neutral h-auto shrink-0"
+            disabled={loading || !user}
+          >
+            {loading ? "Posting…" : "Post"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -32,7 +32,7 @@ function reducer(state, action) {
 
 function todayStamp() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 export function isDismissedToday(key) {
   try {
@@ -40,7 +40,9 @@ export function isDismissedToday(key) {
     if (!raw) return false;
     const { day } = JSON.parse(raw);
     return day === todayStamp();
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 function markDismissedToday(key) {
   try {
@@ -61,18 +63,17 @@ export function NotificationProvider({ children }) {
     return () => socket.off("notify", handler);
   }, []);
 
-  const api = useMemo(() => ({
-    push: (payload) => dispatch({ type: "PUSH", payload }),
-    dismiss: (id, stickyKey) => dispatch({ type: "DISMISS", id, stickyKey }),
-    clear: () => dispatch({ type: "CLEAR" }),
-    items: state.items,
-  }), [state.items]);
-
-  return (
-    <NotificationCtx.Provider value={api}>
-      {children}
-    </NotificationCtx.Provider>
+  const api = useMemo(
+    () => ({
+      push: (payload) => dispatch({ type: "PUSH", payload }),
+      dismiss: (id, stickyKey) => dispatch({ type: "DISMISS", id, stickyKey }),
+      clear: () => dispatch({ type: "CLEAR" }),
+      items: state.items,
+    }),
+    [state.items]
   );
+
+  return <NotificationCtx.Provider value={api}>{children}</NotificationCtx.Provider>;
 }
 
 export function useNotifications() {

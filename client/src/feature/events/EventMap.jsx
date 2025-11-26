@@ -108,6 +108,7 @@ export default function EventMap() {
     disableDefaultUI: true,
     gestureHandling: "greedy",
   };
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   // toggles for panels
   const [filterOpen, setFilterOpen] = useState(true);
@@ -198,6 +199,15 @@ export default function EventMap() {
   // -----------------------------
   // Effects
   // -----------------------------
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      console.log("resize detected, isMobile:", window.innerWidth < 768);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = (e) => setIsDarkMode(e.matches);
@@ -395,60 +405,69 @@ export default function EventMap() {
     loadTodayStats();
   }, [loadEvents, loadTodayStats]);
 
-  const handleCreated = useCallback((ev) => {
-    const mapped = {
-      id: ev.id,
-      title: ev.title,
-      description: ev.description,
-      position: { lat: Number(ev.latitude ?? ev.lat), lng: Number(ev.longitude ?? ev.lng) },
-      location_address: ev.location_address,
-      starts_at: ev.starts_at,
-      ends_at: ev.ends_at,
-      user_id: ev.user_id,
-      category: ev.category ?? ev.data?.category ?? "",
-      img: ev.img || ev.data?.image?.url || null,
-    };
+  const handleCreated = useCallback(
+    (ev) => {
+      const mapped = {
+        id: ev.id,
+        title: ev.title,
+        description: ev.description,
+        position: { lat: Number(ev.latitude ?? ev.lat), lng: Number(ev.longitude ?? ev.lng) },
+        location_address: ev.location_address,
+        starts_at: ev.starts_at,
+        ends_at: ev.ends_at,
+        user_id: ev.user_id,
+        category: ev.category ?? ev.data?.category ?? "",
+        img: ev.img || ev.data?.image?.url || null,
+      };
 
-    setEvents((prev) => {
-      if (prev.some((p) => String(p.id) === String(mapped.id))) return prev;
-      return [...prev, mapped];
-    });
-    loadTodayStats();
-  }, [loadTodayStats]);
+      setEvents((prev) => {
+        if (prev.some((p) => String(p.id) === String(mapped.id))) return prev;
+        return [...prev, mapped];
+      });
+      loadTodayStats();
+    },
+    [loadTodayStats]
+  );
 
-  const handleUpdated = useCallback((ev) => {
-    const mapped = {
-      id: ev.id,
-      title: ev.title,
-      description: ev.description,
-      position: {
-        lat: Number(ev.latitude),
-        lng: Number(ev.longitude),
-      },
-      location_address: ev.location_address,
-      starts_at: ev.starts_at,
-      ends_at: ev.ends_at,
-      user_id: ev.user_id,
-      img: ev.img || ev.data?.image?.url || null,
-      category: ev.category ?? ev.data?.category ?? "",
-    };
-    setEvents((prev) => prev.map((p) => (String(p.id) === String(ev.id) ? mapped : p)));
-    setSelectedEvent((s) => (s && String(s.id) === String(ev.id) ? { ...s, ...mapped } : s));
-    loadTodayStats();
-  }, [loadTodayStats]);
+  const handleUpdated = useCallback(
+    (ev) => {
+      const mapped = {
+        id: ev.id,
+        title: ev.title,
+        description: ev.description,
+        position: {
+          lat: Number(ev.latitude),
+          lng: Number(ev.longitude),
+        },
+        location_address: ev.location_address,
+        starts_at: ev.starts_at,
+        ends_at: ev.ends_at,
+        user_id: ev.user_id,
+        img: ev.img || ev.data?.image?.url || null,
+        category: ev.category ?? ev.data?.category ?? "",
+      };
+      setEvents((prev) => prev.map((p) => (String(p.id) === String(ev.id) ? mapped : p)));
+      setSelectedEvent((s) => (s && String(s.id) === String(ev.id) ? { ...s, ...mapped } : s));
+      loadTodayStats();
+    },
+    [loadTodayStats]
+  );
 
-  const handleDeleted = useCallback((payload) => {
-    const id = String(payload.id);
+  const handleDeleted = useCallback(
+    (payload) => {
+      const id = String(payload.id);
 
-    setEvents((prev) => prev.filter((p) => String(p.id) !== id));
-    setSelectedEvent((s) => (s && String(s.id) === id ? null : s));
-    setClusterEvents((prev) => prev.filter((c) => String(c.id) !== id));
+      setEvents((prev) => prev.filter((p) => String(p.id) !== id));
+      setSelectedEvent((s) => (s && String(s.id) === id ? null : s));
+      setClusterEvents((prev) => prev.filter((c) => String(c.id) !== id));
 
-    setClusterIndex((prev) => {
-      return prev > 0 ? prev - 1 : 0;
-    });
-    loadTodayStats();
-  }, [loadTodayStats]);
+      setClusterIndex((prev) => {
+        return prev > 0 ? prev - 1 : 0;
+      });
+      loadTodayStats();
+    },
+    [loadTodayStats]
+  );
 
   // Join event room
   useEffect(() => {
@@ -756,359 +775,642 @@ export default function EventMap() {
   // -----------------------------
   // Render
   // -----------------------------
-
-  // Styles Constants
-  const SEARCH_STYLES = {
-    mobile: `fixed right-4 right-4 z-30 flex flex-col items-start gap-3`,
-    desktop: `md:absolute md:top-4 md:right-4 md:z-30 md:flex md:items-start md:gap-3`,
-  };
-  const FILTER_STYLES = {
-    mobile: `fixed bottom-0 left-0 right-0 z-40 w-100 p-3 rounded-t-2xl shadow-lg ${filterOpen ? "translate-y-0" : "translate-y-full"}`,
-    desktop: ` bg-base-200/90 md:absolute md:bottom-4 md:left-4 md:flex md:flex-col md:gap-3 md:rounded-lg md:p-2 md:shadow md:w-64`,
-  };
-  const EVENTINFO_STYLES = {
-    mobile: ` fixed top-0 right-0 bottom-0 z-50 w-100 bg-base-100 shadow-lg transition-transform duration-300 overflow-hidden ${
-      selectedEvent ? "translate-x-0" : "translate-x-full"
-    }`,
-    desktop: `bg-base-100 md:absolute md:top-0 md:right-0 md:bottom-4 md:z-20 md:w-1/4 md:overflow-auto md:transition-transform md:duration-300 ${
-      selectedEvent ? "md:translate-x-0" : "md:translate-x-full"
-    }`,
-  };
-
   return (
     <div>
-      {/* Toggles */}
-      <div className="mt-1 flex items-center gap-4">
-        {/* Filter toggle */}
-        <label className="flex cursor-pointer items-center gap-1">
-          <input
-            type="checkbox"
-            defaultChecked
-            className="toggle toggle-sm"
-            onChange={() => setFilterOpen(!filterOpen)}
-          />
-          <span className="text-sm font-medium">Filter</span>
-        </label>
-
-        {/* Search toggle */}
-        <label className="flex cursor-pointer items-center gap-1">
-          <input
-            type="checkbox"
-            defaultChecked
-            className="toggle toggle-sm"
-            onChange={() => setSearchOpen(!searchOpen)}
-          />
-          <span className="text-sm font-medium">Search</span>
-        </label>
-
-        {/* Stats toggle */}
-        <label className="flex cursor-pointer items-center gap-1">
-          <input
-            type="checkbox"
-            defaultChecked
-            className="toggle toggle-sm"
-            onChange={() => setStatsOpen(!statsOpen)}
-          />
-          <span className="text-sm font-medium">Stats</span>
-        </label>
-      </div>
-
-      {/* Map area */}
-      <div
-        className="relative mt-4 flex h-full w-full flex-col md:flex-row"
-        ref={wrapperRef}
-        style={{ paddingBottom: "1rem" }}
-      >
-        {/* Map area (left) */}
-        <div
-          className={(selectedEvent ? "w-3/4" : "w-full") + " h-full transition-all duration-300"}
-          style={{ minHeight: 400 }}
-        >
-          <GoogleMap
-            mapContainerStyle={{ width: "100%", height: `${mapHeight}px` }}
-            center={center}
-            zoom={14}
-            options={mapOptions}
-            onLoad={onMapLoad}
-          >
-            {/* Stats container */}
-            {statsOpen && (
-              <div className="bg-base-200/90 absolute right-4 bottom-4 rounded-lg p-2 shadow">
-                <span className="text-sm font-medium">Total Events: {filteredEvents.length}</span>
-              </div>
-            )}
-            {/* Filters container */}
-            {filterOpen && (
-              <div className={FILTER_STYLES.mobile + " " + FILTER_STYLES.desktop}>
-                {/* Time filter */}
-                <div className="flex items-center justify-between gap-2">
-                  <span className="w-32 text-sm font-medium">Time window:</span>
-                  <select
-                    value={filterTime}
-                    onChange={(e) => setFilterTime(e.target.value)}
-                    className="select select-sm flex-1"
-                  >
-                    <option value="all">All time</option>
-                    <option value="24h">Ends 24h</option>
-                    <option value="7d">Ends 7 days</option>
-                    <option value="30d">Ends 30 days</option>
-                  </select>
-                </div>
-
-                {/* Category filter */}
-                <div className="flex items-center justify-between gap-2">
-                  <span className="w-32 text-sm font-medium">Category:</span>
-                  <select
-                    value={filterCategory}
-                    onChange={(e) => setFilterCategory(e.target.value)}
-                    className="select select-sm flex-1"
-                  >
-                    <option value="">All categories</option>
-                    <option>Arts & Culture</option>
-                    <option>Entertainment & Leisure</option>
-                    <option>Education & Workshops</option>
-                    <option>Sports & Fitness</option>
-                    <option>Food & Drink</option>
-                    <option>Business & Networking</option>
-                    <option>Community & Social</option>
-                    <option>Family & Kids</option>
-                    <option>Technology & Innovation</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-
-                {/* Max distance filter */}
-                <div className="flex items-center justify-between gap-2">
-                  <span className="w-32 text-sm font-medium">Max distance (km):</span>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={filterDistanceKm}
-                      onChange={(e) =>
-                        setFilterDistanceKm(e.target.value ? Number(e.target.value) : 0)
-                      }
-                      className="input input-sm w-16"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {searchOpen && (
-              <div className={SEARCH_STYLES.mobile + " " + SEARCH_STYLES.desktop}>
-                <div className="relative left-4 w-screen md:w-auto">
-                  <div className="bg-base-200/90 flex w-screen flex-col gap-2 rounded-lg p-2 shadow-lg md:w-lg md:flex-row md:items-center md:gap-2 md:rounded-full md:p-2 md:shadow-inner">
-                    {/* Mode select */}
-                    <select
-                      value={mode}
-                      onChange={(e) => setMode(e.target.value)}
-                      className="select select-sm select-ghost bg-base-200/90 w-full rounded-full shadow-inner md:w-auto"
-                    >
-                      <option value="search">Search Location</option>
-                      <option value="add">Add Event</option>
-                      <option value="event">Search Event</option>
-                    </select>
-
-                    {/* Input field */}
-                    <label className="input relative w-full flex-1 items-center gap-2 rounded-full md:w-auto">
-                      <svg
-                        className="h-[1em] opacity-50"
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                      >
-                        <g
-                          strokeLinejoin="round"
-                          strokeLinecap="round"
-                          strokeWidth="2.5"
-                          fill="none"
-                          stroke="currentColor"
-                        >
-                          <circle cx="11" cy="11" r="8"></circle>
-                          <path d="m21 21-4.3-4.3"></path>
-                        </g>
-                      </svg>
-                      <input
-                        ref={inputRef}
-                        type="search"
-                        required
-                        disabled={mode === "add" && !user}
-                        placeholder={
-                          mode === "add"
-                            ? user
-                              ? "Select location for new event"
-                              : "Please login to add new event"
-                            : mode === "event"
-                              ? "Search event by name"
-                              : "Search location"
-                        }
-                        value={inputValue}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          if (lastSelectedRef.current && v !== lastSelectedRef.current)
-                            lastSelectedRef.current = null;
-                          setInputValue(v);
-                        }}
-                        className="w-full bg-transparent outline-none"
-                      />
-                    </label>
-
-                    {/* Action button */}
-                    <button
-                      className="btn btn-neutral w-full rounded-full md:w-auto"
-                      onClick={handleSearchButton}
-                      disabled={mode === "add" && !user}
-                      title={mode === "add" && !user ? "Please login to create events" : ""}
-                    >
-                      {mode === "search" ? "Search" : mode === "add" ? "Add Event" : "Find Event"}
-                    </button>
-                  </div>
-
-                  {/* Predictions dropdown */}
-                  {predictions && predictions.length > 0 && (
-                    <div className="absolute top-full left-0 z-50 mt-2 w-full">
-                      <ul className="menu bg-base-100 rounded-box max-h-60 w-full overflow-auto p-2 shadow-sm">
-                        {predictions.map((p) => (
-                          <li key={p.eventId || p.place_id}>
-                            <a
-                              onClick={() => {
-                                if (mode === "search") return handlePredictionPan(p);
-                                if (mode === "add") return handlePredictionSelect(p);
-                                if (mode === "event") {
-                                  // clear dropdown after selecting an event prediction
-                                  setPredictions([]);
-                                  setInputValue(p.description);
-                                  lastSelectedRef.current = p.description;
-                                  const ev = filteredEvents.find(
-                                    (e) => String(e.id) === String(p.eventId)
-                                  );
-                                  if (ev) {
-                                    setSelectedEvent(ev);
-                                    panToPosition(ev.position, 15);
-                                  }
-                                }
-                              }}
-                            >
-                              {p.description}
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* user location marker */}
-            {userPos && (
-              <Marker
-                key="user"
-                position={userPos}
-                icon={{
-                  url:
-                    "data:image/svg+xml;utf-8," +
-                    encodeURIComponent(
-                      `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 48 48"><path fill="#E8EAF6" d="M42 39H6V23L24 6l18 17z"/><path fill="#C5CAE9" d="m39 21l-5-5V9h5zM6 39h36v5H6z"/><path fill="#B71C1C" d="M24 4.3L4 22.9l2 2.2L24 8.4l18 16.7l2-2.2z"/><path fill="#D84315" d="M18 28h12v16H18z"/><path fill="#01579B" d="M21 17h6v6h-6z"/><path fill="#FF8A65" d="M27.5 35.5c-.3 0-.5.2-.5.5v2c0 .3.2.5.5.5s.5-.2.5-.5v-2c0-.3-.2-.5-.5-.5z"/></svg>`
-                    ),
-                  scaledSize: { width: 36, height: 36 },
-                }}
-              />
-            )}
-
-            {/* event markers with clusterer */}
-            <MarkerClusterer options={CLUSTERER_OPTIONS} onClick={onClusterClick}>
-              {(clusterer) =>
-                filteredEvents.map((ev) => (
-                  <Marker
-                    key={ev.id}
-                    position={ev.position}
-                    title={ev.title}
-                    clusterer={clusterer}
-                    onLoad={(marker) => markerOnLoad(marker, ev.id)}
-                    onClick={() => onMarkerClick(ev)}
-                  />
-                ))
-              }
-            </MarkerClusterer>
-          </GoogleMap>
-
-          {/* EventForm modal */}
-          {showModal && (
-            <div className="fixed inset-0 z-40 flex items-center justify-center">
-              <div
-                className="absolute inset-0 bg-black opacity-40"
-                onClick={() => setShowModal(false)}
-              />
-              <div className="z-50 w-11/12 rounded p-4 shadow-lg md:w-1/2">
-                <EventForm
-                  initialData={initialFormData || {}}
-                  onCancel={() => setShowModal(false)}
-                  onOptimistic={handleOptimisticUpdate}
-                  onRollback={handleRollback}
-                  onSaved={(serverEvent) => {
-                    const mapped = {
-                      id: serverEvent.id,
-                      title: serverEvent.title,
-                      description: serverEvent.description,
-                      position: {
-                        lat: Number(serverEvent.latitude ?? initialFormData?.latitude),
-                        lng: Number(serverEvent.longitude ?? initialFormData?.longitude),
-                      },
-                      location_address:
-                        serverEvent.location_address ?? initialFormData?.location_address,
-                      starts_at: serverEvent.starts_at ?? initialFormData?.starts_at,
-                      ends_at: serverEvent.ends_at ?? initialFormData?.ends_at,
-                      category: serverEvent.category ?? initialFormData?.category,
-                      user_id: serverEvent.user_id,
-                    };
-                    setEvents((prev) => {
-                      const found = prev.find((p) => String(p.id) === String(mapped.id));
-                      if (found)
-                        return prev.map((p) => (String(p.id) === String(mapped.id) ? mapped : p));
-                      return [...prev, mapped];
-                    });
-                    setShowModal(false);
-                    setSelectedEvent(mapped);
-                    panToPosition(mapped.position, 15);
-                    if (mapped?.id) delete optimisticRef.current[mapped.id];
-                  }}
+      {/* Mobile view */}
+      {isMobile && (
+        <div className="flex h-screen flex-col gap-4">
+          <div id="mobileTogglesWrapper">
+            <div className="mt-1 flex items-center gap-4">
+              {/* Filter toggle */}
+              <label className="flex cursor-pointer items-center gap-1">
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="toggle toggle-sm"
+                  onChange={() => setFilterOpen(!filterOpen)}
                 />
+                <span className="text-sm font-medium">Filter</span>
+              </label>
+
+              {/* Search toggle */}
+              <label className="flex cursor-pointer items-center gap-1">
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="toggle toggle-sm"
+                  onChange={() => setSearchOpen(!searchOpen)}
+                />
+                <span className="text-sm font-medium">Search</span>
+              </label>
+
+              {/* Stats toggle */}
+              <label className="flex cursor-pointer items-center gap-0">
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="toggle toggle-sm"
+                  onChange={() => setStatsOpen(!statsOpen)}
+                />
+                <span className="text-sm font-medium">Stats</span>
+              </label>
+            </div>
+          </div>
+
+          {filterOpen && (
+            <div
+              id="mobileFilterWrapper"
+              className="bg-base-200/90 flex flex-col gap-1 rounded-lg p-3 shadow-md"
+            >
+              {/* Time filter */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="w-32 text-sm font-medium">Time window:</span>
+                <select
+                  value={filterTime}
+                  onChange={(e) => setFilterTime(e.target.value)}
+                  className="select select-sm flex-1"
+                >
+                  <option value="all">All time</option>
+                  <option value="24h">Ends 24h</option>
+                  <option value="7d">Ends 7 days</option>
+                  <option value="30d">Ends 30 days</option>
+                </select>
+              </div>
+
+              {/* Category filter */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="w-32 text-sm font-medium">Category:</span>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="select select-sm flex-1"
+                >
+                  <option value="">All categories</option>
+                  <option>Arts & Culture</option>
+                  <option>Entertainment & Leisure</option>
+                  <option>Education & Workshops</option>
+                  <option>Sports & Fitness</option>
+                  <option>Food & Drink</option>
+                  <option>Business & Networking</option>
+                  <option>Community & Social</option>
+                  <option>Family & Kids</option>
+                  <option>Technology & Innovation</option>
+                  <option>Other</option>
+                </select>
+              </div>
+
+              {/* Max distance filter */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="w-32 text-sm font-medium">Max distance (km):</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={filterDistanceKm}
+                    onChange={(e) =>
+                      setFilterDistanceKm(e.target.value ? Number(e.target.value) : 0)
+                    }
+                    className="input input-sm w-16"
+                  />
+                </div>
               </div>
             </div>
           )}
-        </div>
 
-        {/* Event Info + cluster pagination controls (right for desktop and bottom for mobile) */}
-        <aside
-          className={EVENTINFO_STYLES.mobile + " " + EVENTINFO_STYLES.desktop}
-          aria-hidden={!selectedEvent}
-        >
-          <EventInfo
-            event={selectedEvent}
-            clusterEvents={clusterEvents}
-            clusterIndex={clusterIndex}
-            onPrevCluster={showPrevInCluster}
-            onNextCluster={showNextInCluster}
-            onClose={() => {
-              setSelectedEvent(null);
-              // clear cluster browsing when closing
-              setClusterEvents([]);
-              setClusterIndex(0);
-            }}
-            onEdit={handleEditEvent}
-            onDelete={(id) => {
-              // if deleting the currently browsed cluster item, remove it from clusterEvents too
-              if (clusterEvents && clusterEvents.length) {
-                setClusterEvents((prev) => prev.filter((c) => String(c.id) !== String(id)));
-                if (clusterIndex >= clusterEvents.length - 1) setClusterIndex(0);
-              }
-              handleDeleteEvent(id);
-            }}
+          {searchOpen && (
+            <div id="mobileSearchWrapper" className="flex flex-col gap-1">
+              <div id="mobileSearchWrapperInner">
+                <div className="bg-base-200/90 flex flex-col gap-2 rounded-lg p-2 shadow-md">
+                  {/* Mode select */}
+                  <select
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value)}
+                    className="select select-md select-ghost bg-base-200/90 w-full rounded-full shadow-inner"
+                  >
+                    <option value="search">Search Location</option>
+                    <option value="add">Add Event</option>
+                    <option value="event">Search Event</option>
+                  </select>
+
+                  {/* Input field */}
+                  <label className="input relative w-full flex-1 items-center gap-2 rounded-full p-2">
+                    <svg
+                      className="h-[1em] opacity-50"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                    >
+                      <g
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                        strokeWidth="2.5"
+                        fill="none"
+                        stroke="currentColor"
+                      >
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.3-4.3"></path>
+                      </g>
+                    </svg>
+                    <input
+                      ref={inputRef}
+                      type="search"
+                      required
+                      disabled={mode === "add" && !user}
+                      placeholder={
+                        mode === "add"
+                          ? user
+                            ? "Select location for new event"
+                            : "Please login to add new event"
+                          : mode === "event"
+                            ? "Search event by name"
+                            : "Search location"
+                      }
+                      value={inputValue}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (lastSelectedRef.current && v !== lastSelectedRef.current)
+                          lastSelectedRef.current = null;
+                        setInputValue(v);
+                      }}
+                      className="w-full bg-transparent outline-none"
+                    />
+                  </label>
+
+                  {/* Action button */}
+                  <button
+                    className="btn btn-neutral w-full rounded-full"
+                    onClick={handleSearchButton}
+                    disabled={mode === "add" && !user}
+                    title={mode === "add" && !user ? "Please login to create events" : ""}
+                  >
+                    {mode === "search" ? "Search" : mode === "add" ? "Add Event" : "Find Event"}
+                  </button>
+                </div>
+              </div>
+
+              {predictions && predictions.length > 0 && (
+                <div id="mobileSearchPredictionsWrapper" className="z-50">
+                  <ul className="menu bg-base-100 rounded-box max-h-60 w-full overflow-auto p-2 shadow-sm">
+                    {predictions.map((p) => (
+                      <li key={p.eventId || p.place_id}>
+                        <a
+                          onClick={() => {
+                            if (mode === "search") return handlePredictionPan(p);
+                            if (mode === "add") return handlePredictionSelect(p);
+                            if (mode === "event") {
+                              // clear dropdown after selecting an event prediction
+                              setPredictions([]);
+                              setInputValue(p.description);
+                              lastSelectedRef.current = p.description;
+                              const ev = filteredEvents.find(
+                                (e) => String(e.id) === String(p.eventId)
+                              );
+                              if (ev) {
+                                setSelectedEvent(ev);
+                                panToPosition(ev.position, 15);
+                              }
+                            }
+                          }}
+                        >
+                          {p.description}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div id="mobileMap" className="pb-4">
+            <GoogleMap
+              mapContainerStyle={{ width: "100%", height: `${mapHeight}px` }}
+              center={center}
+              zoom={14}
+              options={mapOptions}
+              onLoad={onMapLoad}
+            >
+              {/* Stats container */}
+              {statsOpen && (
+                <div className="bg-base-200/90 absolute right-4 bottom-4 rounded-lg p-2 shadow">
+                  <span className="text-sm font-medium">Total Events: {filteredEvents.length}</span>
+                </div>
+              )}
+
+              {/* user location marker */}
+              {userPos && (
+                <Marker
+                  key="user"
+                  position={userPos}
+                  icon={{
+                    url:
+                      "data:image/svg+xml;utf-8," +
+                      encodeURIComponent(
+                        `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 48 48"><path fill="#E8EAF6" d="M42 39H6V23L24 6l18 17z"/><path fill="#C5CAE9" d="m39 21l-5-5V9h5zM6 39h36v5H6z"/><path fill="#B71C1C" d="M24 4.3L4 22.9l2 2.2L24 8.4l18 16.7l2-2.2z"/><path fill="#D84315" d="M18 28h12v16H18z"/><path fill="#01579B" d="M21 17h6v6h-6z"/><path fill="#FF8A65" d="M27.5 35.5c-.3 0-.5.2-.5.5v2c0 .3.2.5.5.5s.5-.2.5-.5v-2c0-.3-.2-.5-.5-.5z"/></svg>`
+                      ),
+                    scaledSize: { width: 36, height: 36 },
+                  }}
+                />
+              )}
+
+              {/* event markers with clusterer */}
+              <MarkerClusterer options={CLUSTERER_OPTIONS} onClick={onClusterClick}>
+                {(clusterer) =>
+                  filteredEvents.map((ev) => (
+                    <Marker
+                      key={ev.id}
+                      position={ev.position}
+                      title={ev.title}
+                      clusterer={clusterer}
+                      onLoad={(marker) => markerOnLoad(marker, ev.id)}
+                      onClick={() => onMarkerClick(ev)}
+                    />
+                  ))
+                }
+              </MarkerClusterer>
+            </GoogleMap>
+          </div>
+
+          <div id="mobileMapInfo">
+            <aside
+              className={`bg-base-100 fixed top-0 left-0 z-100 h-dvh w-full transition-transform duration-300 ${selectedEvent ? "translate-x-0" : "translate-x-full"}`}
+              aria-hidden={!selectedEvent}
+            >
+              <EventInfo
+                event={selectedEvent}
+                clusterEvents={clusterEvents}
+                clusterIndex={clusterIndex}
+                onPrevCluster={showPrevInCluster}
+                onNextCluster={showNextInCluster}
+                onClose={() => {
+                  setSelectedEvent(null);
+                  setClusterEvents([]);
+                  setClusterIndex(0);
+                }}
+                onEdit={handleEditEvent}
+                onDelete={(id) => {
+                  if (clusterEvents && clusterEvents.length) {
+                    setClusterEvents((prev) => prev.filter((c) => String(c.id) !== String(id)));
+                    if (clusterIndex >= clusterEvents.length - 1) setClusterIndex(0);
+                  }
+                  handleDeleteEvent(id);
+                }}
+              />
+            </aside>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop view */}
+      {!isMobile && (
+        <div className="flex h-full flex-col gap-2 overflow-x-hidden px-4">
+          <div id="mobileTogglesWrapper">
+            <div className="mt-1 flex items-center gap-4">
+              {/* Filter toggle */}
+              <label className="flex cursor-pointer items-center gap-1">
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="toggle toggle-sm"
+                  onChange={() => setFilterOpen(!filterOpen)}
+                />
+                <span className="text-sm font-medium">Filter</span>
+              </label>
+
+              {/* Search toggle */}
+              <label className="flex cursor-pointer items-center gap-1">
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="toggle toggle-sm"
+                  onChange={() => setSearchOpen(!searchOpen)}
+                />
+                <span className="text-sm font-medium">Search</span>
+              </label>
+
+              {/* Stats toggle */}
+              <label className="flex cursor-pointer items-center gap-0">
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="toggle toggle-sm"
+                  onChange={() => setStatsOpen(!statsOpen)}
+                />
+                <span className="text-sm font-medium">Stats</span>
+              </label>
+            </div>
+          </div>
+
+          <div id="desktopMapWrapper" className="flex flex-1 gap-4">
+            {/* Map area */}
+            <div
+              className="relative mt-4 flex h-full w-full flex-row"
+              ref={wrapperRef}
+              style={{ paddingBottom: "1rem" }}
+            >
+              {/* Map area (left) */}
+              <div
+                className={
+                  (selectedEvent ? "w-3/4" : "w-full") + " h-full transition-all duration-300"
+                }
+                style={{ minHeight: 400 }}
+              >
+                <GoogleMap
+                  mapContainerStyle={{ width: "100%", height: `${mapHeight}px` }}
+                  center={center}
+                  zoom={14}
+                  options={mapOptions}
+                  onLoad={onMapLoad}
+                >
+                  {/* Stats container */}
+                  {statsOpen && (
+                    <div className="bg-base-200/90 absolute right-4 bottom-4 rounded-lg p-2 shadow">
+                      <span className="text-sm font-medium">
+                        Total Events: {filteredEvents.length}
+                      </span>
+                    </div>
+                  )}
+                  {/* Filters container */}
+                  {filterOpen && (
+                    <div className="bg-base-200/90 absolute bottom-4 left-4 flex w-64 flex-col gap-3 rounded-lg p-2 shadow">
+                      {/* Time filter */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="w-32 text-sm font-medium">Time window:</span>
+                        <select
+                          value={filterTime}
+                          onChange={(e) => setFilterTime(e.target.value)}
+                          className="select select-sm flex-1"
+                        >
+                          <option value="all">All time</option>
+                          <option value="24h">Ends 24h</option>
+                          <option value="7d">Ends 7 days</option>
+                          <option value="30d">Ends 30 days</option>
+                        </select>
+                      </div>
+
+                      {/* Category filter */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="w-32 text-sm font-medium">Category:</span>
+                        <select
+                          value={filterCategory}
+                          onChange={(e) => setFilterCategory(e.target.value)}
+                          className="select select-sm flex-1"
+                        >
+                          <option value="">All categories</option>
+                          <option>Arts & Culture</option>
+                          <option>Entertainment & Leisure</option>
+                          <option>Education & Workshops</option>
+                          <option>Sports & Fitness</option>
+                          <option>Food & Drink</option>
+                          <option>Business & Networking</option>
+                          <option>Community & Social</option>
+                          <option>Family & Kids</option>
+                          <option>Technology & Innovation</option>
+                          <option>Other</option>
+                        </select>
+                      </div>
+
+                      {/* Max distance filter */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="w-32 text-sm font-medium">Max distance (km):</span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={filterDistanceKm}
+                            onChange={(e) =>
+                              setFilterDistanceKm(e.target.value ? Number(e.target.value) : 0)
+                            }
+                            className="input input-sm w-16"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {searchOpen && (
+                    <div className={`absolute top-4 right-8 z-30 flex items-start gap-3`}>
+                      <div className="relative left-4 w-auto">
+                        <div className="bg-base-200/90 flex w-lg flex-row items-center gap-2 rounded-full p-2 shadow-inner shadow-lg">
+                          {/* Mode select */}
+                          <select
+                            value={mode}
+                            onChange={(e) => setMode(e.target.value)}
+                            className="select select-md select-ghost bg-base-200/90 w-auto rounded-full shadow-inner"
+                          >
+                            <option value="search">Search Location</option>
+                            <option value="add">Add Event</option>
+                            <option value="event">Search Event</option>
+                          </select>
+
+                          {/* Input field */}
+                          <label className="input relative w-auto flex-1 items-center gap-2 rounded-full">
+                            <svg
+                              className="h-[1em] opacity-50"
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                            >
+                              <g
+                                strokeLinejoin="round"
+                                strokeLinecap="round"
+                                strokeWidth="2.5"
+                                fill="none"
+                                stroke="currentColor"
+                              >
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <path d="m21 21-4.3-4.3"></path>
+                              </g>
+                            </svg>
+                            <input
+                              ref={inputRef}
+                              type="search"
+                              required
+                              disabled={mode === "add" && !user}
+                              placeholder={
+                                mode === "add"
+                                  ? user
+                                    ? "Select location for new event"
+                                    : "Please login to add new event"
+                                  : mode === "event"
+                                    ? "Search event by name"
+                                    : "Search location"
+                              }
+                              value={inputValue}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (lastSelectedRef.current && v !== lastSelectedRef.current)
+                                  lastSelectedRef.current = null;
+                                setInputValue(v);
+                              }}
+                              className="w-full bg-transparent outline-none"
+                            />
+                          </label>
+
+                          {/* Action button */}
+                          <button
+                            className="btn btn-neutral w-auto rounded-full"
+                            onClick={handleSearchButton}
+                            disabled={mode === "add" && !user}
+                            title={mode === "add" && !user ? "Please login to create events" : ""}
+                          >
+                            {mode === "search"
+                              ? "Search"
+                              : mode === "add"
+                                ? "Add Event"
+                                : "Find Event"}
+                          </button>
+                        </div>
+
+                        {/* Predictions dropdown */}
+                        {predictions && predictions.length > 0 && (
+                          <div className="absolute top-full left-0 z-50 mt-2 w-full">
+                            <ul className="menu bg-base-100 rounded-box max-h-60 w-full overflow-auto p-2 shadow-sm">
+                              {predictions.map((p) => (
+                                <li key={p.eventId || p.place_id}>
+                                  <a
+                                    onClick={() => {
+                                      if (mode === "search") return handlePredictionPan(p);
+                                      if (mode === "add") return handlePredictionSelect(p);
+                                      if (mode === "event") {
+                                        // clear dropdown after selecting an event prediction
+                                        setPredictions([]);
+                                        setInputValue(p.description);
+                                        lastSelectedRef.current = p.description;
+                                        const ev = filteredEvents.find(
+                                          (e) => String(e.id) === String(p.eventId)
+                                        );
+                                        if (ev) {
+                                          setSelectedEvent(ev);
+                                          panToPosition(ev.position, 15);
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    {p.description}
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* user location marker */}
+                  {userPos && (
+                    <Marker
+                      key="user"
+                      position={userPos}
+                      icon={{
+                        url:
+                          "data:image/svg+xml;utf-8," +
+                          encodeURIComponent(
+                            `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 48 48"><path fill="#E8EAF6" d="M42 39H6V23L24 6l18 17z"/><path fill="#C5CAE9" d="m39 21l-5-5V9h5zM6 39h36v5H6z"/><path fill="#B71C1C" d="M24 4.3L4 22.9l2 2.2L24 8.4l18 16.7l2-2.2z"/><path fill="#D84315" d="M18 28h12v16H18z"/><path fill="#01579B" d="M21 17h6v6h-6z"/><path fill="#FF8A65" d="M27.5 35.5c-.3 0-.5.2-.5.5v2c0 .3.2.5.5.5s.5-.2.5-.5v-2c0-.3-.2-.5-.5-.5z"/></svg>`
+                          ),
+                        scaledSize: { width: 36, height: 36 },
+                      }}
+                    />
+                  )}
+
+                  {/* event markers with clusterer */}
+                  <MarkerClusterer options={CLUSTERER_OPTIONS} onClick={onClusterClick}>
+                    {(clusterer) =>
+                      filteredEvents.map((ev) => (
+                        <Marker
+                          key={ev.id}
+                          position={ev.position}
+                          title={ev.title}
+                          clusterer={clusterer}
+                          onLoad={(marker) => markerOnLoad(marker, ev.id)}
+                          onClick={() => onMarkerClick(ev)}
+                        />
+                      ))
+                    }
+                  </MarkerClusterer>
+                </GoogleMap>
+              </div>
+
+              {/* Event Info + cluster pagination controls (right for desktop and bottom for mobile) */}
+              <aside
+                className={`bg-base-100 absolute top-0 right-0 bottom-4 z-20 w-1/4 transition-transform duration-300 ${
+                  selectedEvent ? "translate-x-0" : "translate-x-full"
+                }`}
+                aria-hidden={!selectedEvent}
+              >
+                <EventInfo
+                  event={selectedEvent}
+                  clusterEvents={clusterEvents}
+                  clusterIndex={clusterIndex}
+                  onPrevCluster={showPrevInCluster}
+                  onNextCluster={showNextInCluster}
+                  onClose={() => {
+                    setSelectedEvent(null);
+                    // clear cluster browsing when closing
+                    setClusterEvents([]);
+                    setClusterIndex(0);
+                  }}
+                  onEdit={handleEditEvent}
+                  onDelete={(id) => {
+                    // if deleting the currently browsed cluster item, remove it from clusterEvents too
+                    if (clusterEvents && clusterEvents.length) {
+                      setClusterEvents((prev) => prev.filter((c) => String(c.id) !== String(id)));
+                      if (clusterIndex >= clusterEvents.length - 1) setClusterIndex(0);
+                    }
+                    handleDeleteEvent(id);
+                  }}
+                />
+              </aside>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EventForm modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black opacity-40"
+            onClick={() => setShowModal(false)}
           />
-        </aside>
-      </div>
+          <div className="z-50 w-11/12 rounded p-4 md:w-1/2">
+            <EventForm
+              initialData={initialFormData || {}}
+              onCancel={() => setShowModal(false)}
+              onOptimistic={handleOptimisticUpdate}
+              onRollback={handleRollback}
+              onSaved={(serverEvent) => {
+                const mapped = {
+                  id: serverEvent.id,
+                  title: serverEvent.title,
+                  description: serverEvent.description,
+                  position: {
+                    lat: Number(serverEvent.latitude ?? initialFormData?.latitude),
+                    lng: Number(serverEvent.longitude ?? initialFormData?.longitude),
+                  },
+                  location_address:
+                    serverEvent.location_address ?? initialFormData?.location_address,
+                  starts_at: serverEvent.starts_at ?? initialFormData?.starts_at,
+                  ends_at: serverEvent.ends_at ?? initialFormData?.ends_at,
+                  category: serverEvent.category ?? initialFormData?.category,
+                  user_id: serverEvent.user_id,
+                };
+                setEvents((prev) => {
+                  const found = prev.find((p) => String(p.id) === String(mapped.id));
+                  if (found)
+                    return prev.map((p) => (String(p.id) === String(mapped.id) ? mapped : p));
+                  return [...prev, mapped];
+                });
+                setShowModal(false);
+                setSelectedEvent(mapped);
+                panToPosition(mapped.position, 15);
+                if (mapped?.id) delete optimisticRef.current[mapped.id];
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

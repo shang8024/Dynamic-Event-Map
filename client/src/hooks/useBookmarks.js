@@ -1,6 +1,12 @@
 // src/hooks/useBookmarks.js
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { fetchBookmarks, addBookmark, removeBookmark, fetchBookmarkStats, fetchTodaysBookmarks } from "../services/bookmarksService.js";
+import {
+  fetchBookmarks,
+  addBookmark,
+  removeBookmark,
+  fetchBookmarkStats,
+  fetchTodaysBookmarks,
+} from "../services/bookmarksService.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useNotifications, isDismissedToday } from "../contexts/NotificationContext.jsx";
 
@@ -36,10 +42,10 @@ export function useBookmarks() {
       setItems([]);
       return;
     }
-    
+
     const runId = Symbol();
     latestRunRef.current = runId;
-    
+
     try {
       const { items: serverItems = [] } = await fetchBookmarks();
       if (latestRunRef.current !== runId) return; // Check if this is still the latest call
@@ -100,11 +106,10 @@ export function useBookmarks() {
               label: "View",
               onClick: () => {},
               href: "/bookmarks",
-            }
+            },
           });
         }
-      } catch {
-      }
+      } catch {}
     })();
 
     return () => {
@@ -140,7 +145,7 @@ export function useBookmarks() {
         if (willMark) {
           const result = await addBookmark(eventId);
           await fetchBookmarkStats(eventId);
-          
+
           // Only show success for newly created bookmarks (201)
           if (!result.alreadyExists) {
             const already = items.some((it) => it?.data?.id === eventId);
@@ -186,7 +191,7 @@ export function useBookmarks() {
         }
       } catch (error) {
         // Handle unexpected errors (network issues, server errors, etc.)
-        console.error('Failed to toggle bookmark:', error);
+        console.error("Failed to toggle bookmark:", error);
         push({ type: "error", message: "Failed to update bookmark", autoCloseMs: 5000 });
 
         // revert optimistic state
@@ -203,7 +208,7 @@ export function useBookmarks() {
           ns.delete(eventId);
           return ns;
         });
-      }; 
+      }
     },
     [bookmarkedIds, items, user, push, refetchBookmarks]
   );

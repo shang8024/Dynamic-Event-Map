@@ -95,7 +95,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let checkActivityInterval;
     if (user) {
-      const interval_ms = 59*60*1000; // Check activity after 59 minutes as tokens expire in 1 hour
+      const interval_ms = 59 * 60 * 1000; // Check activity after 59 minutes as tokens expire in 1 hour
       checkActivityInterval = setInterval(async () => {
         // Check if user is still logged in
         const currentUser = auth.currentUser;
@@ -104,22 +104,27 @@ export function AuthProvider({ children }) {
         if (checkActivity()) {
           try {
             const token = await currentUser.getIdToken(true); // Force token refresh if user has been active
-            localStorage.setItem('idToken', token);
-          } catch(error) {
+            localStorage.setItem("idToken", token);
+          } catch (error) {
             console.error("Failed to refresh authorization token.");
           }
         } else {
-          console.log("Current user has been idle for too long - log them out for security and to avoid errors from token expiration.")
+          console.log(
+            "Current user has been idle for too long - log them out for security and to avoid errors from token expiration."
+          );
           await logout();
           // Keep notification up without an auto close interval so idle user can see when they get back
-          push({ type: "info", message: `You have been logged out due to extended inactivity.\nPlease log in again.`});
+          push({
+            type: "info",
+            message: `You have been logged out due to extended inactivity.\nPlease log in again.`,
+          });
         }
       }, interval_ms);
     }
 
     return () => {
       if (checkActivityInterval) clearInterval(checkActivityInterval);
-    }
+    };
   }, [user, logout]);
 
   return (

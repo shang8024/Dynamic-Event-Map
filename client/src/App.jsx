@@ -12,11 +12,9 @@ import NotificationBanner from "./components/NotificationBanner.jsx";
 
 function PageWrapper({ children }) {
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-dvh flex-col gap-4 overflow-hidden">
       <Navbar />
-      <div className="flex-1 px-10 py-2">
-        {children}
-      </div>
+      <div className="h-dvh overflow-auto px-4">{children}</div>
     </div>
   );
 }
@@ -33,11 +31,7 @@ function AuthorizedRoute({ children }) {
       </PageWrapper>
     );
   }
-  return (
-    <PageWrapper>
-      {children}
-    </PageWrapper>
-  )
+  return <PageWrapper>{children}</PageWrapper>;
 }
 
 export default function App() {
@@ -48,13 +42,34 @@ export default function App() {
       <NotificationBanner />
       <AuthProvider>
         <LoadScript googleMapsApiKey={API_KEY} libraries={["places"]}>
-            <Router>
-              <Routes>
-                <Route path="/bookmarks" element={<AuthorizedRoute><BookmarksPage /></AuthorizedRoute>} />
-                <Route path="/comments" element={<AuthorizedRoute><UserComments /></AuthorizedRoute>} />
-                <Route path="*" element={<PageWrapper><EventMap /></PageWrapper>} />
-              </Routes>
-            </Router>
+          <Router>
+            <Routes>
+              <Route
+                path="/bookmarks"
+                element={
+                  <AuthorizedRoute>
+                    <BookmarksPage />
+                  </AuthorizedRoute>
+                }
+              />
+              <Route
+                path="/comments"
+                element={
+                  <AuthorizedRoute>
+                    <UserComments />
+                  </AuthorizedRoute>
+                }
+              />
+              <Route
+                path="*"
+                element={
+                  <PageWrapper>
+                    <EventMap />
+                  </PageWrapper>
+                }
+              />
+            </Routes>
+          </Router>
         </LoadScript>
       </AuthProvider>
     </NotificationProvider>

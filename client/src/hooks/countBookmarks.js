@@ -10,20 +10,20 @@ export function useCountBookmarks(eventId) {
     if (!eventId) return;
 
     async function fetchInitial() {
-        const initialCount = await fetchBookmarkStats(eventId).bookmark_count;
-        setNumBookmarks(initialCount);
+      const initialCount = await fetchBookmarkStats(eventId).bookmark_count;
+      setNumBookmarks(initialCount);
     }
     fetchInitial();
 
     function onUpdateBookmark(bookmark) {
       console.log("[Socket.IO] update count on bookmark:updated", bookmark.count);
-      if (typeof bookmark.count === 'number') setNumBookmarks(bookmark.count);
+      if (typeof bookmark.count === "number") setNumBookmarks(bookmark.count);
     }
 
     socket.on("bookmark:updated", onUpdateBookmark);
-    
-    return () => { 
-      socket.off('bookmark:updated', onUpdateBookmark);
+
+    return () => {
+      socket.off("bookmark:updated", onUpdateBookmark);
     };
   }, [eventId]);
 

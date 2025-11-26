@@ -2,18 +2,18 @@
 // Firebase tokens expire after 1 hour, use checkActivity every 59 minutes
 let isActive = false;
 const markActive = () => {
-    isActive = true;
-}
+  isActive = true;
+};
 
-['mousemove','keydown','touchstart'].forEach(eventType => {
-    document.addEventListener(eventType, markActive, {once: true});
+["mousemove", "keydown", "touchstart"].forEach((eventType) => {
+  document.addEventListener(eventType, markActive, { once: true });
 });
 
 export const checkActivity = () => {
-    const activeUser = isActive;
-    isActive = false;
-    ['mousemove','keydown','touchstart'].forEach(eventType => {
-        document.addEventListener(eventType, markActive, {once: true});
-    });
-    return activeUser;
-}
+  const activeUser = isActive;
+  isActive = false;
+  ["mousemove", "keydown", "touchstart"].forEach((eventType) => {
+    document.addEventListener(eventType, markActive, { once: true });
+  });
+  return activeUser;
+};

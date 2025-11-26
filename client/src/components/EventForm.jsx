@@ -119,10 +119,18 @@ export default function EventForm({
         // notify parent to rollback optimistic change for edits
         try {
           onRollback?.(initialData);
-          push({ type: "error", message: "Failed to save event. Changes have been reverted.", autoCloseMs: 5000 });
+          push({
+            type: "error",
+            message: "Failed to save event. Changes have been reverted.",
+            autoCloseMs: 5000,
+          });
         } catch (e) {
           console.warn("onRollback hook failed", e);
-          push({ type: "error", message: "Failed to save event. Rollback failed.", autoCloseMs: 5000 });
+          push({
+            type: "error",
+            message: "Failed to save event. Rollback failed.",
+            autoCloseMs: 5000,
+          });
         }
       } finally {
         setLoading(false);

@@ -20,16 +20,19 @@ function Description({ text, valid = true }) {
     return () => ro.disconnect();
   }, [text]);
   return (
-    <div className="mt-1 text-sm text-base-content/60">
-      <div className="relative" style={{maxHeight: expanded ? "none" : `${collapsedMax}px`, overflow: "hidden"}}>
+    <div className="text-base-content/60 mt-1 text-sm">
+      <div
+        className="relative"
+        style={{ maxHeight: expanded ? "none" : `${collapsedMax}px`, overflow: "hidden" }}
+      >
         <p ref={pRef}>{text}</p>
         {!expanded && hasOverflow && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-base-200 to-transparent" />
+          <div className="from-base-200 pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t to-transparent" />
         )}
       </div>
       {hasOverflow && (
         <button
-          className="mt-2 text-xs text-primary underline opacity-80 hover:opacity-100"
+          className="text-primary mt-2 text-xs underline opacity-80 hover:opacity-100"
           disabled={!valid}
           onClick={(e) => {
             e.stopPropagation();

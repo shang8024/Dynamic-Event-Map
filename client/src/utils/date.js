@@ -3,16 +3,16 @@ export function getEventStatus(item) {
   if (!event) return null;
 
   const now = new Date();
-  const starts = event.startsAt 
-    ? new Date(event.startsAt) 
-    : event._row?.starts_at 
-    ? new Date(event._row.starts_at) 
-    : null;
-  const ends = event.endsAt 
-    ? new Date(event.endsAt) 
-    : event._row?.ends_at 
-    ? new Date(event._row.ends_at) 
-    : null;
+  const starts = event.startsAt
+    ? new Date(event.startsAt)
+    : event._row?.starts_at
+      ? new Date(event._row.starts_at)
+      : null;
+  const ends = event.endsAt
+    ? new Date(event.endsAt)
+    : event._row?.ends_at
+      ? new Date(event._row.ends_at)
+      : null;
 
   if (ends && ends < now) return "Expired";
   if (starts && starts <= now && (!ends || ends >= now)) return "In progress";

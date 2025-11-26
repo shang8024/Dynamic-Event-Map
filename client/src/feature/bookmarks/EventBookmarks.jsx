@@ -7,16 +7,16 @@ import SearchInput from "../../components/SearchInput";
 import EmptyState from "../../components/EmptyState";
 import Description from "../../components/Description";
 
-const BookmarkListItem = ({id, eventData, bookmarkInfo, toggle, pending}) => {
+const BookmarkListItem = ({ id, eventData, bookmarkInfo, toggle, pending }) => {
   const eventStatus = getEventStatus(eventData);
   const isExpired = eventStatus === "Expired";
-  const stop = (e) => e.stopPropagation(); 
+  const stop = (e) => e.stopPropagation();
   return (
     <div
       key={id}
       className={[
-        "card relative bg-base-200 shadow-sm transition",
-        isExpired ? "grayscale opacity-60" : "",
+        "card bg-base-200 relative shadow-sm transition",
+        isExpired ? "opacity-60 grayscale" : "",
       ].join(" ")}
     >
       <EventStatusBadge event={eventData} position="absolute left-4 top-4" />
@@ -24,11 +24,7 @@ const BookmarkListItem = ({id, eventData, bookmarkInfo, toggle, pending}) => {
       <div className="card-body p-4">
         <div className="flex items-start gap-4">
           {/* Image column */}
-          {eventData && (
-            <EventImage 
-              event={eventData} 
-            />
-          )}
+          {eventData && <EventImage event={eventData} />}
 
           {/* Details */}
           <div className="min-w-0 flex-1">
@@ -36,18 +32,20 @@ const BookmarkListItem = ({id, eventData, bookmarkInfo, toggle, pending}) => {
               <div className="min-w-0">
                 <h3 className="card-title text-lg">{eventData?.title || `Event ${id}`}</h3>
                 {/* Collapsible description */}
-                {eventData?.description && <Description text={eventData.description} valid={!isExpired} />}
+                {eventData?.description && (
+                  <Description text={eventData.description} valid={!isExpired} />
+                )}
                 {eventData?._row?.location_address && (
-                  <p className="mt-1 text-xs text-base-content/50">
+                  <p className="text-base-content/50 mt-1 text-xs">
                     {eventData._row.location_address}
                   </p>
                 )}
                 {eventData?.position && (
-                  <p className="mt-2 text-xs text-base-content/50">
+                  <p className="text-base-content/50 mt-2 text-xs">
                     📍 {eventData.position.lat.toFixed(4)}, {eventData.position.lng.toFixed(4)}
                   </p>
                 )}
-                <p className="mt-1 text-xs text-base-content/40">
+                <p className="text-base-content/40 mt-1 text-xs">
                   Bookmarked: {new Date(bookmarkInfo.updatedAt).toLocaleDateString()}
                 </p>
               </div>
@@ -72,9 +70,7 @@ const BookmarkListItem = ({id, eventData, bookmarkInfo, toggle, pending}) => {
                     className="h-4 w-4"
                   >
                     {isExpired ? (
-                      <path
-                        d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 11-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z"
-                      />
+                      <path d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 11-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" />
                     ) : (
                       <path d="m11.645 20.91-.007-.003-.022-.012a15.247 15.247 0 0 1-.383-.218 25.18 25.18 0 0 1-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0 1 12 5.052 5.5 5.5 0 0 1 16.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 0 1-4.244 3.17 15.247 15.247 0 0 1-.383.218l-.022.012-.007.004-.003.001a.752.752 0 0 1-.704 0l-.003-.001Z" />
                     )}
@@ -96,30 +92,21 @@ export default function BookmarksPage() {
   const [q, setQ] = useState("");
   const [sortKey, setSortKey] = useState("bookmarked-desc");
   const filteredSorted = useMemo(() => {
-
     // Filter by search & hideExpired
     const matches = bookmarkedEvents.filter(({ eventData }) => {
       if (!eventData) return false;
 
       if (!q) return true;
-      const hay = [
-        eventData.title,
-        eventData.description,
-        eventData?._row?.location_address,
-      ]
+      const hay = [eventData.title, eventData.description, eventData?._row?.location_address]
         .map(normalize)
         .join(" ");
 
       return hay.includes(normalize(q));
     });
 
-     const withFields = matches.map((row) => {
-      const starts = row.eventData?._row?.starts_at
-        ? new Date(row.eventData._row.starts_at)
-        : null;
-      const ends = row.eventData?._row?.ends_at
-        ? new Date(row.eventData._row.ends_at)
-        : null;
+    const withFields = matches.map((row) => {
+      const starts = row.eventData?._row?.starts_at ? new Date(row.eventData._row.starts_at) : null;
+      const ends = row.eventData?._row?.ends_at ? new Date(row.eventData._row.ends_at) : null;
       return { ...row, __starts: starts, __ends: ends };
     });
 
@@ -149,7 +136,8 @@ export default function BookmarksPage() {
   }, [bookmarkedEvents, q, sortKey]);
 
   const expiredCount = useMemo(
-    () => bookmarkedEvents.filter(({ eventData }) => getEventStatus(eventData) === "Expired").length,
+    () =>
+      bookmarkedEvents.filter(({ eventData }) => getEventStatus(eventData) === "Expired").length,
     [bookmarkedEvents]
   );
 
@@ -178,10 +166,7 @@ export default function BookmarksPage() {
           {/* Toolbar */}
           <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
             {/* Search */}
-            <SearchInput 
-              value={q}
-              onChange={setQ}
-            />
+            <SearchInput value={q} onChange={setQ} />
 
             {/* Sort */}
             <select
@@ -213,9 +198,11 @@ export default function BookmarksPage() {
         {/* Display bookmarked events */}
         <div className="mt-4 grid gap-4">
           {filteredSorted.length === 0 ? (
-            <EmptyState message={q ? "No bookmarked events match your search." : "No bookmarked events yet."} />
+            <EmptyState
+              message={q ? "No bookmarked events match your search." : "No bookmarked events yet."}
+            />
           ) : (
-            filteredSorted.map(({ id, eventData, bookmarkInfo }) =>
+            filteredSorted.map(({ id, eventData, bookmarkInfo }) => (
               <BookmarkListItem
                 key={id}
                 id={id}
@@ -224,7 +211,7 @@ export default function BookmarksPage() {
                 toggle={toggle}
                 pending={isPending(id)}
               />
-            )
+            ))
           )}
         </div>
       </div>
