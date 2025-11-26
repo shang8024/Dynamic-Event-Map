@@ -2,7 +2,7 @@ import React from "react";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 
-export default function EventImage({ event, fallbackSeed }) {
+export default function EventImage({ event, fallbackSeed, className }) {
   if (!event) return null;
 
   const hasPosition =
@@ -19,13 +19,18 @@ export default function EventImage({ event, fallbackSeed }) {
   const endsAt = event.endsAt || event._row?.ends_at;
   const eventId = event.id || fallbackSeed || "default";
 
+  const imageWrapperClass = className || "aspect-[4/3] w-40 flex-none md:w-56";
+
   return (
-    <div className="aspect-[4/3] w-40 flex-none md:w-56">
-      <img
-        src={event.img || googleStreetView || `https://picsum.photos/seed/${eventId}/400/300`}
-        alt={event.title || "Event"}
-        className="h-full w-full rounded object-cover"
-      />
+    <div>
+      <div className={imageWrapperClass}>
+        <img
+          src={event.img || googleStreetView || `https://picsum.photos/seed/${eventId}/400/300`}
+          alt={event.title || "Event"}
+          className="h-full w-full rounded object-cover"
+        />
+      </div>
+
       {startsAt && (
         <div className="text-base-content/50 mt-1 text-xs">
           <strong>Starts:</strong> {new Date(startsAt).toLocaleDateString()}

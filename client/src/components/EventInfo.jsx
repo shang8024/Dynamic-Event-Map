@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useBookmarks, useCountBookmarks } from "../hooks";
 import EventComments from "./EventComments.jsx";
 import { useAuth } from "../contexts/AuthContext.jsx";
@@ -16,6 +16,7 @@ export default function EventInfo({
   const { isBookmarked, isPending, toggle } = useBookmarks();
   const { user } = useAuth();
   const numBookmarks = useCountBookmarks(event?.id);
+  const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
 
   if (!event) return null;
 
@@ -60,7 +61,7 @@ export default function EventInfo({
   };
 
   return (
-    <div className="bg-base-200 flex h-full w-full flex-col p-4">
+    <div className="bg-base-200 flex h-full w-full flex-col overflow-y-auto p-4">
       <div id="information">
         <div className="bg-base-100 rounded-md shadow-sm">
           <div className="bg-base-100 relative h-40 w-full overflow-hidden rounded-md">
@@ -215,13 +216,47 @@ export default function EventInfo({
         </div>
       </div>
 
-      <div id="comments" className="flex min-h-0 flex-1 flex-col md:h-[calc(100vh)]">
+      {/* Mobile: show a button to open comments on a separate page/overlay */}
+      <div className="mt-4 md:hidden">
+        <button
+          className="btn btn-block"
+          onClick={() => setMobileCommentsOpen(true)}
+          title="View comments"
+        >
+          View comments
+        </button>
+      </div>
+
+      <div id="comments" className="hidden min-h-0 flex-1 flex-col md:flex md:h-[calc(100vh)]">
         <div className="divider mt-4 mb-2">
           <span className="text-base-content/50 text-sm">Comments</span>
         </div>
         {/* Event comments section */}
         <EventComments eventId={event.id} />
       </div>
+
+      {/* Mobile-only full-screen comments "next page" */}
+      {mobileCommentsOpen && (
+        <div className="bg-base-200 fixed inset-0 z-50 flex flex-col p-4 md:hidden">
+          <div className="flex items-center justify-between">
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setMobileCommentsOpen(false)}
+              title="Back to info"
+            >
+              ← Back
+            </button>
+            <h4 className="text-md font-semibold">Comments</h4>
+            <div className="w-12" />
+          </div>
+
+          <div className="divider mt-2 mb-2" />
+
+          <div className="min-h-0 flex-1 overflow-auto">
+            <EventComments eventId={event.id} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

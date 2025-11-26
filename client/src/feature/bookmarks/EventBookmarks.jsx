@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { useBookmarks } from "../../hooks";
 import { getEventStatus, normalize } from "../../utils/date";
 import EventStatusBadge from "../../components/EventStatusBadge";
@@ -15,22 +15,29 @@ const BookmarkListItem = ({ id, eventData, bookmarkInfo, toggle, pending }) => {
     <div
       key={id}
       className={[
-        "card bg-base-200 relative shadow-sm transition",
+        "card bg-base-200 relative w-full shadow-sm transition",
         isExpired ? "opacity-60 grayscale" : "",
       ].join(" ")}
     >
       <EventStatusBadge event={eventData} position="absolute left-4 top-4" />
 
-      <div className="card-body p-4">
-        <div className="flex items-start gap-4">
+      <div className="card-body p-3 md:p-4">
+        <div className="flex flex-col items-start gap-4 md:flex-row">
           {/* Image column */}
-          {eventData && <EventImage event={eventData} />}
+          {eventData && (
+            <EventImage
+              event={eventData}
+              className="mb-2 aspect-[4/3] w-full flex-none md:mb-0 md:aspect-[4/3] md:w-40"
+            />
+          )}
 
           {/* Details */}
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="card-title text-lg">{eventData?.title || `Event ${id}`}</h3>
+                <h3 className="card-title text-base md:text-lg">
+                  {eventData?.title || `Event ${id}`}
+                </h3>
                 {/* Collapsible description */}
                 {eventData?.description && (
                   <Description text={eventData.description} valid={!isExpired} />
@@ -51,7 +58,7 @@ const BookmarkListItem = ({ id, eventData, bookmarkInfo, toggle, pending }) => {
               </div>
 
               <button
-                className={`btn btn-sm ${pending ? "btn-disabled" : "btn-ghost"} text-error`}
+                className={`btn btn-sm ${pending ? "btn-disabled" : "btn-ghost"} text-error ml-auto md:ml-0`}
                 onClick={(e) => {
                   stop(e);
                   if (!pending) toggle(id, false);
@@ -196,7 +203,7 @@ export default function BookmarksPage() {
         </div>
 
         {/* Display bookmarked events */}
-        <div className="mt-4 grid gap-4">
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           {filteredSorted.length === 0 ? (
             <EmptyState
               message={q ? "No bookmarked events match your search." : "No bookmarked events yet."}
