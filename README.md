@@ -18,7 +18,7 @@ The **Dynamic Event Map** centralizes user-submitted and public event informatio
 
 Toronto is a large city with a wide range of events for anyone to get involved in the local community, but it can be difficult to find all possible opportunities in an accessible and contained location as event information is often scattered across different platforms. Even if you are able to find information on interesting occasions, chances are that the event information has been shared too late to be useful as you may have already made plans, or the event has already passed. 
 
-To address this, the **Dynamic Event Map** aggregates user-posted and public event information in one location through an interactive map of Toronto. The application allows for exploration of real-time updates on upcoming events, with comments and bookmarks used to indicate a general level of interest in each event. Users can easily find other events as well as add their own through an intuitive frontend interface using React.js. The project demonstrates **scalable, reliable cloud deployment with stateful orchestration** using Docker Swarm on DigitalOcean, integrating CI/CD pipelines, automated backups, and external services like Google Maps.
+To address this, the **Dynamic Event Map** aggregates user-posted and public event information in one location through an interactive map of Toronto. The application aims to allow exploration of real-time updates on upcoming events, using comments and bookmarks to indicate a general level of interest in each event. With this, users can easily find other events as well as add their own through an intuitive frontend interface using React.js. The project will demonstrate **scalable, reliable cloud deployment with stateful orchestration** using Docker Swarm on DigitalOcean, integrating CI/CD pipelines, automated backups, and external services like Google Maps.
 
 
 ## Architecture
@@ -398,8 +398,8 @@ It can also be triggered manually with:
 ## Features
 
 When a user is not logged in, they can access the following:
-- Search: locations, addresses, events in Toronto
-- View: events including event details and number of people who have bookmarked an event
+- Search: locations, addresses, and events in Toronto which have been stored in the PostgreSQL database
+- View: Toronto events, including event details and number of people who have bookmarked an event
 - Filter: view events by distance of current position, category, and start time
   - Distance: adjust radius of events from current position in km. When set at 0 km, all events satisfying the other criteria is shown.
   - Category: can view events from all categories or select from individual categories below
@@ -429,12 +429,13 @@ Key metrics on the application, including CPU, memory and disk usage, can be tra
 - CPU utilization over 80% for 5 minutes
 - Memory utilization over 85% for 10 minutes
 - Disk utilization over 80% for 5 minutes
+An email will also be sent once these issues are resolved, confirming application metrics have returned to an acceptable level.
 
 ![Usage stat graphs of the application](images/monitoring.png)
 
 Additional advanced features for workflow:
-- CI/CD pipeline: use GitHub Actions for easier deployment upon every push to main
-- Backup and recovery: use GitHub Actions which triggers an automated weekly backup of data to DigitalOcean spaces. Recovery is performed manually from DigitalOcean spaces if needed.
+- CI/CD pipeline: fully automated with GitHub Actions for easier setup and deployment. Upon each new push to main, the workflow builds Docker images for app services and pushes them to GitHub Container Registry. Deployment files and variables are uploaded to our droplet, where the workflow sets up secrets and volumes, pulls the latest images, and deploys the stack on connection.
+- Backup and recovery: use GitHub Actions which triggers an automated weekly backup of data to DigitalOcean spaces. Recovery is performed manually from DigitalOcean spaces if needed. Logs can be used to verify the backup and recovery processes ran as expected.
 
 ## User Guide
 
@@ -459,6 +460,11 @@ Users can navigate back to the home page by clicking on the logo in the top left
 
 ![dropdown menu for signing in](images/dropdown.png)
 
+## Concluding Remarks
+
+In conclusion, the Dynamic Event Map provides an interactive and intuitive solution to the decentralization of local events in a large city such as Toronto, providing a unifying platform for hosters to easily advertise their events and users to find events of interest in a timely manner. The application has great potential to strengthen bonds within the local Toronto community and encourage connectivity within the city.
+
+The project demonstrates a stateful cloud-native application built off course-relevant technologies such as Docker for containerization, Docker Swarm for orchestration, PostgreSQL for persistence, and DigitalOcean for deployment and monitoring. Additional technologies are used for advanced features such as GitHub Actions for CI/CD, DigitalOcean Spaces for backup and recovery and Firebase for open authentication, rounding out the app's implementation and satisfying the project objectives. Together, the **Dynamic Event Map** showcases the strengths of cloud computing with a complete, functional and practical web application.
 
 ## Data Attribution & Licensing
 
