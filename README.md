@@ -6,9 +6,7 @@ Yuxin Chen - 1005752419, email TBA
 
 Tyler Sun - 1007457645, email TBA
 
-Jiale Shang - 1006580022, email TBA
-
----
+Jiale Shang - 1006580022, jiale.shang@mail.utoronto.ca
 
 ## Description
 
@@ -20,7 +18,6 @@ Toronto is a large city with a wide range of events for anyone to get involved i
 
 To address this, the **Dynamic Event Map** aggregates user-posted and public event information in one location through an interactive map of Toronto. The application aims to allow exploration of real-time updates on upcoming events, using comments and bookmarks to indicate a general level of interest in each event. With this, users can easily find other events as well as add their own through an intuitive frontend interface using React.js. The project will demonstrate **scalable, reliable cloud deployment with stateful orchestration** using Docker Swarm on DigitalOcean, integrating CI/CD pipelines, automated backups, and external services like Google Maps.
 
-
 ## Architecture
 
 - **Frontend**: React.js application served by Nginx
@@ -29,10 +26,36 @@ To address this, the **Dynamic Event Map** aggregates user-posted and public eve
 - **Cache**: Redis for performance optimization
 - **Load Balancer**: Nginx reverse proxy
 - **Orchestration**: Docker Swarm for high availability
+- **Deployment Provider**: DigitalOcean Ubuntu droplet (IaaS)
+- **Web Socket**: socket.io
+- **External API**:
+  - Google Maps API
+  - Firebase (Auth)
+  - Toronto Open Data API
+- **Infrastructure**: Traefik (routing/TLS), DigitalOcean Volumes & Spaces (state + backups), Let's Encrypt (certificates), Github Actions (Serverless Functions, CI/CD)
+
+All services (API, Client, Events Ingest, Backup/Restore) are containerized with dedicated Dockerfiles. Multi-service development uses `docker-compose.dev.yml`, while production/stateful clustering uses Swarm via `stack.yml`.
 
 # Quick Start Guide
 
+Clone this repo by
+```bash
+git clone https://github.com/chkaty/Dynamic-Event-Map.git
+cd Dynamic-Event-Map
+```
+
+## Prerequisite
+
+Register accounts for:
+
+- Digital Ocean
+- Firebase Authentication
+- Google Map API Key
+
 ## Environment Files
+
+Put `.env` at root of the project with your configration as:
+
 ```bash
 DB_USER=user
 DB_PASSWORD=password # (dev/local swarm only)
@@ -63,25 +86,7 @@ DO_SPACES_ACCESS_KEY=
 DO_SPACES_SECRET_KEY=
 ```
 
-## Local Development (Docker Compose)
-
-### 1. Clone and Setup
-```bash
-git clone https://github.com/chkaty/Dynamic-Event-Map.git
-cd Dynamic-Event-Map
-```
-
-### 2. Create Environment File
-```bash
-# Create .env file with your configuration
-cp .env.example .env
-```
-
-### 3. Enable Firebase authentication
-When running as a developer, there should be code added which allows for token verification in Firebase without an account.
-To run authentication with your service account key:
-
-Create a file "firebase-service-account.json" in /api:
+In `/api`, Create a file "firebase-service-account.json" in /api:
 ```bash
 cd /Dynamic-Event-Map/api
 touch firebase-service-account.json
@@ -89,24 +94,24 @@ touch firebase-service-account.json
 In Firebase, open the Dynamic-Event-Map project. Navigate to: 
 Project Overview -> Project Settings (gear icon next to Project Overview) -> Service Accounts -> Generate new private key
 
-Copy the JSON service account key into firebase-service-account.json.
+From here, you can choose to continue with dev server, local docker swarm, or production deployment.
 
-### 4. Run with Docker Compose
+## Local Development (Docker Compose)
+
+To run the app with dev react server:
 ```bash
 # Start all services
 docker-compose -f docker-compose.dev.yml up --build
 ```
 
-### 5. Access the Application
+### Access the Application
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:5000
 - **Database**: http://localhost:5432
 
----
-
 ## Docker Swarm Local
 
-Run the following script to automatically deploy a local Docker Swarm stack for development and testing:
+With all the env files setup, run the following script to automatically deploy a local Docker Swarm stack for development and testing:
 
 ```powershell
 .\infra\scripts\deploy_local_swarm.ps1
@@ -114,6 +119,8 @@ Run the following script to automatically deploy a local Docker Swarm stack for 
 #or
 .\infra\scripts\deploy_local_swarm.ps1 -NoBuild
 ```
+
+Or manually follow:
 
 ### 1. Initialize Docker Swarm
 ```powershell
@@ -172,7 +179,7 @@ docker stack deploy -c docker-compose.swarm-local.yml eventmap
 - **Backend API**: http://localhost/api
 - **Database**: localhost:5432
 
-### 7. Pull with event_ingest service
+### 7. Pull with event_ingest service (Optional)
 
 ```
 # set replicas to 1 so a task is actually created
@@ -185,7 +192,7 @@ docker service update --replicas 0 eventmap_events_ingest
 
 ### What you need before starting
 
-- Droplet (Ubuntu LTS). Open ports: 80 (web), optionally 5000 (API), and 22 (SSH).
+- Droplet (Ubuntu LTS). Open ports: 443.
 
 - DO Volume attached to this droplet (we’ll mount it at /mnt/pgdata).
 
@@ -395,6 +402,10 @@ It can also be triggered manually with:
 
 - Go to GitHub ACTIONS → Docker Cleanup
 
+## Deployment Information
+
+The app is deployed at: https://www.dynamic-event-map.cloud/
+
 ## Features
 
 When a user is not logged in, they can access the following:
@@ -421,9 +432,10 @@ As a security enhancement, users can authenticate themselves by logging in with 
 - Add, edit and delete your own events complete with start time, end time, address, category and description
 - Add and delete comments on any event
 - Add and remove personal bookmarks from any individual events
-- View all of your comments in the My Comments tab
-- View and sort bookmarks in the Bookmarks tab
-Event details, including comments and bookmarks, are stored with PostgreSQL for relational persistence. These additions, edits or deletions can be viewed in real time on the application front end with the implementation of web sockets, another advanced feature.
+- View, search and sort your comments in the My Comments tab
+- View, search and sort your bookmarks in the Bookmarks tab
+- Get message of how many of your bookmarked events are starting/ending today
+Event details, including comments and bookmarks, are stored with PostgreSQL for relational persistence. These additions, edits or deletions can be viewed in **real time** on the application front end with the implementation of web sockets, another advanced feature.
 
 Key metrics on the application, including CPU, memory and disk usage, can be tracked through DigitalOcean monitoring. Email alerts have been set up to send emails to all developers if any of the following are detected:
 - CPU utilization over 80% for 5 minutes
@@ -433,9 +445,18 @@ An email will also be sent once these issues are resolved, confirming applicatio
 
 ![Usage stat graphs of the application](images/monitoring.png)
 
-Additional advanced features for workflow:
+Additional advanced features:
 - CI/CD pipeline: fully automated with GitHub Actions for easier setup and deployment. Upon each new push to main, the workflow builds Docker images for app services and pushes them to GitHub Container Registry. Deployment files and variables are uploaded to our droplet, where the workflow sets up secrets and volumes, pulls the latest images, and deploys the stack on connection.
 - Backup and recovery: use GitHub Actions which triggers an automated weekly backup of data to DigitalOcean spaces. Recovery is performed manually from DigitalOcean spaces if needed. Logs can be used to verify the backup and recovery processes ran as expected.
+- HTTPS as security enhancement: HTTPS is provided by Traefik v3 using Let’s Encrypt ACME.
+  - Entrypoints: `web` (80) with automatic redirect to `websecure` (443).
+  - ACME HTTP challenge on `web`; resolver `le` stores certs at `/letsencrypt/acme.json`.
+  - Routers:
+    - `api` on `https://www.${DOMAIN}/api` with TLS (`traefik.http.routers.api.tls.certresolver=le`).
+    - `client` on `https://www.${DOMAIN}` with TLS and a redirect from bare domain to `www` via `redirect-to-www` middleware.
+    - Traefik dashboard at `https://traefik.${DOMAIN}`.
+  - Labels configure TLS, routers, middlewares, sticky load balancing for API, and service ports.
+  - Traefik runs with Swarm provider and manages certificates automatically.
 
 ## User Guide
 
