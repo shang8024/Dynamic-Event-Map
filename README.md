@@ -40,19 +40,6 @@ When a user is not logged in, they can access the following:
 - Search: locations, addresses, and events in Toronto which have been stored in the PostgreSQL database
 - View: Toronto events, including event details and number of people who have bookmarked an event
 - Filter: view events by distance of current position, category, and start time
-  - Distance: adjust radius of events from current position in km. When set at 0 km, all events satisfying the other criteria is shown.
-  - Category: can view events from all categories or select from individual categories below
-    - Arts & Culture
-    - Entertainment & Leisure
-    - Education & Workshops
-    - Sports & Fitness
-    - Food & Drink
-    - Business & Networking
-    - Community & Social
-    - Family & Kids
-    - Technology & Innovation
-    - Other
-  - Time: can filter from events ending within 24 hours, 7 days, or 30 days of the current time, or starting at any time
 
 Data ingestion is performed automatically and weekly from the official Toronto Events and Festivals Calendar API, which includes a cleanup of expired events and clearing of the Redis cache. This ensures the map remains up-to-date on included events.
 
@@ -63,40 +50,76 @@ As a security enhancement, users can authenticate themselves by logging in with 
 - View, search and sort your comments in the My Comments tab
 - View, search and sort your bookmarks in the Bookmarks tab
 - Get message of how many of your bookmarked events are starting/ending today
-Event details, including comments and bookmarks, are stored with PostgreSQL for relational persistence. These additions, edits or deletions can be viewed in **real time** on the application front end with the implementation of web sockets, another advanced feature.
 
-Key metrics on the application, including CPU, memory and disk usage, can be tracked through DigitalOcean monitoring. Email alerts have been set up to send emails to all developers if any of the following are detected:
-- CPU utilization over 80% for 5 minutes
-- Memory utilization over 85% for 10 minutes
-- Disk utilization over 80% for 5 minutes
-An email will also be sent once these issues are resolved, confirming application metrics have returned to an acceptable level.
+These additions, edits or deletions can be viewed in **real time** on the application front end with the integration of web sockets, an advanced feature which enables live updates for current users.
+
+A timeout feature has been added as part of secure session management, where the application detects if a logged in user has been idle for around one hour. Any inactive user will be logged out after one hour to protect user security and ensure API requests which require authentication are not performed with an expired authentication token.
+
+Another security addition includes HTTPS over HTTP, which is provided by Traefik v3 using Let’s Encrypt ACME. The protocol's implementation in the app can be broken down as follows:
+- Entrypoints: `web` (80) with automatic redirect to `websecure` (443).
+- ACME HTTP challenge on `web`; resolver `le` stores certs at `/letsencrypt/acme.json`.
+- Routers:
+  - `api` on `https://www.${DOMAIN}/api` with TLS (`traefik.http.routers.api.tls.certresolver=le`).
+  - `client` on `https://www.${DOMAIN}` with TLS and a redirect from bare domain to `www` via `redirect-to-www` middleware.
+  - Traefik dashboard at `https://traefik.${DOMAIN}`.
+- Labels configure TLS, routers, middlewares, sticky load balancing for API, and service ports.
+- Traefik runs with Swarm provider and manages certificates automatically.
+
+Event details, including comments and bookmarks, are stored alongside user profiles with PostgreSQL for relational persistence. Comments and bookmarks include references to the original users whose profiles are also stored in a PostgreSQL table. This data is stored using DigitalOcean volumes for state management, ensuring important information is not lost on container restarts or redeployments. Data is further preserved with backup and recovery implementation through DigitalOcean Spaces, where an automated weekly backup of data to DigitalOcean spaces is triggered with GitHub Actions. Recovery is performed manually from DigitalOcean spaces if needed. Logs can be used to verify the backup and recovery processes ran as expected.
 
 ![Usage stat graphs of the application](images/monitoring.png)
 
-Additional advanced features:
-- CI/CD pipeline: fully automated with GitHub Actions for easier setup and deployment. Upon each new push to main, the workflow builds Docker images for app services and pushes them to GitHub Container Registry. Deployment files and variables are uploaded to our droplet, where the workflow sets up secrets and volumes, pulls the latest images, and deploys the stack on connection.
-- Backup and recovery: use GitHub Actions which triggers an automated weekly backup of data to DigitalOcean spaces. Recovery is performed manually from DigitalOcean spaces if needed. Logs can be used to verify the backup and recovery processes ran as expected.
-- HTTPS as security enhancement: HTTPS is provided by Traefik v3 using Let’s Encrypt ACME.
-  - Entrypoints: `web` (80) with automatic redirect to `websecure` (443).
-  - ACME HTTP challenge on `web`; resolver `le` stores certs at `/letsencrypt/acme.json`.
-  - Routers:
-    - `api` on `https://www.${DOMAIN}/api` with TLS (`traefik.http.routers.api.tls.certresolver=le`).
-    - `client` on `https://www.${DOMAIN}` with TLS and a redirect from bare domain to `www` via `redirect-to-www` middleware.
-    - Traefik dashboard at `https://traefik.${DOMAIN}`.
-  - Labels configure TLS, routers, middlewares, sticky load balancing for API, and service ports.
-  - Traefik runs with Swarm provider and manages certificates automatically.
+The application's frontend and backend features are containerized with Docker, allowing for high portability and fast deployment across environments. Docker Compose is used to manage all necessary containers including the database, Redis cache, API and client services needed for the complete application, and is also used for local development and testing. For production, the Dynamic Event Map has been deployed as a web app and is accessible online using a DigitalOcean droplet for an IaaS (Infrastructure as a Service) focused model. Orchestration and clustering is performed with Docker Swarm, with load balancing so the application can manage requests from multiple sources. The stack is prepared on Docker Swarm with 2 replicas before being deployed on the droplet.
+
+For easier creation and deployment of app software, a fully automated CI/CD pipeline has been added with GitHub Actions. Upon each new push to main, the workflow builds Docker images for app services and pushes them to GitHub Container Registry. Deployment files and variables are uploaded to our droplet, where the workflow sets up secrets and volumes, pulls the latest images, and deploys the stack on connection.
+
+Key metrics on the application, including CPU, memory and disk usage, can be tracked through DigitalOcean monitoring after deployment. Email alerts have been set up to send emails to all developers if any of the following are detected:
+- CPU utilization over 80% for 5 minutes
+- Memory utilization over 85% for 10 minutes
+- Disk utilization over 80% for 5 minutes
+
+An email will also be sent once these issues are resolved, confirming application metrics have returned to an acceptable level.
+
+### Summary of Features
+
+The features of the application integrate and satisfy all core requirements for a cloud application, including containerization and local development with Docker and Docker Compose, state management with PostgreSQL databases of event and user information, deployment with DigitalOcean, orchestration and clustering with load balancing with Docker Swarm, and monitoring with DigitalOcean metrics and alerts. The frontend is built with React.js and handles by Nginx which showcases and applies these features through a web interface. Advanced features which have been fully integrated include real-time functionality with WebSockets, security enhancements with open authentication and HTTPS, and a CI/CD pipeline for automated deployments along with weekly backup and recovery through DigitalOcean spaces, both using GitHub Actions.
 
 ## User Guide
 
-The main page of the **Dynamic Event Map** application features the layout of Toronto from the Google Maps API, which can be navigated by dragging along the map and zooming in/out by scrolling. Red markers and blue markers with numbers indicate an event or events in the area. Zooming in allows more events to be easily spotted and more accessible with red markers, while zooming out will bunch events in the same general location together as blue markers. All events represented by a blue marker can be accessed by clicking on one and scrolling through using the arrows in the side bar.
+The main page of the **Dynamic Event Map** application features the layout of Toronto from the Google Maps API, which can be navigated by dragging along the map and zooming in/out by scrolling. Red markers indicate one event in the area, while blue and yellow markers with numbers indicate multiple or events in the area. Zooming in allows more events to be easily spotted and more accessible with red markers, while zooming out will bunch events in the same general location together as blue or yellow markers. All events represented through one blue or yellow marker can be accessed by clicking on one and scrolling through using the arrows in the side bar.
 
-Any user can navigate the map and search for events using the search bar provided. When a user clicks on an event, they can view its address, start time and end time, as well as a short description if provided. Interested users who are authenticated can bookmark an event by toggling the heart icon at the top left of an event page and leave comments on any event. The total number of users who have bookmarked an event is given to indicate overall interest and possible attendance. Authenticated users can also post their own events by selecting a designated location and filling out the necessary fields (address, time, type of event and description). Users can edit and delete their own events after posting.
+![main page showing the map, including details of a cluster of 14 events](images/main_page.png)
+
+Any user can navigate the map and search for addresses or events using the search bar provided with the "Search Location" or "Search Event" options in the search bar menu. When a user clicks on an event in the interactive map, they can view its address, start time and end time, as well as a short description if provided. Interested users who are authenticated can bookmark an event by toggling the heart icon at the top left of an event page and leave comments on any event. The total number of users who have bookmarked an event is given to indicate overall interest and possible attendance. Authenticated users can also post their own events by selecting a designated location and filling out the necessary fields (address, time, type of event and description). Users can edit their event fields and delete their own events after posting.
 
 ![commenting on a post](images/commenting.png)
 
-Users can customize their UI to show varying amounts of information on local events. The filter toggle displays a menu allowing the user to filter out events shown based on time window, event category, and max distance from the user's current position in kilometers. The search toggle activates the search bar allowing users to find and add events as described above. The stats toggle displays the total number of events which can be found on the map. This total adjusts with the filter applied by the user, providing the user with an idea of how many events can be found in a given area or within a specific timeframe. All of these menus can be toggled allowing the user to balance wider visibility of the map with important functionality and information while maintaining an intuitive user interface.
+Users can customize their UI to show varying amounts of information on local events. These toggles are:
+- Filter
+- Search
+- Stats  
+The filter toggle displays a menu allowing the user to filter out events shown based on time window, event category, and max distance from the user's current position in kilometers. The search toggle activates the search bar allowing users to find and add events as described above. The stats toggle displays the total number of events which can be found on the map, seen in the bottom right. This total adjusts with the filter applied by the user, providing the user with an idea of how many events can be found in a given area or within a specific timeframe. All of these menus can be toggled allowing the user to balance wider visibility of the map with important functionality and information while maintaining an intuitive user interface.
+
+![map UI with filter and search bar enabled, stats disabled](images/ui.png)
+
+Specific filters for events:
+  - Distance: adjust radius of events from current position in km. When set at 0 km, all events satisfying the other filter criteria is shown.
+  - Category: can view events from all categories, or select from one of the individual categories below
+    - Arts & Culture
+    - Entertainment & Leisure
+    - Education & Workshops
+    - Sports & Fitness
+    - Food & Drink
+    - Business & Networking
+    - Community & Social
+    - Family & Kids
+    - Technology & Innovation
+    - Other
+  - Time: starting at any time, or starting in 24 hours, 7 days, or 30 days from the current time
 
 ![filters for visible events](images/filters.png)
+
+### Authenticated Users
 
 If a user is not logged in, they are able to search for locations and events, view event details and comments, and apply all UI customization described earlier. A user can log in with their Google account using the Sign In with Google button on the top right. If prompted, the user should accept the basic permissions required from Google which grants users access to add, edit and delete their own events, add and delete their own comments, and bookmark any events of interest.
 
@@ -105,7 +128,16 @@ Logging in also replaces the Sign In button with a drop down menu at the top rig
 ![bookmarks page](images/bookmarks_page.png)
 ![comments page](images/comments_page.png)
 
-Users can navigate back to the home page by clicking on the logo in the top left. If a user has finished all necessary tasks needed with an account, they can log out through the dropdown menu in the top right at any time.
+To add an event, select "Add Event" from the search bar menu and search for the target location by address or name of the location if applicable. If a valid address is found, a form will pop up with the address which requires the following fields:
+- Start and end time: date and time in HH:MM format, 12 hour format (specify am/pm)
+- Title (of the event)
+- Category: possible categories seen above with filters
+- Description (of the event)  
+Once these are filled out, select "Create Event" to view your event at the specified address. All fields are mandatory in the form - an error message will appear if any of the fields are left empty. If the event is no longer desired on the map, use the Cancel button before creating or delete the event after creating it by clicking on it in the map and deleting it from the sidebar. The sidebar also provides a button to edit the event if it is your event.
+
+![creating an event](images/event.png)
+
+Users can navigate back to the home page by clicking on the logo in the top left. If a user has finished all necessary tasks needed with an account, they can log out through the dropdown menu in the top right at any time. The application will also log out users automatically after 59 minutes if no activity is detected.
 
 ![dropdown menu for signing in](images/dropdown.png)
 
@@ -485,11 +517,13 @@ The app is deployed at: https://www.dynamic-event-map.cloud/
 | Feature | Team Member(s) | Description / Responsibilities |
 |---------|----------------|-------------------------------|
 | **Bookmark Page** | Jiale | Developed the UI for viewing, adding, and removing bookmarks. Implemented sorting and searching of bookmarked events. |
+| **Bookmark Tracking** | Tyler | Developed a live tracker on the number of users who have bookmarked each event, updated in real time with WebSockets. |
 | **Comments** | Yuxin | Built the comment feature allowing users to add, delete, and view comments on events, with real-time updates via WebSockets. |
 | **Map Interface** | Yuxin | Developed the interactive map using Google Maps API, including map rendering, zoom behavior, navigation, event detail views, and dynamic search and filters for category, distance, and time. |
 | **My Comments Page** | Jiale | Developed the interface for managing all user comments, including adding, deleting, sorting, and searching comments. |
 | **New Event** | Yuxin | Implemented the interface for authenticated users to add, edit, and delete their own events, including form validation, category selection, and event data submission. |
 | **Notifications & Stats** | Jiale | Implemented notifications to alert users when their bookmarked events are starting or ending today, and created usage statistics displays to provide insights into user engagement and event activity. |
+| **User Sign In** | Tyler | Implemented an option for guest users to sign in with pop-up and display a summary of the user's Google account when logged in, including their Google username and profile picture. |
 
 ### Backend
 | Feature | Team Member(s) | Description / Responsibilities |
