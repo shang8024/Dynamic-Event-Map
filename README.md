@@ -487,9 +487,9 @@ The app is deployed at: https://www.dynamic-event-map.cloud/
 | **Bookmark Page** | Jiale | Developed the UI for viewing, adding, and removing bookmarks. Implemented sorting and searching of bookmarked events. |
 | **Comments** | Yuxin | Built the comment feature allowing users to add, delete, and view comments on events, with real-time updates via WebSockets. |
 | **Map Interface** | Yuxin | Developed the interactive map using Google Maps API, including map rendering, zoom behavior, navigation, event detail views, and dynamic search and filters for category, distance, and time. |
-| **My Comments Page** | Tyler | Developed the interface for managing all user comments, including adding, deleting, sorting, and searching comments. |
+| **My Comments Page** | Jiale | Developed the interface for managing all user comments, including adding, deleting, sorting, and searching comments. |
 | **New Event** | Yuxin | Implemented the interface for authenticated users to add, edit, and delete their own events, including form validation, category selection, and event data submission. |
-| **Notifications & Stats** | Tyler | Implemented notifications to alert users when their bookmarked events are starting or ending today, and created usage statistics displays to provide insights into user engagement and event activity. |
+| **Notifications & Stats** | Jiale | Implemented notifications to alert users when their bookmarked events are starting or ending today, and created usage statistics displays to provide insights into user engagement and event activity. |
 
 ### Backend
 | Feature | Team Member(s) | Description / Responsibilities |
