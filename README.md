@@ -480,18 +480,42 @@ It can also be triggered manually with:
 The app is deployed at: https://www.dynamic-event-map.cloud/
 
 ## Individual Contributions
-| Feature                                                                 | Team Member(s)               | Description / Responsibilities                                                                                                                                                                                                                                                          |
-| ----------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Frontend: Map Interface, Event Browsing, Search & Filters, Comments** | Yuxin | Developed the interactive map using Google Maps API, including event markers and zoom behavior. Implemented event detail views, search functionality, dynamic filters for category, distance, and time. Built the comment feature for adding, deleting, and viewing comments on events. |
-| **Frontend: Bookmark Page**                                             | Jiale                     | Developed the user interface for viewing, adding, and removing bookmarks. Implemented sorting and searching of bookmarked events.                                                                                                                                                       |
-| **Frontend: My Comments Page, Notifications, and Stats**                | Tyler                    | Developed the interface for managing all user comments, including sorting and searching. Implemented notifications for bookmarked events starting or ending today and created usage statistics displays for the application.                                                            |
-| **Backend: REST API & Data Management**                                 | All Members          | Created REST endpoints for events, comments, bookmarks, and user management. Integrated Toronto Open Data API for automated event ingestion, handled weekly data updates, cleaned expired events, and managed Redis caching for performance.                                            |
-| **WebSocket Integration**                                               | Yuxin          | Implemented WebSocket communication between frontend and backend to enable real-time updates for events, comments, and bookmarks.                                                                                                                                                       |
-| **Authentication & Security**                                           | Tyler                     | Implemented Firebase Google login, secure session handling, HTTPS with Traefik, routing rules, and user access control for authenticated features.                                                                                                                                      |
-| **Containerization & Deployment**                                       | Jiale                     | Dockerized all services, created Docker Compose and Docker Swarm configurations, managed persistent volumes, and deployed the stack to DigitalOcean with stateful orchestration.                                                                                                        |
-| **CI/CD & Automation**                                                  | Jiale                     | Built automated GitHub Actions workflows for building, pushing, and deploying Docker images. Configured backup and restore pipelines to DigitalOcean Spaces and automated ingestion and cleanup processes.                                                                              |
-| **Monitoring & Metrics**                                                | All Members                     | Configured DigitalOcean monitoring, set up email alerts for CPU, memory, and disk usage thresholds, and created usage statistics dashboards for tracking application performance.                                                                                                       |
-| **Testing & Quality Assurance**                                         | All Members                  | Conducted unit, integration, and end-to-end testing across frontend, backend, WebSocket integration, and deployment pipelines to ensure system reliability and correctness.                                                                                                             |
+
+### Frontend
+| Feature | Team Member(s) | Description / Responsibilities |
+|---------|----------------|-------------------------------|
+| **Bookmark Page** | Jiale | Developed the UI for viewing, adding, and removing bookmarks. Implemented sorting and searching of bookmarked events. |
+| **Comments** | Yuxin | Built the comment feature allowing users to add, delete, and view comments on events, with real-time updates via WebSockets. |
+| **Map Interface** | Yuxin | Developed the interactive map using Google Maps API, including map rendering, zoom behavior, navigation, event detail views, and dynamic search and filters for category, distance, and time. |
+| **My Comments Page** | Tyler | Developed the interface for managing all user comments, including adding, deleting, sorting, and searching comments. |
+| **New Event** | Yuxin | Implemented the interface for authenticated users to add, edit, and delete their own events, including form validation, category selection, and event data submission. |
+| **Notifications & Stats** | Tyler | Implemented notifications to alert users when their bookmarked events are starting or ending today, and created usage statistics displays to provide insights into user engagement and event activity. |
+
+### Backend
+| Feature | Team Member(s) | Description / Responsibilities |
+|---------|----------------|-------------------------------|
+| **REST API & Data Management** | All Members | Created REST endpoints for events, comments, bookmarks, and user management. Integrated Toronto Open Data API for automated event ingestion, handled weekly data updates, cleaned expired events, and managed Redis caching for performance. |
+| **WebSocket Integration** | Yuxin | Implemented WebSocket communication between frontend and backend to enable real-time updates for events, comments, and bookmarks. |
+
+### Authentication & Security
+| Feature | Team Member(s) | Description / Responsibilities |
+|---------|----------------|-------------------------------|
+| **Firebase Google Login & Secure Session Handling** | Tyler | Implemented user authentication with Firebase, including Google login and secure session management for authenticated users. |
+| **User Access Control** | Yuxin | Managed permissions for authenticated features, ensuring that only authorized users can add, edit, or delete events, comments, and bookmarks. |
+| **Routing Rules & HTTPS with Traefik** | Jiale | Configured Traefik for secure HTTPS communication, including routing rules, certificate management with Let’s Encrypt, and redirect setup for production deployment. |
+
+### Deployment & Automation
+| Feature | Team Member(s) | Description / Responsibilities |
+|---------|----------------|-------------------------------|
+| **Containerization & Deployment** | Jiale | Dockerized all services, created Docker Compose and Docker Swarm configurations, managed persistent volumes, and deployed the stack to DigitalOcean with stateful orchestration. |
+| **CI/CD & Automation** | Jiale | Built automated GitHub Actions workflows for building, pushing, and deploying Docker images. Configured backup and restore pipelines to DigitalOcean Spaces and automated ingestion and cleanup processes. |
+
+### Monitoring & Quality Assurance
+| Feature | Team Member(s) | Description / Responsibilities |
+|---------|----------------|-------------------------------|
+| **Monitoring & Metrics** | All Members | Configured DigitalOcean monitoring, set up email alerts for CPU, memory, and disk usage thresholds, and created usage statistics dashboards for tracking application performance. |
+| **Testing & Quality Assurance** | All Members | Conducted unit, integration, and end-to-end testing across frontend, backend, WebSocket integration, and deployment pipelines to ensure system reliability and correctness. |
+
 
 
 ## Lessons Learned
