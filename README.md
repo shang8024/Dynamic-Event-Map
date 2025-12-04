@@ -98,6 +98,7 @@ Users can customize their UI to show varying amounts of information on local eve
 - Filter
 - Search
 - Stats  
+
 The filter toggle displays a menu allowing the user to filter out events shown based on time window, event category, and max distance from the user's current position in kilometers. The search toggle activates the search bar allowing users to find and add events as described above. The stats toggle displays the total number of events which can be found on the map, seen in the bottom right. This total adjusts with the filter applied by the user, providing the user with an idea of how many events can be found in a given area or within a specific timeframe. All of these menus can be toggled allowing the user to balance wider visibility of the map with important functionality and information while maintaining an intuitive user interface.
 
 ![map UI with filter and search bar enabled, stats disabled](images/ui.png)
@@ -115,13 +116,15 @@ Specific filters for events:
     - Family & Kids
     - Technology & Innovation
     - Other
-  - Time: starting at any time, or starting in 24 hours, 7 days, or 30 days from the current time
+  - Time: ending at any time, or ending in 24 hours, 7 days, or 30 days from the current time.
 
 ![filters for visible events](images/filters.png)
 
 ### Authenticated Users
 
-If a user is not logged in, they are able to search for locations and events, view event details and comments, and apply all UI customization described earlier. A user can log in with their Google account using the Sign In with Google button on the top right. If prompted, the user should accept the basic permissions required from Google which grants users access to add, edit and delete their own events, add and delete their own comments, and bookmark any events of interest.
+If a user is not logged in, they are able to search for locations and events, view event details and comments, and apply all UI customization described earlier. A user can log in with their Google account using the Sign In with Google button on the top right. If prompted, the user should accept the basic permissions required from Google which grants users access to add, edit and delete their own events, add and delete their own comments, and bookmark any events of interest. A notification will pop up indicating a successful log in with the user's Google account name.
+
+![logged in notification](images/login.png)
 
 Logging in also replaces the Sign In button with a drop down menu at the top right, where users can view and manage all their comments from the "My Comments" tab and sort them by chronigical order of posting or by associated event name in alphabetical order. Any logged in user can easily view all their bookmarked events as well by clicking on the dropdown menu and selecting the Bookmark page. Users can order their bookmarked events by alphabetical order or chronological order by start date, with both available in an ascending or descending manner.
 
@@ -133,6 +136,7 @@ To add an event, select "Add Event" from the search bar menu and search for the 
 - Title (of the event)
 - Category: possible categories seen above with filters
 - Description (of the event)  
+
 Once these are filled out, select "Create Event" to view your event at the specified address. All fields are mandatory in the form - an error message will appear if any of the fields are left empty. If the event is no longer desired on the map, use the Cancel button before creating or delete the event after creating it by clicking on it in the map and deleting it from the sidebar. The sidebar also provides a button to edit the event if it is your event.
 
 ![creating an event](images/event.png)
