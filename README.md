@@ -2,6 +2,7 @@
 The **Dynamic Event Map** centralizes user-submitted and public event information, providing a real-time, interactive map to easily discover local activities such as concerts, festivals, food markets, and community gatherings within Toronto. The platform supports community engagement, spontaneous participation, and local exploration in the city.
 
 ## Development Team Information
+
 Yuxin Chen - 1005752419, katy.chen@mail.utoronto.ca
 
 Tyler Sun - 1007457645, tyl.sun@mail.utoronto.ca
@@ -18,6 +19,7 @@ The goal of the **Dynamic Event Map** is to aggregate both user-submitted and pu
 To ensure the platform can reliably support city-wide usage, the system is deployed as a cloud-based application. Cloud infrastructure provides scalability, high availability, and real-time responsiveness. Docker Swarm orchestration on DigitalOcean further enhances fault tolerance, simplifies maintenance, and supports seamless integration with external services like Google Maps.
 
 ## Architecture
+
 - **Frontend**: React.js application served by Nginx
 - **Backend**: Node.js REST API with Express
 - **Database**: PostgreSQL with initialization scripts
@@ -155,6 +157,8 @@ cd Dynamic-Event-Map
 
 ## Prerequisite
 
+Credentials sent to TA.
+
 Register accounts for:
 
 - Digital Ocean
@@ -174,7 +178,7 @@ REDIS_PORT=6379
 BACKEND_PORT=5000
 FRONTEND_PORT=3000 #3000 (dev/local swarm), 443 (production)
 VITE_GOOGLE_MAPS_KEY=
-VITE_API_BASE_URL=http://localhost:5000/api # /api (in swarm)
+VITE_API_BASE_URL=/api
 
 # Firebase client configuration
 VITE_FIREBASE_API_KEY=
@@ -205,20 +209,16 @@ Project Overview -> Project Settings (gear icon next to Project Overview) -> Ser
 
 From here, you can choose to continue with dev server, local docker swarm, or production deployment.
 
-## Local Development (Docker Compose)
+## Local Docker Swarm
 
-To run the app with dev react server:
-```bash
-# Start all services
-docker-compose -f docker-compose.dev.yml up --build
-```
-
-### Access the Application
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:5000
-- **Database**: http://localhost:5432
-
-## Docker Swarm Local
+Ensure Docker is running:
+- On Windows: start Docker Desktop and wait until it shows "Running".
+- On Linux: ensure the service is active:
+  ```bash
+  sudo systemctl status docker
+  # if not running
+  sudo systemctl start docker
+  ```
 
 With all the env files setup, run the following script to automatically deploy a local Docker Swarm stack for development and testing:
 
