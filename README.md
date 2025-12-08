@@ -515,6 +515,9 @@ It can also be triggered manually with:
 
 The app is deployed at: https://www.dynamic-event-map.cloud/
 
+## Video Demo
+https://drive.google.com/file/d/1vYkSx6okHIQ9M90_cxTVHpJSvSJJG1zc/view?usp=sharing
+
 ## Individual Contributions
 
 ### Frontend
