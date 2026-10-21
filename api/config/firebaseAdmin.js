@@ -1,3 +1,8 @@
+// An Auth emulator deliberately skips real signature verification. Production
+// must fail before initializing the SDK if that development setting leaks in.
+if (process.env.NODE_ENV === 'production' && process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+  throw new Error('Firebase Auth emulator must not be enabled in production');
+}
 const admin = require('firebase-admin');
 const fs = require('fs');
 

@@ -28,6 +28,15 @@ export async function resolveAuthSession(firebaseUser, syncProfile) {
   };
 }
 
+export function profileSyncErrorCode(status, code) {
+  if (status === 403 && code === 'account_disabled') return 'app/account-disabled';
+  if (status === 401 && code === 'session_revoked') return 'app/session-revoked';
+  if (status === 429) return 'app/rate-limited';
+  if (status === 409) return 'app/account-link-required';
+  if (status === 403) return 'app/email-not-verified';
+  return 'app/profile-unavailable';
+}
+
 export function authErrorMessage(error) {
   if (error?.code === 'app/password-policy') return error.message;
   const messages = {
@@ -53,6 +62,9 @@ export function authErrorMessage(error) {
     'auth/unauthorized-domain': 'Sign-in is not available at this address yet. Please try the main website.',
     'app/account-link-required': 'This email is connected to another account. Use your original sign-in method or contact support.',
     'app/email-not-verified': 'Verify your email, then check your verification again.',
+    'app/account-disabled': 'This account is unavailable. Please contact support.',
+    'app/session-revoked': 'Your session was ended. Please sign out and sign in again.',
+    'app/rate-limited': 'Too many requests. Please wait a few minutes before trying again.',
     'app/profile-unavailable': 'We could not finish loading your account. Please try again.',
     'app/display-name-invalid': 'Enter a display name between 1 and 50 characters.',
   };

@@ -2,14 +2,14 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 function controller(model) {
   const module={exports:{}};
   vm.runInNewContext(fs.readFileSync(path.resolve(__dirname,'../controllers/eventsController.js'),'utf8'),{module,console,
-    require(name){return {'../models/eventModel':model,'../socket':{},'./statsController':{},'../services/eventPermissions':{},'../services/eventSchedule':{}}[name];}});
+    require(name){return {'../models/eventModel':model,'../socket':{},'./statsController':{},'../services/eventPermissions':{},'../services/eventSchedule':{},'../services/publicEvents':require('../services/publicEvents')}[name];}});
   return module.exports.getEvent;
 }
 function response(){return {code:200,headers:{},set(key,value){this.headers[key]=value;return this;},status(code){this.code=code;return this;},json(body){this.body=body;return this;}};}
 test('a standalone event returns the hydrated row including occurrence and archived history',async()=>{
   const row={id:7,title:'Event',author_name:'Official',archived_at:'2026-10-01T12:00:00Z',occurrences:[{starts_at:'2026-09-01T12:00:00Z',ends_at:'2026-09-01T13:00:00Z'}]};
   const get=controller({async getById(id){assert.equal(id,'7');return {rows:[row]};}}),res=response();
-  await get({params:{id:'7'}},res);assert.equal(res.code,200);assert.equal(res.body,row);assert.equal(res.headers['Cache-Control'],'no-store');
+  await get({params:{id:'7'}},res);assert.equal(res.code,200);assert.deepEqual(res.body,{...row,data:{}});assert.equal(res.headers['Cache-Control'],'no-store');
 });
 test('unknown events are 404, invalid event IDs are 400 and outages are retryable',async()=>{
   const absent=response();await controller({async getById(){return {rows:[]};}})({params:{id:'7'}},absent);assert.equal(absent.code,404);

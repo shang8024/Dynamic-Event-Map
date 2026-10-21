@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { authErrorMessage, passwordPolicyMessage, requestPasswordReset, resolveAuthSession } from '../src/services/authSession.js';
+import { authErrorMessage, passwordPolicyMessage, profileSyncErrorCode, requestPasswordReset, resolveAuthSession } from '../src/services/authSession.js';
 
 const verifiedAccount = (overrides = {}) => ({
   uid: 'firebase-account-id', email: 'reader@example.invalid', emailVerified: true,
@@ -54,6 +54,16 @@ test('password reset returns indistinguishable success for missing and existing 
 test('authentication errors do not expose account existence or raw service details', () => {
   assert.equal(authErrorMessage({ code: 'auth/user-not-found' }), authErrorMessage({ code: 'auth/wrong-password' }));
   assert.equal(authErrorMessage({ code: 'unknown', message: 'private service response' }).includes('private service response'), false);
+});
+
+test('blocked accounts and revoked sessions are not mistaken for unverified email', () => {
+  assert.equal(profileSyncErrorCode(403, 'account_disabled'), 'app/account-disabled');
+  assert.equal(profileSyncErrorCode(401, 'session_revoked'), 'app/session-revoked');
+  assert.equal(profileSyncErrorCode(429), 'app/rate-limited');
+  assert.equal(profileSyncErrorCode(403, 'email_not_verified'), 'app/email-not-verified');
+  assert.equal(profileSyncErrorCode(500, 'account_disabled'), 'app/profile-unavailable');
+  assert.equal(profileSyncErrorCode(503, '<script>private details</script>'), 'app/profile-unavailable');
+  assert.match(authErrorMessage({ code: 'app/session-revoked' }), /sign out and sign in/);
 });
 
 test('password guidance reflects the configured Firebase policy', () => {

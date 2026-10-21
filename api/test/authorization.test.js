@@ -37,6 +37,7 @@ function middleware(claims, users) {
     '../models/user': users,
     'node:crypto': require('node:crypto'),
     './rateLimit': { authenticated: async () => true },
+    '../services/accountAccess': require('../services/accountAccess'),
   });
 }
 
@@ -85,6 +86,32 @@ test('a verified existing UID remains authenticated without rewriting its profil
   assert.equal(req.user.username, 'Existing unique name');
   assert.equal(saved, false);
   assert.equal(nextCalled, true);
+});
+
+test('private requests reload access state: disable, enable and session revocation are enforced', async () => {
+  const authTime=1792591200;
+  const profile={id:7,google_id:verified.uid,disabled_at:null,token_valid_after:null};
+  const users={async findOne(){return profile;}};
+  let outcome=await authenticate({...verified,auth_time:authTime},users);
+  assert.equal(outcome.nextCalled,true);
+
+  // The same signed token must observe the DB change on its next request.
+  profile.disabled_at=new Date(authTime*1000+1000);
+  outcome=await authenticate({...verified,auth_time:authTime},users);
+  assert.equal(outcome.res.statusCode,403);
+  assert.equal(outcome.res.body.code,'account_disabled');
+  assert.equal(outcome.req.user,undefined);
+  assert.equal(outcome.nextCalled,false);
+
+  profile.disabled_at=null;
+  profile.token_valid_after=new Date(authTime*1000+1500);
+  outcome=await authenticate({...verified,auth_time:authTime,iat:authTime+3600},users);
+  assert.equal(outcome.res.statusCode,401);
+  assert.equal(outcome.res.body.code,'session_revoked');
+  assert.equal(outcome.nextCalled,false);
+  outcome=await authenticate({...verified,auth_time:authTime+2},users);
+  assert.equal(outcome.nextCalled,true);
+  assert.equal(outcome.req.user.id,7);
 });
 
 test('a new verified identity is created from signed claims', async () => {
@@ -225,6 +252,7 @@ function events(create) {
     '../models/eventModel': { create },
     '../services/eventPermissions': require('../services/eventPermissions'),
     '../services/eventSchedule': require('../services/eventSchedule'),
+    '../services/publicEvents': require('../services/publicEvents'),
     '../config/redis': {},
     '../socket': { getIO: () => ({ emit() {} }) },
     '../config/db': { query() { assert.fail('system identity lookup attempted'); } },

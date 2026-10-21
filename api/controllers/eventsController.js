@@ -3,13 +3,14 @@ const socket=require('../socket');
 const {bumpEventCount}=require('./statsController');
 const {canManageEvent,validateEvent}=require('../services/eventPermissions');
 const {prepareEventInput}=require('../services/eventSchedule');
+const {publicEvent}=require('../services/publicEvents');
 function broadcast(name,payload) { try {socket.getIO().emit(name,payload);} catch {/* HTTP data remains authoritative. */} }
 function fail(res,error) {
   console.error('Event operation failed',error.code || error.name);
   return res.status(error.status||500).json({error:error.status?error.message:'Unable to save the event. Please try again.'});
 }
 async function getEvents(_req,res) {
-  try {res.json((await Event.getAll()).rows);} catch(error) {fail(res,error);}
+  try {res.json((await Event.getAll()).rows.map(publicEvent));} catch(error) {fail(res,error);}
 }
 async function getEvent(req,res) {
   res.set('Cache-Control','no-store');
@@ -18,7 +19,7 @@ async function getEvent(req,res) {
   try {
     const row=(await Event.getById(id)).rows[0];
     if(!row) return res.status(404).json({error:'Event not found'});
-    res.json(row);
+    res.json(publicEvent(row));
   } catch {res.status(503).json({error:'Unable to load event. Please try again.'});}
 }
 async function createEvent(req,res) {
@@ -28,7 +29,8 @@ async function createEvent(req,res) {
     const input=prepareEventInput(req.body),error=validateEvent(input);
     if(error) return res.status(400).json({error});
     const row=(await Event.create({...input,lat:Number(input.latitude),lng:Number(input.longitude),user_id:req.user.id,source:'internal'})).rows[0];
-    await bumpEventCount(1); broadcast('event:created',row); res.json(row);
+    const output=publicEvent(row);
+    await bumpEventCount(1); broadcast('event:created',output); res.json(output);
   } catch(error) {fail(res,error);}
 }
 async function updateEvent(req,res) {
@@ -42,7 +44,8 @@ async function updateEvent(req,res) {
     const input=Object.fromEntries(['title','description','category','starts_at','ends_at','latitude','longitude','location_address','status','place_id','version','occurrences']
       .filter(field=>Object.hasOwn(prepared,field)).map(field=>[field,prepared[field]]));
     const row=(await Event.update({...input,id:before.id,actor_id:req.user.id})).rows[0];
-    await bumpEventCount(0); broadcast('event:updated',row); res.json(row);
+    const output=publicEvent(row);
+    await bumpEventCount(0); broadcast('event:updated',output); res.json(output);
   } catch(error) {fail(res,error);}
 }
 async function deleteEvent(req,res) {
@@ -53,7 +56,8 @@ async function deleteEvent(req,res) {
     if(!canManageEvent(req.user,row)) return res.status(403).json({error:'You cannot delete this event'});
     if(row.source==='external') {
       const cancelled=(await Event.update({id:row.id,status:'cancelled',actor_id:req.user.id})).rows[0];
-      broadcast('event:updated',cancelled); return res.json({message:'Event cancelled',event:cancelled});
+      const output=publicEvent(cancelled);
+      broadcast('event:updated',output); return res.json({message:'Event cancelled',event:output});
     }
     await Event.delete(row.id); await bumpEventCount(-1); broadcast('event:deleted',{id:row.id});
     res.json({message:'Event deleted'});

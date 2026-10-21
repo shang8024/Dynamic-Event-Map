@@ -3,6 +3,8 @@ const sequelize = require('../config/sequelize');
 
 const User = sequelize.define('User', {
   role: { type: DataTypes.STRING, allowNull: false, defaultValue: 'member' },
+  disabled_at: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
+  token_valid_after: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
   email: {
     type: DataTypes.STRING,
     allowNull: false,

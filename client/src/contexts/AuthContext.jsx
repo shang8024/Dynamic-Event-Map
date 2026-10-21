@@ -7,7 +7,7 @@ import {
 import { auth, googleProvider } from '../firebase';
 import {refreshSocketIdentity} from '../services/socket';
 import { API_BASE } from '../services/apiService';
-import { authErrorMessage, passwordPolicyMessage, publicAccount, requestPasswordReset, resolveAuthSession } from '../services/authSession';
+import { authErrorMessage, passwordPolicyMessage, profileSyncErrorCode, publicAccount, requestPasswordReset, resolveAuthSession } from '../services/authSession';
 
 const AuthContext = createContext(null);
 
@@ -23,9 +23,9 @@ async function syncProfile(token) {
     throw Object.assign(new Error('Account sync unavailable'), { code: 'app/profile-unavailable' });
   }
   if (!response.ok) {
+    const body = await response.json().catch(() => null);
     const error = new Error('Account sync failed');
-    error.code = response.status === 409 ? 'app/account-link-required'
-      : response.status === 403 ? 'app/email-not-verified' : 'app/profile-unavailable';
+    error.code = profileSyncErrorCode(response.status, body?.code);
     throw error;
   }
   return (await response.json()).user;

@@ -2,6 +2,7 @@ const admin = require('../config/firebaseAdmin');
 const User = require('../models/user');
 const { createHash } = require('node:crypto');
 const requestLimits = require('./rateLimit');
+const {accountAccessReason} = require('../services/accountAccess');
 
 function usernameFor(decoded, attempt) {
   const name = typeof decoded.name === 'string' && decoded.name.trim();
@@ -84,7 +85,12 @@ const firebaseAuth = async (req, res, next) => {
 
   try {
     // Preserve existing profile names and ownership on every subsequent login.
-    req.user = await provisionProfile(decoded);
+    const profile = await provisionProfile(decoded);
+    const denied = accountAccessReason(profile, decoded);
+    if (denied === 'account_disabled') return res.status(403).json({code:denied,message:'This account is unavailable. Contact the site administrator.'});
+    if (denied === 'session_revoked') return res.status(401).json({code:denied,message:'Your session has been revoked. Sign out and sign in again.'});
+    if (denied) return res.status(503).json({code:denied,message:'Unable to load your account. Please try again.'});
+    req.user = profile;
     req.firebase = decoded;
     return next();
   } catch (error) {

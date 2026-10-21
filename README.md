@@ -76,6 +76,20 @@ GOOGLE_APPLICATION_CREDENTIALS=/protected/firebase-auth-reader.json \
 
 It verifies the exact Firebase UID and verified, enabled account before updating the database role. Do not put an administrator email, service-account key or automatic admin seed in source control. On an existing server, use a protected operator connection to the intended database, then sign in again to refresh the displayed role.
 
+### Account access control
+
+Apply migration `009_account_access.sql` before running code that reads its profile fields. Operators with a protected connection to the intended database can disable a Firebase-linked account by its database profile ID without granting the application extra Firebase administration permissions:
+
+```sh
+node --env-file=.env api/scripts/set-account-status.js 123 disable
+node --env-file=.env api/scripts/set-account-status.js 123 enable
+node --env-file=.env api/scripts/set-account-status.js 123 revoke
+```
+
+`disable` rejects private API access on the next request; authenticated sockets recheck account access every 20 seconds and disconnect when blocked. `revoke` invalidates existing local sessions without disabling the account. All three actions advance an authentication cutoff: enabling an account requires a fresh Firebase sign-in, and merely refreshing an old ID token does not restore access. This operator command cannot grant roles or change ownership; there is no public account-control endpoint.
+
+Firebase Console account disable/revoke alone does not immediately invalidate an already issued ID token in project-ID-only verification mode; it can remain valid until its normal expiry, typically up to an hour. Use this local disable control for immediate website blocking and Firebase account controls for provider-level access. Production startup refuses `FIREBASE_AUTH_EMULATOR_HOST`.
+
 ### Event photos and saved history
 
 This version accepts **image links only**, with optional alt text and credit. Direct HTTPS links are limited to `secure.toronto.ca` (official event image paths), `images.unsplash.com`, `i.imgur.com`, `res.cloudinary.com` and `images.pexels.com`. A rejected link produces a visible warning and leaves the previous photo intact. The database stores the URL and credit, not image files. Official imports also retain their supplied photo links and credits.
