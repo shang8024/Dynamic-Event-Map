@@ -52,6 +52,14 @@ test('fails closed on empty data or malformed schema', () => {
   assert.throws(() => normalize([]), /empty/);
   assert.throws(() => normalize([{ title: 'changed schema' }]), /schema changed/);
 });
+
+test('official images retain a bounded source link, alt and credit without raw files',()=>{
+  const photo={bin_id:'a_valid_photo_id',type:'image/jpeg',size:1000,fields:{alt:'Concert',credit:'Photographer'}};
+  const event=normalize([row({event_image:[photo]})]).events[0];
+  assert.equal(event.data.imported_image.url,'https://secure.toronto.ca/c3api_upload/retrieve/festivals_events/a_valid_photo_id');
+  assert.equal(event.data.imported_image.credit,'Photographer');
+  assert.equal(normalize([row({event_image:[{...photo,bin_id:'../admin'}]})]).events[0].data.imported_image,null);
+});
 test('quarantines invalid ranges while leaving valid events importable', () => {
   const result = normalize([row(), row({ submission_id: 'invalid', event_expirydate: '2026-01-01T00:00:00Z' })]);
   assert.equal(result.events.length, 1); assert.equal(result.report.rejected_series, 1);
