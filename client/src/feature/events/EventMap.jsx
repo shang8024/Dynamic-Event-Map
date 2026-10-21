@@ -12,13 +12,20 @@ import {useNotifications} from '../../contexts/NotificationContext';
 import {fetchEvents,deleteEvent} from '../../services/eventsService';
 import socket,{onRealtimeWake} from '../../services/socket';
 import {CATEGORIES,GTA_BOUNDS,distanceKm,eventImage,eventTime,eventView,isEnded,nextStart} from '../../utils/event';
-const DEFAULT_CENTER={lat:43.85,lng:-79.25};
+const DEFAULT_CENTER={lat:43.8,lng:-79.25};
+const DEFAULT_ZOOM=10;
 const OPTIONS={mapId:import.meta.env.VITE_GOOGLE_MAPS_MAP_ID||'DEMO_MAP_ID',disableDefaultUI:true,zoomControl:true,fullscreenControl:false,
-  colorScheme:'FOLLOW_SYSTEM',isFractionalZoomEnabled:true,gestureHandling:'cooperative',maxZoom:20,minZoom:3,clickableIcons:false,mapTypeControl:false};
+  colorScheme:'FOLLOW_SYSTEM',isFractionalZoomEnabled:true,gestureHandling:'greedy',
+  restriction:{latLngBounds:GTA_BOUNDS,strictBounds:true},maxZoom:20,minZoom:3,clickableIcons:false,mapTypeControl:false};
+function viewGTA(instance) {
+  if(!instance) return;
+  // Start over the urban corridor; the northern GTA remains reachable by panning.
+  instance.moveCamera({center:DEFAULT_CENTER,zoom:DEFAULT_ZOOM});
+}
 export default function EventMap() {
   const {user}=useAuth(),{push}=useNotifications();
   const [params,setParams]=useSearchParams(),[events,setEvents]=useState([]),[map,setMap]=useState(null),[viewport,setViewport]=useState(null);
-  const [zoom,setZoom]=useState(10),[center,setCenter]=useState(DEFAULT_CENTER),[category,setCategory]=useState(''),[time,setTime]=useState('all'),[distance,setDistance]=useState('0');
+  const [zoom,setZoom]=useState(DEFAULT_ZOOM),[center,setCenter]=useState(DEFAULT_CENTER),[category,setCategory]=useState(''),[time,setTime]=useState('all'),[distance,setDistance]=useState('0');
   const [mode,setMode]=useState('location'),[query,setQuery]=useState(''),[filters,setFilters]=useState(false),[listOpen,setListOpen]=useState(false),[listLimit,setListLimit]=useState(30),[clusterIds,setClusterIds]=useState([]);
   const [form,setForm]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[locationBusy,setLocationBusy]=useState(false);
   const request=useRef(0),active=useRef(true),mapRef=useRef(null),opened=useRef(null);
@@ -62,7 +69,7 @@ export default function EventMap() {
   const visible=useMemo(()=>filtered.filter(event=>!event.position || !viewport || (event.position.lat>=viewport.south && event.position.lat<=viewport.north && event.position.lng>=viewport.west && event.position.lng<=viewport.east)),[filtered,viewport]);
   const listed=useMemo(()=>[...(clusterIds.length?filtered.filter(event=>clusterIds.includes(event.id)):visible)].sort((a,b)=>new Date(nextStart(a))-new Date(nextStart(b))),[clusterIds,filtered,visible]);
   const cluster=useCallback(ids=>{setClusterIds(ids);setListLimit(30);setListOpen(true);setParams({},{replace:true});},[setParams]);
-  const loadMap=useCallback(instance=>{mapRef.current=instance;setMap(instance);instance.fitBounds(GTA_BOUNDS,24);},[]);
+  const loadMap=useCallback(instance=>{mapRef.current=instance;setMap(instance);},[]);
   function idle() {
     const instance=mapRef.current;if(!instance?.getBounds()) return;
     const value=instance.getBounds().toJSON();
@@ -104,10 +111,10 @@ export default function EventMap() {
     </div>}
     {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-base-200 p-3 text-sm">{error}<button className="btn btn-sm" onClick={refresh}>Retry</button></div>}
     <div className={`map-stage ${selected||listOpen?'has-panel':''}`}>
-      <div className="map-canvas"><GoogleMap onLoad={loadMap} onIdle={idle} mapContainerStyle={{height:'100%',width:'100%'}} center={DEFAULT_CENTER} zoom={10} options={OPTIONS}>
+      <div className="map-canvas"><GoogleMap onLoad={loadMap} onIdle={idle} mapContainerStyle={{height:'100%',width:'100%'}} center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} options={OPTIONS}>
         <PhotoMarkers map={map} events={filtered} zoom={zoom} viewport={viewport} onSelect={select} onCluster={cluster} selectedId={selectedId}/>
       </GoogleMap>
-        <div className="map-navigation"><button className="btn bg-base-100 shadow" aria-label="Show my location" disabled={locationBusy} onClick={locate}>{locationBusy?'Locating…':'My location'}</button><button className="btn bg-base-100 shadow" onClick={()=>map?.fitBounds(GTA_BOUNDS,24)}>View GTA</button></div>
+        <div className="map-navigation"><button className="btn bg-base-100 shadow" aria-label="Show my location" disabled={locationBusy} onClick={locate}>{locationBusy?'Locating…':'My location'}</button><button className="btn bg-base-100 shadow" onClick={()=>viewGTA(map)}>View GTA</button></div>
         <div className="map-caption" role="status">{loading?'Loading events…':`${visible.length} in this view · ${filtered.length} upcoming`}</div>
       </div>
       {selected && <aside className="event-panel" aria-labelledby="event-detail-title"><EventInfo event={selected} onClose={close} onEdit={setForm} onDelete={remove} onSaved={saved}/></aside>}
