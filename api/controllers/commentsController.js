@@ -37,6 +37,8 @@ const getUserComments = async (req, res) => {
         locationAddress: r.location_address,
         startsAt: r.starts_at,
         endsAt: r.ends_at,
+        status: r.status,
+        archived_at: r.archived_at,
       } : null,
     }));
     res.json(out);

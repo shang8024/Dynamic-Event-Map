@@ -14,7 +14,8 @@ module.exports = {
   getByUser: (userId) =>
     pool.query(
       `SELECT c.id, c.text, c.created_at, c.event_id,
-        e.title, e.latitude, e.longitude, e.location_address, e.starts_at, e.ends_at, e.data
+        e.title, e.latitude, e.longitude, e.location_address, e.starts_at, e.ends_at, e.data,
+        e.status, e.archived_at
        FROM comments c
        LEFT JOIN events e ON e.id = c.event_id
        WHERE c.user_id = $1

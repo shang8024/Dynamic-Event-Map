@@ -8,15 +8,19 @@ import EventComments from './EventComments';
 import EventImageEditor from './EventImageEditor';
 import VenuePhoto from './VenuePhoto';
 import Icon from './Icon';
+import Modal from './Modal';
+import {updateEvent} from '../services/eventsService';
 import {eventImage,isEnded,eventOccurrences,occurrenceTime,scheduleSummary} from '../utils/event';
 
-export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pendingAction,onActionHandled,standalone=false,mapsReady=true}) {
+export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pendingAction,onActionHandled,standalone=false,mapsReady=true,promptForPhoto=false}) {
   const {user}=useAuth(),{isBookmarked,isPending,toggle,loading:bookmarksLoading,error:bookmarkError,refetchBookmarks}=useBookmarks();
   const count=useCountBookmarks(event?.id);
   const [failedURL,setFailedURL]=useState(null);
+  const [management,setManagement]=useState(null),[managementBusy,setManagementBusy]=useState(false),[managementError,setManagementError]=useState(''),[photoOpen,setPhotoOpen]=useState(false);
   const requestAuth=useAuthFlow(),handled=useRef(null),saveButton=useRef(null);
   const returnTo=standalone?`/events/${event?.id}`:`/?event=${event?.id}`;
   const save=()=>user?toggle(event.id,undefined,event):requestAuth('save this event',returnTo,{kind:'save',eventId:event.id});
+  useEffect(()=>{setManagement(null);setManagementError('');setPhotoOpen(false);},[event?.id]);
   useEffect(()=>{
     if(!event||!user||!pendingAction||String(pendingAction.eventId)!==String(event.id)||pendingAction.kind==='save'&&bookmarksLoading) return;
     const key=`${event.id}:${pendingAction.kind}`;
@@ -40,6 +44,19 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
   const dateList=items=><ul className="occurrence-list">{items.map(item=><li key={item.key||item.source_row_id||item.starts_at}>{occurrenceTime(item)}</li>)}</ul>;
   const Heading=standalone?'h1':'h2';
   const SectionHeading=standalone?'h2':'h3';
+  async function applyManagement() {
+    if(managementBusy) return;
+    setManagementBusy(true);setManagementError('');
+    try {
+      if(management==='cancel') {
+        const row=await updateEvent(event.id,{status:'cancelled',version:event.version});
+        onSaved?.(row);
+      } else if(await onDelete(event.id)===false) throw new Error('This event could not be deleted. Please try again.');
+      setManagement(null);
+    } catch(failure) {setManagementError(failure.message||'Unable to update this event. Please try again.');}
+    finally {setManagementBusy(false);}
+  }
+  const askManagement=action=>{setManagementError('');setManagement(action);};
   return <article className="event-detail-content">
     <div className="event-detail-hero">{mapsReady&&!image&&!ended&&!cancelled&&!event.data?.image_hidden
       ?<VenuePhoto key={[event.id,event.data?.place_id,event.location_address,event.latitude,event.longitude].join(':')} event={event}/>
@@ -50,6 +67,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
         {image.source==='toronto'&&<> · <a href="https://open.toronto.ca/dataset/festivals-events/" target="_blank" rel="noopener noreferrer" className="link">Source</a></>}</p>}
       <header className="event-heading"><div className="event-heading-topline"><span className="category-label">{event.category||'Other'}</span>{!standalone&&<div className="event-heading-links"><Link className="event-full-link" to={`/events/${event.id}`} target="_blank" rel="noopener noreferrer">Full details <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></Link><button className="btn btn-circle btn-ghost" aria-label="Close event details" onClick={onClose}>✕</button></div>}</div><Heading id="event-detail-title" tabIndex={-1}>{event.title}</Heading></header>
       {(ended||cancelled)&&<p role="status" className="event-status-note">{cancelled?'This event has been cancelled.':'This event has ended. It stays in your saved events.'}</p>}
+      {promptForPhoto&&manage&&!ended&&!cancelled&&<div className="rounded-xl border border-base-300 p-3 flex flex-wrap items-center justify-between gap-3" role="status"><p className="text-sm">Your event is published. Add a photo to help people recognize it.</p><button className="btn btn-outline btn-sm" onClick={()=>setPhotoOpen(value=>Number(value)+1)}>Add photo link</button></div>}
       <dl className="event-facts">
         <div><Icon name="calendar"/><div><dt>{when.label} <span>· Toronto time</span></dt><dd>{when.text}</dd></div></div>
         <div><Icon name="pin"/><div><dt>Location</dt><dd>{event.location_name&&<>{event.location_name}<br/></>}{event.location_address||'Location to be confirmed'}</dd></div></div>
@@ -70,10 +88,19 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
       <EventComments key={event.id} eventId={event.id} preview={!standalone} returnTo={standalone?`${returnTo}#comments`:returnTo}/>
       {manage&&<section className="event-management" aria-label="Manage event"><div><p className="eyebrow">Manage event</p><p className="text-sm muted">Only you and project administrators can change this listing.</p></div>
         <div className="flex flex-wrap gap-2"><button className="btn btn-outline flex-1" onClick={()=>onEdit(event)}>Edit event</button>
-          <button className="btn btn-ghost text-error" onClick={()=>{if(confirm(event.source==='external'?'Cancel this event? Its saved history will be retained.':'Delete this event?')) onDelete(event.id);}}>{event.source==='external'?'Cancel event':'Delete event'}</button></div>
-        {!ended&&<EventImageEditor key={`${event.id}:${event.version}`} event={event} onSaved={onSaved}/>}
+          {!cancelled&&!ended&&<button className="btn btn-outline" onClick={()=>askManagement('cancel')}>Cancel event</button>}</div>
+        {event.source!=='external'&&<details className="rounded-xl border border-base-300 p-3"><summary className="cursor-pointer py-1 font-medium">More management options</summary><p className="text-sm muted mt-3 mb-3">Cancelling keeps the event, comments and saved history. Permanently deleting also removes its comments and bookmarks.</p><button className="btn btn-ghost text-error" onClick={()=>askManagement('delete')}>Delete event permanently</button></details>}
+        {!ended&&!cancelled&&<EventImageEditor key={event.id} event={event} onSaved={onSaved} initiallyOpen={photoOpen}/>}
       </section>}
       {event.source==='external'&&<p className="source-disclosure">Listed by Toronto Festivals & Events. Details may change; confirm with the organizer. <a href="https://open.toronto.ca/open-data-licence/" target="_blank" rel="noopener noreferrer" className="link">Data licence</a></p>}
+      {management&&<Modal title={management==='cancel'?'Cancel this event?':'Permanently delete this event?'} busy={managementBusy} onClose={()=>setManagement(null)}>
+        <p className="font-semibold break-words">{event.title}</p>
+        <p className="mt-3 text-sm leading-relaxed">{management==='cancel'?'This event will be marked cancelled and leave upcoming results. Comments and saved history will stay available. You can change its status later in Edit event.':'This permanently deletes the event, all its comments, bookmarks and scheduled reminders. People will lose their saved record. This cannot be undone. Cancel the event instead to keep its history.'}</p>
+        {managementError&&<p role="alert" className="form-error mt-4">{managementError}</p>}
+        <div className="flex flex-wrap justify-end gap-3 mt-5"><button className="btn btn-ghost" disabled={managementBusy} onClick={()=>setManagement(null)}>Keep event</button>
+          {management==='delete'&&!cancelled&&!ended&&<button className="btn btn-outline" disabled={managementBusy} onClick={()=>askManagement('cancel')}>Cancel event instead</button>}
+          <button className={`btn ${management==='delete'?'btn-error':'btn-primary'}`} disabled={managementBusy} onClick={applyManagement}>{managementBusy?(management==='cancel'?'Cancelling…':'Deleting…'):management==='cancel'?'Confirm cancellation':'Permanently delete'}</button></div>
+      </Modal>}
     </div>
   </article>;
 }
