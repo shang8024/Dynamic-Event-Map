@@ -19,7 +19,7 @@ async function invalidateEventCountCache() {
 async function initializeEventCount() {
   const exists = await redisClient.exists("eventCount");
   if (!exists) {
-    const res = await pool.query("SELECT COUNT(*)::int FROM events");
+    const res = await pool.query("SELECT COUNT(*)::int FROM events WHERE archived_at IS NULL AND (ends_at IS NULL OR ends_at>now())");
     await redisClient.set("eventCount", res.rows[0].count, { EX: 43200 });
   }
 }
@@ -75,7 +75,7 @@ async function getTodayCounts(req, res) {
             THEN 1 ELSE 0
           END
         )::int AS ending
-      FROM events
+      FROM events WHERE archived_at IS NULL
     `;
     const { rows } = await pool.query(sql, [tz]);
     const payload = {

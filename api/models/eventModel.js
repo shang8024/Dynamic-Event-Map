@@ -6,7 +6,7 @@ const select = `SELECT e.*, p.username AS author_name,
     AND o.status='scheduled' AND o.starts_at>=now()) next_start
   FROM events e JOIN profiles p ON p.id=e.user_id`;
 module.exports = {
-  getAll: () => pool.query(`${select} ORDER BY e.id ASC`),
+  getAll: () => pool.query(`${select} WHERE e.archived_at IS NULL AND (e.ends_at IS NULL OR e.ends_at>now()) ORDER BY e.id ASC`),
   getById: id => pool.query(`${select} WHERE e.id=$1`, [id]),
   create: ({ user_id, title, description, category, lat, lng, location_address, starts_at, ends_at, source='internal', place_id }) =>
     pool.query(`INSERT INTO events(user_id,title,description,category,latitude,longitude,location_address,starts_at,ends_at,source,data)
@@ -20,6 +20,7 @@ module.exports = {
       await db.query("SELECT set_config('eventmap.actor_id',$1,true)",[String(actor_id||'')]);
       const {rows:[before]} = await db.query('SELECT * FROM events WHERE id=$1 FOR UPDATE', [id]);
       if (!before) { await db.query('ROLLBACK'); return {rows:[],rowCount:0}; }
+      if (before.archived_at) throw Object.assign(new Error('This event is archived and cannot be edited.'),{status:410});
       if (version != null && String(version)!==String(before.version)) throw Object.assign(new Error('This event changed. Reopen it before saving.'),{status:409});
       const fields = editable.filter(field => Object.hasOwn(input,field));
       const changed = fields.filter(field => ['starts_at','ends_at'].includes(field)

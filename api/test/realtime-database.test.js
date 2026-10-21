@@ -13,7 +13,7 @@ test('durable comment changes, notification isolation, rollback and concurrent d
   await admin.query(`CREATE SCHEMA ${schema}`);
   let stopA=()=>{},stopB=()=>{};
   try {
-    for(const file of ['init.sql','migrations/001_ingestion_identity.sql','migrations/002_notifications.sql','migrations/003_event_management.sql','migrations/004_realtime_notifications.sql']) {
+    for(const file of ['init.sql','migrations/001_ingestion_identity.sql','migrations/002_notifications.sql','migrations/003_event_management.sql','migrations/004_realtime_notifications.sql','migrations/005_ingest_maintenance.sql']) {
       await db.query(await fs.readFile(path.resolve(__dirname,'../../db',file),'utf8'));
     }
     const {rows:users}=await db.query("INSERT INTO profiles(username) VALUES('author'),('reader'),('outsider') RETURNING id");

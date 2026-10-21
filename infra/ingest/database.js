@@ -1,13 +1,14 @@
 import { FIELDS, PROVIDER } from './normalize.js';
+import { recordSuccessfulImport } from './source-state.js';
 
 const types = { starts_at: 'timestamptz', ends_at: 'timestamptz', latitude: 'double precision', longitude: 'double precision' };
-const assignments = FIELDS.map(field => `${field} = CASE WHEN NOT (COALESCE(e.data->'editor_overrides','[]'::jsonb) ? '${field}') AND e.${field} IS NOT DISTINCT FROM (e.data->'import_snapshot'->>'${field}')::${types[field] || 'text'} THEN EXCLUDED.${field} ELSE e.${field} END`).join(',\n');
+const assignments = FIELDS.map(field => `${field} = CASE WHEN NOT (COALESCE(e.data->'editor_overrides','[]'::jsonb) ? '${field}') AND (e.archived_at IS NOT NULL OR e.${field} IS NOT DISTINCT FROM (e.data->'import_snapshot'->>'${field}')::${types[field] || 'text'}) THEN EXCLUDED.${field} ELSE e.${field} END`).join(',\n');
 const upsert = `INSERT INTO events AS e (user_id, source, ref_id, ${FIELDS.join(', ')}, data)
   VALUES ($1, 'external', $2, ${FIELDS.map((_, i) => `$${i+3}`).join(', ')}, $${FIELDS.length+3}::jsonb)
   ON CONFLICT (source, ref_id) DO UPDATE SET ${assignments},
-    data = e.data || EXCLUDED.data, updated_at = now()
+    data = e.data || EXCLUDED.data, archived_at=NULL, updated_at = now()
   WHERE e.data->'import_metadata'->>'provider' = '${PROVIDER}'
-    AND e.data->'import_snapshot'->>'content_hash' IS DISTINCT FROM EXCLUDED.data->'import_snapshot'->>'content_hash'
+    AND (e.archived_at IS NOT NULL OR e.data->'import_snapshot'->>'content_hash' IS DISTINCT FROM EXCLUDED.data->'import_snapshot'->>'content_hash')
   RETURNING (xmax = 0) AS inserted`;
 
 export async function importEvents(client, snapshot) {
@@ -36,11 +37,12 @@ export async function importEvents(client, snapshot) {
     // starts. Failure rolls back the same transaction; absence never deletes.
     const occurrenceSchema = await client.query("SELECT to_regprocedure('refresh_toronto_occurrences(text[],timestamp with time zone)') AS installed");
     if (occurrenceSchema.rows[0].installed) {
-      const timestamp = snapshot.provenance?.source_last_modified;
+      const timestamp = snapshot.as_of;
       if (!timestamp) throw new Error('Occurrence refresh requires the validated source timestamp');
       const observed = /(Z|[+-]\d\d:\d\d)$/.test(timestamp) ? timestamp : `${timestamp}Z`;
       await client.query('SELECT refresh_toronto_occurrences($1::text[],$2::timestamptz)', [snapshot.events.map(event => event.ref_id), observed]);
     }
+    await recordSuccessfulImport(client, snapshot);
     await client.query('COMMIT');
     return result;
   } catch (error) {

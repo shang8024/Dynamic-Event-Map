@@ -9,11 +9,15 @@ import { importEvents } from './database.js';
 import { readSourceStream, SOURCE_LIMITS } from './stream-source.js';
 import { resourceDownloadURL, shouldRetryRevision } from './resource-url.js';
 import { withSpooledDownload } from './spool-download.js';
+import { canSkipDownload, readSourceState, confirmSourceCheck, cleanupExpiredEvents } from './source-state.js';
 
 const { values } = parseArgs({ options: {
   input: { type: 'string' }, manifest: { type: 'string' }, output: { type: 'string' },
   'as-of': { type: 'string', default: new Date().toISOString() },
   write: { type: 'boolean', default: false },
+  'check-only': { type: 'boolean', default: process.env.INGEST_CHECK_ONLY === 'true' },
+  'cleanup-only': { type: 'boolean', default: false },
+  'force-download': { type: 'boolean', default: false },
 } });
 const TRUSTED_HOST = 'ckan0.cf.opendata.inter.prod-toronto.ca';
 
@@ -29,13 +33,13 @@ async function fetchOfficial(url, maxBytes, timeoutMs = 30000) {
   return response;
 }
 
-function validateMetadata(metadata) {
+function validateMetadata(metadata, knownUnchanged = false) {
   const sourceURL = new URL(metadata.source_url);
   if (sourceURL.protocol !== 'https:' || sourceURL.hostname !== TRUSTED_HOST) throw new Error('Snapshot source is not the official catalogue');
   // CKAN timestamps have no suffix; CKAN metadata is recorded in UTC.
   const modified = Date.parse(/(Z|[+-]\d\d:\d\d)$/.test(metadata.source_last_modified) ? metadata.source_last_modified : `${metadata.source_last_modified}Z`);
   const ageHours = (Date.parse(values['as-of']) - modified) / 3600000;
-  if (!Number.isFinite(ageHours) || ageHours > 72 || ageHours < -24) throw new Error('Official source metadata is missing, stale (>72h), or future-dated; review before import');
+  if (!Number.isFinite(ageHours) || (!knownUnchanged && ageHours > 72) || ageHours < -24) throw new Error('Official source metadata is missing, stale (>72h), or future-dated; review before import');
 }
 
 async function fetchCatalogue() {
@@ -50,7 +54,7 @@ async function fetchCatalogue() {
   return JSON.parse(Buffer.concat(chunks));
 }
 
-async function sourceSnapshot() {
+async function sourceSnapshot(state) {
   if (values.input) {
     if (!values.manifest) throw new Error('--input requires --manifest with source URL, timestamp and SHA-256');
     if ((await fs.stat(values.manifest)).size > 1024 * 1024) throw new Error('Snapshot manifest exceeds size limit');
@@ -73,8 +77,15 @@ async function sourceSnapshot() {
       if (!catalogue.success) throw new Error('Official CKAN catalogue returned failure');
       const resource = catalogue.result.resources.find(resource => resource.id === '8900fdb2-7f6c-4f50-8581-b463311ff05d' && resource.format === 'JSON');
       if (!resource) throw new Error('Official JSON resource changed; review schema before proceeding');
-      const metadata = { source_url: resource.url, resource_id: resource.id, source_last_modified: resource.last_modified };
-      validateMetadata(metadata);
+      const metadata = { source_url: resource.url, resource_id: resource.id, source_last_modified: resource.last_modified,
+        source_size: resource.size ?? null, source_hash: resource.hash || null };
+      const unchanged = canSkipDownload(state, metadata);
+      // The same verified publication may legitimately be older than 72 hours.
+      // Changed/unknown stale publications cannot establish a new baseline.
+      validateMetadata(metadata, unchanged || values['check-only']);
+      if (values['check-only'] || (values.write && unchanged && !values['force-download'])) {
+        return { metadata_only: true, provenance: metadata, as_of: values['as-of'] };
+      }
       originalResourceURL = resourceDownloadURL(resource);
       const fetchURL = resourceDownloadURL(resource, retryRevision);
       // Drain to bounded disk first; parsing on a shared .75-CPU VM must not
@@ -122,10 +133,14 @@ async function invalidateCache() {
 }
 
 async function main() {
-  const snapshot = await sourceSnapshot();
-  if (values.output) await fs.writeFile(values.output, JSON.stringify(snapshot, null, 2) + '\n');
-  console.log(JSON.stringify({ mode: values.write ? 'write' : 'dry_run', as_of: snapshot.as_of, provenance: snapshot.provenance, report: snapshot.report, max_rss_kib: process.resourceUsage().maxRSS }, null, 2));
-  if (!values.write) return;
+  if ((values['check-only'] || values['cleanup-only']) && !values.write) throw new Error('Maintenance requires explicit --write');
+  if (values['check-only'] && (values.input || values['force-download'])) throw new Error('--check-only cannot import a file or force a download');
+  if (!values.write) {
+    const snapshot = await sourceSnapshot();
+    if (values.output) await fs.writeFile(values.output, JSON.stringify(snapshot, null, 2) + '\n');
+    console.log(JSON.stringify({ mode: 'dry_run', as_of: snapshot.as_of, provenance: snapshot.provenance, report: snapshot.report, max_rss_kib: process.resourceUsage().maxRSS }, null, 2));
+    return;
+  }
   if (!process.env.PGHOST && !process.env.DB_HOST) throw new Error('Explicit PGHOST or DB_HOST is required for --write');
   const password = await readSecret(process.env.PGPASSWORD_FILE || '/run/secrets/pg_password') || process.env.PGPASSWORD || process.env.DB_PASSWORD;
   const client = new pg.Client({
@@ -137,9 +152,26 @@ async function main() {
     // pg also honors PGSSLMODE and PGSSLROOTCERT; use verify-full for managed DBs.
   });
   await client.connect();
-  try { console.log(JSON.stringify({ database: await importEvents(client, snapshot) })); }
-  finally { await client.end(); }
-  console.log(JSON.stringify({ cache: await invalidateCache() }));
+  try {
+    const state = await readSourceState(client);
+    // Expiry is independent of remote availability and runs even when the
+    // catalogue cannot be reached. Never use a user-supplied future cutoff.
+    console.log(JSON.stringify({ cleanup: await cleanupExpiredEvents(client, new Date().toISOString()) }));
+    console.log(JSON.stringify({ cache: await invalidateCache() }));
+    if (values['cleanup-only']) return;
+    const snapshot = await sourceSnapshot(state);
+    if (snapshot.metadata_only) {
+      const source = await confirmSourceCheck(client, snapshot.provenance, snapshot.as_of, { requireMatch: !values['check-only'] });
+      console.log(JSON.stringify({ mode: values['check-only']?'maintenance':'write', source }));
+    } else {
+      if (values.output) await fs.writeFile(values.output, JSON.stringify(snapshot, null, 2) + '\n');
+      console.log(JSON.stringify({ mode:'write', as_of:snapshot.as_of, provenance:snapshot.provenance, report:snapshot.report, max_rss_kib:process.resourceUsage().maxRSS }, null, 2));
+      console.log(JSON.stringify({ database: await importEvents(client, snapshot) }));
+    }
+  } finally {
+    await client.end();
+    console.log(JSON.stringify({ cache: await invalidateCache() }));
+  }
 }
 
 main().catch(error => {

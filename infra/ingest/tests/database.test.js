@@ -17,6 +17,9 @@ test('PostgreSQL: idempotence, manual edits, user ownership and rollback', { ski
     await client.query(`SET search_path TO ${schema}`);
     await client.query(await fs.readFile(new URL('../../../db/init.sql', import.meta.url), 'utf8'));
     await client.query('DROP INDEX ux_events_natural_all');
+    for (const migration of ['002_notifications','003_event_management','004_realtime_notifications','005_ingest_maintenance']) {
+      await client.query(await fs.readFile(new URL(`../../../db/migrations/${migration}.sql`, import.meta.url), 'utf8'));
+    }
     const source = { id: 'row-1', submission_id: 's1', event_name: 'Festival', event_status: 'Approved', event_startdate: '2026-10-25T10:00:00-04:00', event_expirydate: '2026-10-25T17:00:00-04:00', calendar_date: '2026-10-25T10:00:00-04:00', event_description: 'Original description' };
     const snapshot = (raw = source) => normalizeFeed({ value: [raw] }, { asOf: '2026-10-21T00:00:00Z', provenance: {} });
     assert.deepEqual(await importEvents(client, snapshot()), { inserted: 1, updated: 0, unchanged: 0 });
