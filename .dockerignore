@@ -13,6 +13,29 @@
 **/.env.development
 **/.env.test
 **/.env.production
+**/.env.*
+**/secrets/
+**/.local/
+**/firebase-service-account*.json
+**/*-firebase-adminsdk-*.json
+**/service-account*.json
+**/credentials.json
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/id_rsa*
+**/id_ed25519*
+**/*_password*.txt
+**/.s3cfg
+**/acme.json
+**/backups/
+**/*.dump
+**/*.backup
+**/*.sql.gz
+**/*.tfstate*
+**/.terraform/
+**/*.tfvars
 
 # Ignore git
 .git/

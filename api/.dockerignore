@@ -1,0 +1,25 @@
+# The API build context is ./api; never copy local credentials into the image.
+node_modules/
+.git/
+.env
+.env.*
+*.log
+coverage/
+test/
+tmp/
+secrets/
+backups/
+**/firebase-service-account*.json
+**/*-firebase-adminsdk-*.json
+**/service-account*.json
+**/credentials.json
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/id_rsa*
+**/id_ed25519*
+**/*_password*.txt
+**/*.dump
+**/*.backup
+**/*.sql.gz

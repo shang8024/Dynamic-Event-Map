@@ -4,3 +4,18 @@ node_modules/
 # Ignore build output - we'll build fresh in the container
 dist/
 build/
+
+# The client build context is ./client; the root .dockerignore does not apply.
+.env
+.env.*
+.git/
+*.log
+secrets/
+**/firebase-service-account*.json
+**/*-firebase-adminsdk-*.json
+**/service-account*.json
+**/credentials.json
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
