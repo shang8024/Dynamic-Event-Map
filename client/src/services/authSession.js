@@ -24,7 +24,7 @@ export async function resolveAuthSession(firebaseUser, syncProfile) {
   }
   return {
     account,
-    user: { ...account, id: profile.id, displayName: account.displayName || profile.username || account.email },
+    user: { ...account, id: profile.id, role: profile.role === 'admin' ? 'admin' : 'member', displayName: account.displayName || profile.username || account.email },
   };
 }
 

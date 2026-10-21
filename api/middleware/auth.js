@@ -97,3 +97,4 @@ const firebaseAuth = async (req, res, next) => {
 };
 
 module.exports = firebaseAuth;
+module.exports.provisionProfile = provisionProfile;

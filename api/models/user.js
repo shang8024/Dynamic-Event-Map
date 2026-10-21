@@ -2,6 +2,7 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/sequelize');
 
 const User = sequelize.define('User', {
+  role: { type: DataTypes.STRING, allowNull: false, defaultValue: 'member' },
   email: {
     type: DataTypes.STRING,
     allowNull: false,
