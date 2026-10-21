@@ -17,6 +17,7 @@ module.exports = {
     const db = await pool.connect();
     try {
       await db.query('BEGIN');
+      await db.query("SELECT set_config('eventmap.actor_id',$1,true)",[String(actor_id||'')]);
       const {rows:[before]} = await db.query('SELECT * FROM events WHERE id=$1 FOR UPDATE', [id]);
       if (!before) { await db.query('ROLLBACK'); return {rows:[],rowCount:0}; }
       if (version != null && String(version)!==String(before.version)) throw Object.assign(new Error('This event changed. Reopen it before saving.'),{status:409});

@@ -5,6 +5,7 @@ import {
   updateProfile, validatePassword,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
+import {refreshSocketIdentity} from '../services/socket';
 import { API_BASE } from '../services/apiService';
 import { authErrorMessage, passwordPolicyMessage, publicAccount, requestPasswordReset, resolveAuthSession } from '../services/authSession';
 
@@ -69,6 +70,8 @@ export function AuthProvider({ children }) {
     const unsubscribe = onIdTokenChanged(auth, firebaseUser => { void synchronize(firebaseUser); });
     return () => { invalidateSession(); unsubscribe(); };
   }, [invalidateSession, synchronize]);
+
+  useEffect(() => { refreshSocketIdentity(); }, [user?.uid]);
 
   const loginWithGoogle = useCallback(() => signInWithPopup(auth, googleProvider), []);
   const loginWithEmail = useCallback((email, password) => signInWithEmailAndPassword(auth, email.trim(), password), []);

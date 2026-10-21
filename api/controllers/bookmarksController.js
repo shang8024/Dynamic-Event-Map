@@ -1,6 +1,10 @@
 const Bookmark = require('../models/bookmarkModel');
 const socket = require("../socket");
 
+async function publishCount(eventId) {
+  const result=await Bookmark.getStatsByEvent(eventId);
+  socket.getIO().emit('bookmark:updated',{eventId,count:Number(result.rows[0]?.bookmark_count||0)});
+}
 const getBookmarks = async (req, res) => {
   const uid = req.user?.id || req.body?.userId;
   try {
@@ -22,11 +26,6 @@ const getBookmarksStatsByEvent = async (req, res) => {
   try {
     const result = await Bookmark.getStatsByEvent(eventId);
     const count = parseInt(result.rows[0]?.bookmark_count, 10) || 0;
-    try {
-      socket.getIO().emit("bookmark:updated", {eventId, count: count});
-    } catch (e) {
-      // no-op
-    }
     res.json({ bookmark_count: count });
   } catch (err) {
     console.error(err);
@@ -41,6 +40,7 @@ const createBookmark = async (req, res) => {
     const result = await Bookmark.create({ eventId: eventId, userId: uid });
     const bookmark = result.rows[0];
     const isNew = bookmark.inserted;
+    if(isNew) await publishCount(eventId).catch(()=>{});
     res.status(isNew ? 201 : 200).json({
       id: bookmark.id,
       eventId: bookmark.event_id,
@@ -61,6 +61,7 @@ const deleteBookmark = async (req, res) => {
   try {
     const result = await Bookmark.delete({ eventId: eventId, userId: uid });
     if (result.rowCount === 0) return res.status(404).json({ error: 'Bookmark not found' });
+    await publishCount(eventId).catch(()=>{});
     res.json({ message: 'Bookmark deleted' });
   } catch (err) {
     console.error(err);

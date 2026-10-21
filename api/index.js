@@ -63,7 +63,7 @@ app.use(cors(corsOptions));
 // Routes
 app.get('/api/healthz', (req, res) => res.json({ status: 'ok' }));
 app.get('/api/readyz', require('./services/readiness').createReadiness({
-  db:require('./config/db'),redis:require('./config/redis'),
+  db:require('./config/db'),redis:require('./config/redis'),realtime:require('./socket'),
 }));
 app.use('/api',require('./middleware/rateLimit').anonymous);
 app.use("/api/events", eventsRoutes);
@@ -75,6 +75,7 @@ app.use("/api/bookmarks", bookmarksRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/profiles", profilesRoutes);
 app.use('/api', require('./routes/interests'));
+app.use('/api', require('./routes/notifications'));
 app.use('/api', require('./routes/emailFeedback'));
 
 // User comments route
@@ -86,8 +87,8 @@ app.get("/api/comments/me", firebaseAuth, getUserComments);
 const http = require("http");
 const server = http.createServer(app);
 const socket = require("./socket");
-socket.init(server);
-
-server.listen(port, host, () =>
-  console.log(`API running on http://${host}:${port}`)
-);
+async function start() {
+  await socket.init(server,{db:require('./config/db')});
+  server.listen(port,host,()=>console.log(`API running on http://${host}:${port}`));
+}
+start().catch(error=>{console.error('API startup failed',error.code||error.name);process.exit(1);});

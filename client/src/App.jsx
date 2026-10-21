@@ -12,6 +12,7 @@ import NotificationBanner from "./components/NotificationBanner.jsx";
 import PreferencesPage from "./components/PreferencesPage.jsx";
 import RecommendationsPage from "./components/RecommendationsPage.jsx";
 import UnsubscribePage from "./components/UnsubscribePage.jsx";
+import NotificationInbox from "./components/NotificationInbox";
 
 function PageWrapper({ children }) {
   return (
@@ -53,6 +54,7 @@ export default function App() {
       <AuthProvider>
         <Router>
           <Routes>
+            <Route path="/notifications" element={<AuthorizedRoute><NotificationInbox /></AuthorizedRoute>} />
             <Route
               path="/settings"
               element={

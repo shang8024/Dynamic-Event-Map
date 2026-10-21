@@ -51,7 +51,7 @@ const createComment = async (req, res) => {
   const { text } = req.body;
   // Must be authenticated
   if (!req.user) return res.status(401).json({ error: 'Authentication required' });
-  if (!text || !text.trim()) return res.status(400).json({ error: 'Missing comment text' });
+  if (typeof text !== 'string' || !text.trim() || text.length>5000) return res.status(400).json({ error: 'Missing comment text' });
   try {
     const uid = req.user.id;
     const created = await Comment.create({ eventId, userId: uid, text });
@@ -88,7 +88,8 @@ const deleteComment = async (req, res) => {
     const found = await Comment.getById(commentId);
     if (!found || found.rows.length === 0) return res.status(404).json({ error: 'Comment not found' });
     const row = found.rows[0];
-    if (Number(row.user_id) !== Number(req.user.id)) return res.status(403).json({ error: 'Forbidden' });
+    if (Number(row.event_id) !== Number(req.params.eventId)) return res.status(404).json({error:'Comment not found'});
+    if (Number(row.user_id) !== Number(req.user.id) && req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
     const result = await Comment.delete(commentId);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Comment not found' });
     try { 

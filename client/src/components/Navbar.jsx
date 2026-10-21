@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import GuestAvatar from "../assets/guest.png";
 import AuthDialog from "./AuthDialog";
+import { NotificationBell } from "./NotificationInbox";
 import { authErrorMessage } from "../services/authSession";
 
 export default function Navbar() {
@@ -39,7 +40,8 @@ export default function Navbar() {
         </Link>
       </div>
 
-      <div className="flex-none">
+      <div className="flex flex-none items-center gap-1">
+        {user && <NotificationBell />}
         {logoutError && (
           <span role="alert" className="text-error mr-3 max-w-48 text-xs">
             {logoutError}
@@ -56,7 +58,7 @@ export default function Navbar() {
                         <img src={user.photoURL || GuestAvatar} alt="avatar" />
                       </div>
                     </div>
-                    <div className="text-sm font-medium">{user.displayName || user.email}</div>
+                    <div className="max-w-36 truncate text-sm font-medium">{user.role === 'admin' ? 'Admin' : user.displayName || user.email}</div>
                   </summary>
                   <ul className="bg-base-100 rounded-box absolute right-0 mt-2 w-52 p-2 shadow">
                     <li>
