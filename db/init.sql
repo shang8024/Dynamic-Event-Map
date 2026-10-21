@@ -51,5 +51,5 @@ CREATE TABLE IF NOT EXISTS comments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 -- Create a system user for external event imports
-INSERT INTO profiles (username, password_hash)
-VALUES ('system', 'system-password') ON CONFLICT (username) DO NOTHING;
+INSERT INTO profiles (username)
+VALUES ('system') ON CONFLICT (username) DO NOTHING;

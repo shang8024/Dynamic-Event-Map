@@ -1,390 +1,124 @@
-import pg from "pg";
-import fs from "node:fs";
-import redis from "redis";
-import puppeteer from "puppeteer";
-const { Client } = pg;
-function categorizeEventByKeyword(event) {
-  const text = `${event.title} ${event.description || ""}`.toLowerCase();
+import fs from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { Readable } from 'node:stream';
+import { parseArgs } from 'node:util';
+import pg from 'pg';
+import { createClient } from 'redis';
+import { METADATA_URL } from './normalize.js';
+import { importEvents } from './database.js';
+import { readSourceStream, SOURCE_LIMITS } from './stream-source.js';
 
-  const categories = [
-    {
-      name: "Entertainment & Leisure",
-      keywords: [
-        "music", "concert", "band", "festival", "show", "theater", "performance",
-        "comedy", "play", "movie", "cinema", "dance", "karaoke", "opera", "magic"
-      ],
-    },
-    {
-      name: "Arts & Culture",
-      keywords: [
-        "art", "gallery", "museum", "culture", "exhibit", "craft", "literature",
-        "painting", "sculpture", "photography", "heritage", "history", "culture walk"
-      ],
-    },
-    {
-      name: "Education & Workshops",
-      keywords: [
-        "workshop", "class", "lecture", "seminar", "training", "course", "webinar",
-        "tutorial", "bootcamp", "study", "learning", "skill", "lesson", "camp"
-      ],
-    },
-    {
-      name: "Sports & Fitness",
-      keywords: [
-        "sports", "run", "race", "marathon", "tournament", "soccer", "basketball",
-        "yoga", "fitness", "gym", "cycling", "swimming", "football", "tennis", "hike"
-      ],
-    },
-    {
-      name: "Food & Drink",
-      keywords: [
-        "food", "drink", "dinner", "festival", "market", "wine", "beer", "brewery",
-        "restaurant", "cafe", "cocktail", "barbecue", "gourmet", "cheese", "tasting"
-      ],
-    },
-    {
-      name: "Business & Networking",
-      keywords: [
-        "business", "network", "meetup", "conference", "startup", "entrepreneur",
-        "career", "pitch", "workshop", "corporate", "trade show", "summit", "forum"
-      ],
-    },
-    {
-      name: "Community & Social",
-      keywords: [
-        "community", "charity", "social", "fundraiser", "volunteer", "neighborhood",
-        "meetup", "support group", "public", "festival", "block party", "local"
-      ],
-    },
-    {
-      name: "Family & Kids",
-      keywords: [
-        "family", "kids", "child", "children", "parent", "baby", "toddler", "play",
-        "family-friendly", "school", "children's", "parenting", "youth", "teen"
-      ],
-    },
-    {
-      name: "Technology & Innovation",
-      keywords: [
-        "tech", "technology", "innovation", "startup", "ai", "robotics", "software",
-        "hardware", "coding", "hackathon", "programming", "digital", "electronics"
-      ],
-    },
-  ];
+const { values } = parseArgs({ options: {
+  input: { type: 'string' }, manifest: { type: 'string' }, output: { type: 'string' },
+  'as-of': { type: 'string', default: new Date().toISOString() },
+  write: { type: 'boolean', default: false },
+} });
+const TRUSTED_HOST = 'ckan0.cf.opendata.inter.prod-toronto.ca';
 
-  // Count how many keywords from each category are present
-  const categoryScores = categories.map((cat) => {
-    const score = cat.keywords.reduce((acc, kw) => acc + (text.includes(kw) ? 1 : 0), 0);
-    return { name: cat.name, score };
-  });
-
-  // Pick the category with the highest score
-  const bestCategory = categoryScores.reduce((prev, curr) =>
-    curr.score > prev.score ? curr : prev
-  );
-
-  return bestCategory.score > 0 ? bestCategory.name : "Other";
-}
-const TORONTO_BASE =
-  "https://secure.toronto.ca/c3api_data/v2/DataAccess.svc/festivals_events/events";
-const calendars = [
-    "a4f795ff-e94f-46bd-a1c3-c94ec1549567",
-    "adb9c00b-5f61-4a01-90b5-6cf00d00faf0",
-    "ad38461b-1274-4afe-ae3a-320fba6b28b0",
-    "4b1fdab9-7e0c-4dea-91d5-ae5cae097cb3",
-    "7650a094-e8de-4212-9188-9d82e33b17b6",
-    "66ac8918-922b-4eff-98db-7784bf842523",
-    "ee486807-a5e6-44fd-8c98-496caaca50a1",
-    "5ec2e57f-03d6-499b-b46c-8f0babf97e0a",
-    "4a75ca32-c2b0-4baa-a0ee-703cd9e53b03",
-    "1550cde5-f772-4772-a7bb-572344640f23",
-    "ae3fcc96-e2eb-4522-95bd-5ba198ccf6de",
-    "2603f051-0d4d-48db-95f0-b3061b210efd",
-    "3197d23d-c257-4584-89b2-b100f99ce6d4",
-    "da506e92-d63c-43fa-864a-78a53b52f706",
-    "82f36b6c-101e-41a9-81c5-1434d7ae673b",
-  ];
-const calExpr = calendars.map(
-    (id) => `calendar_id eq '${id}'`,
-  ).join(' or ');
-function toTorontoIso(isoDate) {
-  return `${isoDate}T00:00:00-04:00`;
+async function fetchOfficial(url, maxBytes) {
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:' || parsed.hostname !== TRUSTED_HOST) throw new Error('Unexpected official source URL');
+  const response = await fetch(url, { signal: AbortSignal.timeout(90000), redirect: 'error', headers: { 'User-Agent': 'Dynamic-Event-Map/3 (Toronto Open Data importer)' } });
+  if (!response.ok) { await response.body?.cancel(); throw new Error(`Official source HTTP ${response.status}`); }
+  if (Number(response.headers.get('content-length')) > maxBytes) { await response.body?.cancel(); throw new Error('Official source exceeds size limit'); }
+  return response;
 }
 
-function getTorontoEventsURL({ from, to }) {
-  const qs = [
-  "$format=application/json;odata.metadata=none",
-  "$skip=0",
-  "$top=5000",
-  "$select=" + [
-    "id",
-    "short_name",
-    "short_description",
-    "event_description",
-    "event_image",
-    "event_locations",
-    "featured_event",
-    "free_event",
-    "event_startdate",
-    "event_enddate",
-    "calendar_date",
-    "calendar_date_group"
-  ].join(","),
-  "$orderby=calendar_date_group,featured_event desc,calendar_date",
-  `$filter=(${calExpr}) and calendar_date ge ${toTorontoIso(from)} and calendar_date lt ${toTorontoIso(to)}`
-].join("&");
-  const url = `${TORONTO_BASE}?${qs}`;
-  return url;
+function validateMetadata(metadata) {
+  const sourceURL = new URL(metadata.source_url);
+  if (sourceURL.protocol !== 'https:' || sourceURL.hostname !== TRUSTED_HOST) throw new Error('Snapshot source is not the official catalogue');
+  // CKAN timestamps have no suffix; CKAN metadata is recorded in UTC.
+  const modified = Date.parse(/(Z|[+-]\d\d:\d\d)$/.test(metadata.source_last_modified) ? metadata.source_last_modified : `${metadata.source_last_modified}Z`);
+  const ageHours = (Date.parse(values['as-of']) - modified) / 3600000;
+  if (!Number.isFinite(ageHours) || ageHours > 72 || ageHours < -24) throw new Error('Official source metadata is missing, stale (>72h), or future-dated; review before import');
 }
 
-function normalizeTorontoEvents(raw) {
-  const loc = Array.isArray(raw.event_locations) && raw.event_locations.length > 0
-    ? raw.event_locations[0]
-    : null;
+async function fetchCatalogue() {
+  const maxBytes = 1024 * 1024;
+  const response = await fetchOfficial(METADATA_URL, maxBytes);
+  const chunks = []; let bytes = 0;
+  for await (const chunk of response.body) {
+    bytes += chunk.length;
+    if (bytes > maxBytes) throw new Error('Official catalogue exceeds size limit');
+    chunks.push(chunk);
+  }
+  return JSON.parse(Buffer.concat(chunks));
+}
 
-  let lat = null;
-  let lng = null;
-  if (loc && loc.location_gps) {
+async function sourceSnapshot() {
+  if (values.input) {
+    if (!values.manifest) throw new Error('--input requires --manifest with source URL, timestamp and SHA-256');
+    if ((await fs.stat(values.manifest)).size > 1024 * 1024) throw new Error('Snapshot manifest exceeds size limit');
+    const metadata = JSON.parse(await fs.readFile(values.manifest, 'utf8'));
+    validateMetadata(metadata);
+    if (!/^[a-f0-9]{64}$/i.test(metadata.sha256)) throw new Error('Snapshot manifest requires a SHA-256 checksum');
+    if ((await fs.stat(values.input)).size > SOURCE_LIMITS.maxBytes) throw new Error('Official source exceeds size limit');
+    const streamed = await readSourceStream(createReadStream(values.input), {
+      asOf: values['as-of'], expectedSha256: metadata.sha256.toLowerCase(), expectedBytes: metadata.bytes,
+    });
+    return streamed.finish(metadata);
+  }
+
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const arr = JSON.parse(loc.location_gps);
-      if (Array.isArray(arr) && arr[0]) {
-        lat = arr[0].gps_lat ?? null;
-        lng = arr[0].gps_lng ?? null;
-      }
-    } catch (_) {
-      // ignore
+      const catalogue = await fetchCatalogue();
+      if (!catalogue.success) throw new Error('Official CKAN catalogue returned failure');
+      const resource = catalogue.result.resources.find(resource => resource.id === '8900fdb2-7f6c-4f50-8581-b463311ff05d' && resource.format === 'JSON');
+      if (!resource) throw new Error('Official JSON resource changed; review schema before proceeding');
+      const metadata = { source_url: resource.url, resource_id: resource.id, source_last_modified: resource.last_modified };
+      validateMetadata(metadata);
+      const response = await fetchOfficial(resource.url, SOURCE_LIMITS.maxBytes);
+      const streamed = await readSourceStream(Readable.fromWeb(response.body), {
+        asOf: values['as-of'], expectedBytes: Number.isSafeInteger(resource.size) ? resource.size : undefined,
+      });
+      return streamed.finish({ ...metadata, downloaded_at: new Date().toISOString(), bytes: streamed.bytes, sha256: streamed.sha256 });
+    } catch (error) {
+      lastError = error;
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000 * (2 ** attempt)));
     }
   }
-
-  let event_image = null;
-  if (Array.isArray(raw.event_image) && raw.event_image.length > 0) {
-    const img = raw.event_image[0];
-    event_image = {
-      alt: img.fields?.alt || null,
-      url: img.bin_id ? `https://secure.toronto.ca/c3api_upload/retrieve/festivals_events/${img.bin_id}` : null,
-    };
-  }
-
-  const category = categorizeEventByKeyword({
-    title: raw.short_name,
-    description: raw.short_description
-  });
-
-  const startsAt = raw.event_startdate || raw.calendar_date || null;
-  const endsAt = raw.event_enddate || null;
-  return {
-    source: "external",
-    ref_id: String(raw.id),
-    title: raw.short_name || "Untitled",
-    description: raw.event_description || raw.short_description || null,
-    starts_at: startsAt ? new Date(startsAt).toISOString() : null,
-    ends_at: endsAt ? new Date(endsAt).toISOString() : null,
-    latitude: lat,
-    category: category,
-    longitude: lng,
-    location_name: loc ? loc.location_name : null,
-    location_address: loc ? loc.location_address : null,
-    data: {
-      featured: raw.featured_event === "Yes",
-      free: raw.free_event === "Yes",
-      image: event_image,
-      raw,
-    },
-  };
+  throw lastError;
 }
 
-function readSecret(path) {
+async function readSecret(path) {
+  if (!path) return undefined;
+  try { return (await fs.readFile(path, 'utf8')).trim(); } catch (error) { if (error.code !== 'ENOENT') throw error; return undefined; }
+}
+
+async function invalidateCache() {
+  if (!process.env.REDIS_HOST) return { status: 'not_configured' };
+  const password = await readSecret(process.env.REDIS_PASSWORD_FILE || '/run/secrets/redis_password') || process.env.REDISPASSWORD || process.env.REDIS_PASSWORD;
+  const client = createClient({ socket: { host: process.env.REDIS_HOST, port: Number(process.env.REDIS_PORT || 6379), connectTimeout: 5000, reconnectStrategy: false }, password });
+  client.on('error', () => {});
   try {
-    return fs.readFileSync(path, "utf8").trim();
-  } catch {
-    return null;
-  }
+    await client.connect();
+    await client.del('eventCount');
+    let count = 0;
+    for await (const key of client.scanIterator({ MATCH: 'events:summary:*', COUNT: 100 })) { await client.del(key); count++; }
+    return { status: 'invalidated', summary_keys: count };
+  } finally { if (client.isOpen) await client.quit(); }
 }
 
 async function main() {
-  const today = new Date();
-  const from = today.toISOString().slice(0, 10);
-  const d2 = new Date();
-  d2.setDate(d2.getDate() + 30);
-  const to = d2.toISOString().slice(0, 10);
-
-  const url = getTorontoEventsURL({ from, to });
-  console.log("[pull] fetch:", url);
-
-  // Use headless browser to bypass Akamai bot detection
-  console.log("[pull] launching headless browser...");
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu'
-    ]
-  });
-  
-  let rawArr = [];
-  try {
-    const page = await browser.newPage();
-    
-    // Set a realistic viewport and user agent
-    await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
-    
-    console.log("[pull] navigating to API...");
-    const response = await page.goto(url, { 
-      waitUntil: 'networkidle0',
-      timeout: 60000 
-    });
-    
-    if (!response.ok()) {
-      throw new Error(`fetch failed: ${response.status()} ${response.statusText()}`);
-    }
-    
-    // Get the JSON content from the page
-    const json = await page.evaluate(() => {
-      return JSON.parse(document.body.innerText);
-    });
-    
-    console.log("[pull] successfully fetched data");
-    await browser.close();
-
-    rawArr = Array.isArray(json?.value) ? json.value : [];
-    console.log(`[pull] got ${rawArr.length} events`);
-  } catch (err) {
-    await browser.close();
-    throw err;
-  }
-
-  const events = rawArr.map(normalizeTorontoEvents);
-  
-  // Try Docker secrets first (for Swarm), then env vars (for GitHub Actions)
-  const secretPass =
-    readSecret("/run/secrets/pg_password") ||
-    process.env.PGPASSWORD ||
-    process.env.DB_PASSWORD ||
-    undefined;
-
-  const client = new Client({
-    host: process.env.PGHOST || process.env.DB_HOST || "127.0.0.1",
+  const snapshot = await sourceSnapshot();
+  if (values.output) await fs.writeFile(values.output, JSON.stringify(snapshot, null, 2) + '\n');
+  console.log(JSON.stringify({ mode: values.write ? 'write' : 'dry_run', as_of: snapshot.as_of, provenance: snapshot.provenance, report: snapshot.report, max_rss_kib: process.resourceUsage().maxRSS }, null, 2));
+  if (!values.write) return;
+  if (!process.env.PGHOST && !process.env.DB_HOST) throw new Error('Explicit PGHOST or DB_HOST is required for --write');
+  const password = await readSecret(process.env.PGPASSWORD_FILE || '/run/secrets/pg_password') || process.env.PGPASSWORD || process.env.DB_PASSWORD;
+  const client = new pg.Client({
+    host: process.env.PGHOST || process.env.DB_HOST,
     port: Number(process.env.PGPORT || process.env.DB_PORT || 5432),
-    database: process.env.PGDATABASE || process.env.DB_NAME || "eventsdb",
-    user: process.env.PGUSER || process.env.DB_USER || "user",
-    password: secretPass,
+    database: process.env.PGDATABASE || process.env.DB_NAME || 'eventsdb',
+    user: process.env.PGUSER || process.env.DB_USER,
+    password, connectionTimeoutMillis: 10000,
+    // pg also honors PGSSLMODE and PGSSLROOTCERT; use verify-full for managed DBs.
   });
-  
-  console.log(`[pull] connecting to DB at ${client.host}:${client.port}/${client.database}`);
   await client.connect();
-  console.log("[pull] DB connected.");
-
-  const redisPass =
-    readSecret("/run/secrets/redis_password") ||
-    process.env.REDISPASSWORD ||
-    process.env.REDIS_PASSWORD ||
-    undefined;
-
-  const redisClient = redis.createClient({
-    socket: {
-      host: process.env.REDIS_HOST || "127.0.0.1",
-      port: Number(process.env.REDIS_PORT || 6379),
-    },
-    password: redisPass,
-  });
-  
-  console.log(`[pull] connecting to Redis at ${redisClient.options.socket.host}:${redisClient.options.socket.port}`);
-  await redisClient.connect();
-  console.log("[pull] Redis connected.");
-
-  const mergeSQL = `
-    MERGE INTO events e
-    USING (
-      VALUES (
-        $1::text,            -- title
-        $2::text,            -- source
-        $3::text,            -- ref_id
-        $4::text,            -- description
-        $5::jsonb,           -- data
-        $6::timestamptz,     -- starts_at
-        $7::timestamptz,     -- ends_at
-        $8::double precision,-- latitude
-        $9::double precision,-- longitude
-        NULLIF($10,'')::text,-- location_name
-        NULLIF($11,'')::text,-- location_address
-        NULLIF($12,'')::text -- category
-      )
-    ) AS v(title, source, ref_id, description, data, starts_at, ends_at, latitude, longitude, location_name, location_address, category)
-    ON (
-      lower(btrim(e.title)) = lower(btrim(v.title))
-      AND e.starts_at IS NOT DISTINCT FROM v.starts_at
-      AND e.ends_at   IS NOT DISTINCT FROM v.ends_at
-      AND round(e.latitude::numeric, 5)  IS NOT DISTINCT FROM round(v.latitude::numeric, 5)
-      AND round(e.longitude::numeric, 5) IS NOT DISTINCT FROM round(v.longitude::numeric, 5)
-    )
-    WHEN MATCHED THEN
-      UPDATE SET
-        source           = v.source,
-        ref_id           = v.ref_id,
-        description      = v.description,
-        data             = v.data,
-        starts_at        = v.starts_at,
-        ends_at          = v.ends_at,
-        latitude         = v.latitude,
-        longitude        = v.longitude,
-        location_name    = v.location_name,
-        location_address = v.location_address,
-        updated_at       = now(),
-        category         = v.category
-    WHEN NOT MATCHED THEN
-      INSERT (title, source, ref_id, description, data, starts_at, ends_at,
-              latitude, longitude, location_name, location_address, updated_at, user_id, category)
-      VALUES (v.title, v.source, v.ref_id, v.description, v.data, v.starts_at, v.ends_at,
-              v.latitude, v.longitude, v.location_name, v.location_address, now(), 1, v.category);
-    `;
-
-  let ok = 0,
-    fail = 0;
-  for (const ev of events) {
-    try {
-      await client.query(mergeSQL, [
-        ev.title,
-        ev.source,
-        ev.ref_id,
-        ev.description,
-        ev.data,
-        ev.starts_at,
-        ev.ends_at,
-        ev.latitude,
-        ev.longitude,
-        ev.location_name,
-        ev.location_address,
-        ev.category,
-      ]);
-      ok++;
-    } catch (e) {
-      fail++;
-      console.error("upsert failed:", e.message);
-    }
-  }
-
-  console.log(`[pull] done. upserted=${ok}, failed=${fail}`);
-  await client.query(`
-    DELETE FROM events e
-    WHERE e.ends_at IS NOT NULL AND e.ends_at < NOW()
-      AND e.source = 'external'
-      AND NOT EXISTS (
-        SELECT 1 FROM bookmarks b
-        WHERE b.event_id = e.id
-      );
-  `);
-  // cleanup all things in redis
-  await redisClient.flushAll();
-  console.log("[pull] cleaned up old events and redis cache.");
-  await client.end();
-  await redisClient.quit();
-  console.log("[pull] done.");
+  try { console.log(JSON.stringify({ database: await importEvents(client, snapshot) })); }
+  finally { await client.end(); }
+  console.log(JSON.stringify({ cache: await invalidateCache() }));
 }
 
-main().catch((err) => {
-  console.error("[pull] fatal:", err);
-  process.exit(1);
-});
+main().catch(error => { console.error('[ingest] failed:', error.message); process.exitCode = 1; });
