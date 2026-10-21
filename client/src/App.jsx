@@ -1,5 +1,5 @@
 import React,{useEffect,useRef} from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, Routes, Route } from "react-router-dom";
 import "./App.css";
 import BookmarksPage from "./feature/bookmarks/EventBookmarks.jsx";
 import UserComments from "./feature/comments/UserComments.jsx";
@@ -18,6 +18,7 @@ import {Link,useLocation} from 'react-router-dom';
 import AuthPage from './components/AuthPage';
 import EventPage from './feature/events/EventPage';
 import './CompactLayout.css';
+import UnsavedChangesProvider from './contexts/UnsavedChangesProvider';
 
 function MapPage() {
   const {isLoaded,loadError}=useGoogleMaps();
@@ -61,69 +62,29 @@ function AuthorizedRoute({ children }) {
   return <PageWrapper>{children}</PageWrapper>;
 }
 
+function AppRoutes() {
+  return <UnsavedChangesProvider><AuthFlowProvider><Routes>
+    <Route path="/events/:eventId" element={<PageWrapper><EventPage/></PageWrapper>}/>
+    <Route path="/signin" element={<PageWrapper><AuthPage key="signin"/></PageWrapper>}/>
+    <Route path="/register" element={<PageWrapper><AuthPage key="register" initialMode="register"/></PageWrapper>}/>
+    <Route path="/reset-password" element={<PageWrapper><AuthPage key="reset-password" initialMode="reset"/></PageWrapper>}/>
+    <Route path="/notifications" element={<AuthorizedRoute><NotificationInbox/></AuthorizedRoute>}/>
+    <Route path="/settings" element={<AuthorizedRoute><PreferencesPage/></AuthorizedRoute>}/>
+    <Route path="/recommendations" element={<AuthorizedRoute><RecommendationsPage/></AuthorizedRoute>}/>
+    <Route path="/unsubscribe" element={<PageWrapper><UnsubscribePage/></PageWrapper>}/>
+    <Route path="/bookmarks" element={<AuthorizedRoute><BookmarksPage/></AuthorizedRoute>}/>
+    <Route path="/comments" element={<AuthorizedRoute><UserComments/></AuthorizedRoute>}/>
+    <Route path="*" element={<PageWrapper><MapPage/></PageWrapper>}/>
+  </Routes></AuthFlowProvider></UnsavedChangesProvider>;
+}
+
+// A data router lets forms protect unsaved changes on links and browser Back.
+const router=createBrowserRouter([{path:'*',element:<AppRoutes/>}]);
 export default function App() {
   return (
     <NotificationProvider>
       <AuthProvider>
-        <Router>
-          <AuthFlowProvider>
-          <Routes>
-            <Route path="/events/:eventId" element={<PageWrapper><EventPage/></PageWrapper>}/>
-            <Route path="/signin" element={<PageWrapper><AuthPage key="signin"/></PageWrapper>}/>
-            <Route path="/register" element={<PageWrapper><AuthPage key="register" initialMode="register"/></PageWrapper>}/>
-            <Route path="/reset-password" element={<PageWrapper><AuthPage key="reset-password" initialMode="reset"/></PageWrapper>}/>
-            <Route path="/notifications" element={<AuthorizedRoute><NotificationInbox /></AuthorizedRoute>} />
-            <Route
-              path="/settings"
-              element={
-                <AuthorizedRoute>
-                  <PreferencesPage />
-                </AuthorizedRoute>
-              }
-            />
-            <Route
-              path="/recommendations"
-              element={
-                <AuthorizedRoute>
-                  <RecommendationsPage />
-                </AuthorizedRoute>
-              }
-            />
-            <Route
-              path="/unsubscribe"
-              element={
-                <PageWrapper>
-                  <UnsubscribePage />
-                </PageWrapper>
-              }
-            />
-            <Route
-              path="/bookmarks"
-              element={
-                <AuthorizedRoute>
-                  <BookmarksPage />
-                </AuthorizedRoute>
-              }
-            />
-            <Route
-              path="/comments"
-              element={
-                <AuthorizedRoute>
-                  <UserComments />
-                </AuthorizedRoute>
-              }
-            />
-            <Route
-              path="*"
-              element={
-                <PageWrapper>
-                  <MapPage />
-                </PageWrapper>
-              }
-            />
-          </Routes>
-          </AuthFlowProvider>
-        </Router>
+        <RouterProvider router={router}/>
       </AuthProvider>
     </NotificationProvider>
   );

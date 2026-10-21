@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { interestApi } from "../services/interestApi";
 import PageLayout from "./PageLayout";
+import {preferencePayload} from '../services/interestClient';
+import useUnsavedChanges from '../hooks/useUnsavedChanges';
 
 export default function PreferencesPage() {
   const { user } = useAuth();
@@ -12,42 +14,54 @@ export default function PreferencesPage() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [baseline,setBaseline]=useState(null);
+  const saveRequest=useRef(null),navigate=useNavigate();
+  const dirty=Boolean(preferences&&baseline&&JSON.stringify(preferencePayload(preferences))!==JSON.stringify(preferencePayload(baseline)));
+  const {allowNavigation}=useUnsavedChanges({dirty,busy:saving,title:'Leave without saving your preferences?',description:'Your email and privacy choices have not been saved. Keep editing to save them before leaving.'});
 
   useEffect(() => {
     const controller = new AbortController();
     setError("");
     setPreferences(null);
+    setBaseline(null);setSaved(false);setDelivery(null);setSaving(false);
     interestApi
       .getPreferences(controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
         setPreferences(result.preferences);
+        setBaseline(result.preferences);
         setDelivery(result.delivery);
       })
       .catch((error) => {
         if (!controller.signal.aborted) setError(error.message);
       });
-    return () => controller.abort();
+    return () => {controller.abort();saveRequest.current?.abort();};
   }, [user.id, attempt]);
 
   const change = (key, value) => {
     setPreferences((current) => ({ ...current, [key]: value }));
     setSaved(false);
   };
-  const save = async (event) => {
-    event.preventDefault();
+  const save = async (event,explore=false) => {
+    event?.preventDefault();
+    if(saving) return;
+    if(!dirty&&explore) {allowNavigation(()=>navigate('/recommendations'));return;}
+    const controller=new AbortController();saveRequest.current=controller;
     setSaving(true);
     setError("");
     setSaved(false);
     try {
-      const result = await interestApi.savePreferences(preferences);
+      const result = await interestApi.savePreferences(preferences,controller.signal);
+      if(controller.signal.aborted) return;
       setPreferences(result.preferences);
+      setBaseline(result.preferences);
       setDelivery(result.delivery);
       setSaved(true);
+      if(explore) allowNavigation(()=>navigate('/recommendations'));
     } catch (error) {
-      setError(error.message);
+      if(!controller.signal.aborted) setError(error.message);
     } finally {
-      setSaving(false);
+      if(!controller.signal.aborted) setSaving(false);
     }
   };
 
@@ -154,16 +168,17 @@ export default function PreferencesPage() {
                   </span>
                 </span>
               </label>
-              <Link className="link mt-3 inline-block text-sm" to="/recommendations">
-                Explore recommendations
-              </Link>
+              <button type="button" className="link mt-3 inline-block min-h-11 text-sm" disabled={saving} onClick={()=>save(null,true)}>
+                {dirty?'Save and explore recommendations':'Explore recommendations'}
+              </button>
             </section>
             <p className="text-sm muted">
               You can turn either email option off here at any time. Emails include an unsubscribe
               link that works without signing in. We use your verified account email for delivery
               and your saved categories only when personalization is enabled.
             </p>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
+            <p role="status" className="text-sm muted">{dirty?'You have unsaved changes.':'Your current choices are saved.'}</p>
+            <button type="submit" className="btn btn-primary" disabled={saving||!dirty}>
               {saving ? "Saving…" : "Save preferences"}
             </button>
           </fieldset>

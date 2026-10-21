@@ -1,7 +1,8 @@
 import {useEffect,useId,useRef,useState} from 'react';
 import {createPlacesSearch} from '../services/placesSearch';
 import {GTA_BOUNDS} from '../utils/event';
-export default function LocationSearch({onSelected,label='Search a location',placeholder='City, neighbourhood or venue',showLabel=false}) {
+import {GTA_LOCATION_HELP,withinGTA} from '../utils/eventLocation';
+export default function LocationSearch({onSelected,label='Search a location',placeholder='City, neighbourhood or venue',showLabel=false,enforceBounds=true}) {
   const id=useId(),version=useRef(0);
   const [service]=useState(()=>createPlacesSearch(()=>window.google?.maps?.places,GTA_BOUNDS));
   const [query,setQuery]=useState(''),[items,setItems]=useState([]),[index,setIndex]=useState(-1),[error,setError]=useState(''),[busy,setBusy]=useState(false);
@@ -18,7 +19,11 @@ export default function LocationSearch({onSelected,label='Search a location',pla
   useEffect(()=>()=>{version.current++;service.resetSession();},[service]);
   async function choose(item) {
     ++version.current;setBusy(true);setItems([]);setError('');
-    try {const place=await service.getPlaceDetails(item);if(!place) throw new Error();selected.current=item.description;setQuery(item.description);onSelected(place);}
+    try {const place=await service.getPlaceDetails(item);if(!place) throw new Error();
+      selected.current=item.description;setQuery(item.description);
+      const point={lat:place.geometry.location.lat(),lng:place.geometry.location.lng()};
+      if(enforceBounds&&!withinGTA(point)) {setError(GTA_LOCATION_HELP);return;}
+      onSelected(place);}
     catch {setError('Unable to use that location. Try another result.');}
     finally {setBusy(false);}
   }
