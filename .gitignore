@@ -21,6 +21,10 @@ node_modules/
 **/acme.json
 secrets/
 .local/
+# Private planning, review notes and import reports are stored outside this checkout.
+/docs/
+/project_proposal.md
+/infra/ingest/import-report*.json
 backups/
 *.dump
 *.backup
@@ -30,5 +34,3 @@ backups/
 .terraform/
 *.tfvars
 !*.tfvars.example
-
-/docs/
