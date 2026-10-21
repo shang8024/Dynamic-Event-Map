@@ -41,6 +41,12 @@ with tempfile.TemporaryDirectory(prefix='eventmap-headers-') as directory:
     (fixture / 'assets').mkdir()
     (fixture / 'index.html').write_text('<!doctype html><title>Local security fixture</title>', encoding='utf8')
     (fixture / 'assets' / 'app.js').write_text('/* Local security fixture */', encoding='utf8')
+    # TemporaryDirectory is 0700 on Linux. Only these synthetic public assets
+    # need to be readable/traversable by the container's unprivileged worker.
+    for public_directory in [fixture, fixture / 'assets']:
+        public_directory.chmod(0o755)
+    for public_file in [fixture / 'index.html', fixture / 'assets' / 'app.js']:
+        public_file.chmod(0o644)
     try:
         docker('run', '-d', '--name', name, '--memory', '64m', '--cpus', '0.5', '--pids-limit', '64',
                '-e', 'NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE=1',
