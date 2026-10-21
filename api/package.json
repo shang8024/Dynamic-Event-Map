@@ -37,5 +37,8 @@
   "license": "MIT",
   "devDependencies": {
     "socket.io-client": "^4.8.1"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
   }
 }
