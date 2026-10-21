@@ -7,6 +7,9 @@ networks:
   internal:
     driver: overlay
     external: false
+  images:
+    driver: overlay
+    external: false
 
 volumes:
   pgdata:
@@ -169,6 +172,7 @@ services:
       ALLOWED_ORIGINS: "https://${DOMAIN},https://www.${DOMAIN}"
       TRUSTED_PROXY_CIDRS: "${TRUSTED_PROXY_CIDRS:-}"
       FIREBASE_PROJECT_ID: "${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID}"
+      IMAGE_PROXY_URL: http://image_proxy:5100
       UNSUBSCRIBE_SIGNING_SECRET_FILE: /run/secrets/unsubscribe_signing_secret
       SES_FEEDBACK_TOPIC_ARN: "${SES_FEEDBACK_TOPIC_ARN:-}"
       SES_AUTO_CONFIRM_SUBSCRIPTION: "${SES_AUTO_CONFIRM_SUBSCRIPTION:-false}"
@@ -180,7 +184,7 @@ services:
       - pg_password
       - redis_password
       - unsubscribe_signing_secret
-    networks: [proxy, internal]
+    networks: [proxy, internal, images]
     depends_on: [db, redis]
     deploy:
       replicas: ${API_REPLICAS:-1}
@@ -207,6 +211,30 @@ services:
       timeout: 3s
       retries: 6
       start_period: 30s
+
+  image_proxy:
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map-production}-api:${IMAGE_TAG:-latest}
+    command: ["node", "workers/imageProxy.js"]
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=96
+      IMAGE_PROXY_WORKER: "true"
+      PORT: "5100"
+    networks: [images]
+    deploy:
+      replicas: 1
+      restart_policy: { condition: any }
+      resources:
+        limits: { memory: 256M, cpus: '0.5' }
+        reservations: { memory: 64M }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5100/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
 
   client:
     image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map-production}-client:${IMAGE_TAG:-latest}

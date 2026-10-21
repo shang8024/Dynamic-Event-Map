@@ -63,7 +63,7 @@ app.use(cors(corsOptions));
 // Routes
 app.get('/api/healthz', (req, res) => res.json({ status: 'ok' }));
 app.get('/api/readyz', require('./services/readiness').createReadiness({
-  db:require('./config/db'),redis:require('./config/redis'),realtime:require('./socket'),
+  db:require('./config/db'),redis:require('./config/redis'),realtime:require('./socket'),imageProxyURL:process.env.IMAGE_PROXY_URL,
 }));
 app.use('/api',require('./middleware/rateLimit').anonymous);
 app.use("/api/events", eventsRoutes);

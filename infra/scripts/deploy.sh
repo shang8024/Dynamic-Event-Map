@@ -54,6 +54,7 @@ trap cleanup EXIT
     printf '  %s:\n    image: %s-%s@%s\n' "$service" "$IMAGE_PREFIX" "$component" "${DIGESTS[$component]}"
   done
   printf '  db_restore:\n    image: %s-db-backup@%s\n' "$IMAGE_PREFIX" "${DIGESTS[db-backup]}"
+  printf '  image_proxy:\n    image: %s-api@%s\n' "$IMAGE_PREFIX" "${DIGESTS[api]}"
   if [[ "${NOTIFICATIONS_CONFIGURED:-false}" == true ]]; then
     printf '  notifications:\n    image: %s-api@%s\n' "$IMAGE_PREFIX" "${DIGESTS[api]}"
   fi
@@ -75,7 +76,7 @@ mapfile -t DB_TASKS < <(docker ps -q --filter label=com.docker.swarm.service.nam
 [[ "${#DB_TASKS[@]}" == 1 ]] || { echo 'Expected one running database container' >&2; exit 1; }
 schema_ready=$(docker exec "${DB_TASKS[0]}" sh -ec '
   export PGPASSWORD="$(cat /run/secrets/pg_password)" PGOPTIONS="-c statement_timeout=5000"
-  exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT to_regclass('\''public.notification_outbox'\'') IS NOT NULL AND to_regclass('\''public.notification_preferences'\'') IS NOT NULL AND to_regclass('\''public.ux_events_natural_all'\'') IS NULL AND to_regprocedure('\''refresh_toronto_occurrences(text[],timestamp with time zone)'\'') IS NOT NULL;"
+  exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT to_regclass('\''public.notification_outbox'\'') IS NOT NULL AND to_regclass('\''public.notification_preferences'\'') IS NOT NULL AND to_regclass('\''public.in_app_notifications'\'') IS NOT NULL AND to_regclass('\''public.realtime_outbox'\'') IS NOT NULL AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='\''public'\'' AND table_name='\''profiles'\'' AND column_name='\''role'\'') AND to_regclass('\''public.ux_events_natural_all'\'') IS NULL AND to_regprocedure('\''refresh_toronto_occurrences(text[],timestamp with time zone)'\'') IS NOT NULL;"
 ')
 [[ "$schema_ready" == t ]] || { echo 'Required database migrations are not installed; see README.md' >&2; exit 1; }
 for component in api client events-ingest db-backup; do
@@ -91,7 +92,7 @@ for item in stack.yml stack.notifications.yml stack.notifications.identity.yml d
   [[ ! -e "$item" ]] || cp -a "$item" "$PREVIOUS/"
 done
 : > "$PREVIOUS/service-images.txt"
-for service in eventmap_api eventmap_client eventmap_events_ingest eventmap_db_backup; do
+for service in eventmap_api eventmap_client eventmap_image_proxy eventmap_events_ingest eventmap_db_backup; do
   if docker service inspect "$service" >/dev/null 2>&1; then
     docker service inspect -f '{{.Spec.Name}} {{.Spec.TaskTemplate.ContainerSpec.Image}}' "$service" >> "$PREVIOUS/service-images.txt"
   fi
@@ -99,10 +100,13 @@ done
 docker stack deploy --with-registry-auth --resolve-image never "${STACK_ARGS[@]}" eventmap
 converged() {
   local service component expected count task
-  for service in traefik db redis api client; do
+  for service in traefik db redis api client image_proxy; do
     expected=$(docker service inspect -f '{{.Spec.TaskTemplate.ContainerSpec.Image}}' "eventmap_$service")
     if [[ "$service" == api || "$service" == client ]]; then
       [[ "$expected" == "$IMAGE_PREFIX-$service@${DIGESTS[$service]}" ]] || return 1
+    fi
+    if [[ "$service" == image_proxy ]]; then
+      [[ "$expected" == "$IMAGE_PREFIX-api@${DIGESTS[api]}" ]] || return 1
     fi
     count=0
     while IFS= read -r task; do

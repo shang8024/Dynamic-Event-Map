@@ -3,6 +3,7 @@ const auth=require('../middleware/auth');
 const pool=require('../config/db');
 const {canManageEvent}=require('../services/eventPermissions');
 const images=require('../services/eventImages');
+const {publicImageError}=require('../services/imageErrors');
 router.get('/',async(req,res)=>{
   try {
     if(!/^\d{1,10}$/.test(req.params.eventId)) return res.sendStatus(404);
@@ -16,7 +17,7 @@ router.get('/',async(req,res)=>{
 });
 router.put('/',auth,async(req,res)=>{
   let url;
-  try {url=images.validateImageURL(req.body.url).href;} catch(error) {return res.status(400).json({error:error.message});}
+  try {url=images.validateImageURL(req.body.url).href;} catch(error) {return res.status(400).json(publicImageError(error));}
   const db=await pool.connect();
   try {
     await db.query('BEGIN');
@@ -29,7 +30,7 @@ router.put('/',auth,async(req,res)=>{
     const {rows:[updated]}=await db.query(`UPDATE events SET data=data||$2::jsonb,version=version+1,updated_at=now() WHERE id=$1 RETURNING *`,[event.id,JSON.stringify({image,image_hidden:false})]);
     await db.query("INSERT INTO event_edit_history(event_id,actor_id,action) VALUES($1,$2,'image_link')",[event.id,req.user.id]);
     await db.query('COMMIT');res.json(updated);
-  } catch {await db.query('ROLLBACK');res.status(422).json({error:'The link could not be verified as a supported image. Check the direct image URL and try again.'});}
+  } catch(error) {await db.query('ROLLBACK');res.status(422).json(publicImageError(error));}
   finally {db.release();}
 });
 router.delete('/',auth,async(req,res)=>{
