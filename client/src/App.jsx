@@ -13,6 +13,8 @@ import PreferencesPage from "./components/PreferencesPage.jsx";
 import RecommendationsPage from "./components/RecommendationsPage.jsx";
 import UnsubscribePage from "./components/UnsubscribePage.jsx";
 import NotificationInbox from "./components/NotificationInbox";
+import {AuthFlowProvider,useAuthFlow} from './contexts/AuthFlowContext';
+import {Link} from 'react-router-dom';
 
 const MAP_LIBRARIES=["places","marker"];
 function MapPage() {
@@ -25,27 +27,24 @@ function PageWrapper({ children }) {
   return (
     <div className="app-shell">
       <Navbar />
-      <div className="app-content">{children}</div>
+      <NotificationBanner />
+      <div id="main-content" className="app-content" tabIndex={-1}>{children}</div>
     </div>
   );
 }
 
 function AuthorizedRoute({ children }) {
   const { user, account, loading } = useAuth();
+  const requestAuth=useAuthFlow();
   if (!user) {
     return (
       <PageWrapper>
-        <div className="items-center justify-center">
-          <p role="status" className="text-center text-lg">
-            {loading
-              ? "Loading your account…"
-              : account && !account.emailVerified
-                ? "Verify your email to access this page. Use Verify email above to continue."
-                : account
-                  ? "Finish signing in above to access this page."
-                  : "Sign in or create an account above to access this page."}
-          </p>
-        </div>
+        <main className="account-gate">
+          <p className="eyebrow">Your event space</p>
+          <h1>{loading?'Loading your account…':account&&!account.emailVerified?'Verify your email to continue':'Make room for your next plan'}</h1>
+          <p>Save events, find recommendations and keep up with your conversations. Your saved history stays here after an event ends.</p>
+          {!loading && <div className="flex flex-wrap justify-center gap-3"><button className="btn btn-primary" onClick={()=>requestAuth('continue to your account')}>{account?'Continue sign-in':'Sign in or create an account'}</button><Link className="btn btn-ghost" to="/">Explore the map</Link></div>}
+        </main>
       </PageWrapper>
     );
   }
@@ -55,9 +54,9 @@ function AuthorizedRoute({ children }) {
 export default function App() {
   return (
     <NotificationProvider>
-      <NotificationBanner />
       <AuthProvider>
         <Router>
+          <AuthFlowProvider>
           <Routes>
             <Route path="/notifications" element={<AuthorizedRoute><NotificationInbox /></AuthorizedRoute>} />
             <Route
@@ -109,6 +108,7 @@ export default function App() {
               }
             />
           </Routes>
+          </AuthFlowProvider>
         </Router>
       </AuthProvider>
     </NotificationProvider>

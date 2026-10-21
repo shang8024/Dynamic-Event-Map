@@ -11,7 +11,7 @@ const toneCls = {
 export default function NotificationBanner() {
   const { items, dismiss } = useNotifications();
   return (
-    <div className="pointer-events-none fixed top-3 left-1/2 z-1000 flex w-full max-w-3xl -translate-x-1/2 flex-col gap-2 px-3">
+    <div className="notification-tray" aria-label={items.length?'Status messages':undefined}>
       {items.map((n) => (
         <Banner
           key={n.id}

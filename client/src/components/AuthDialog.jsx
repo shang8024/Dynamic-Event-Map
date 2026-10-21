@@ -1,10 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { authErrorMessage } from '../services/authSession';
+import Modal from './Modal';
 
-export default function AuthDialog({ open, initialMode = 'signin', onClose }) {
-  const dialog = useRef(null);
-  const titleId = useId();
+export default function AuthDialog({initialMode='signin',reason='',onClose,onAuthenticated}) {
   const {
     user, account, loading, sessionError, verificationSentAt,
     loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword,
@@ -21,25 +20,15 @@ export default function AuthDialog({ open, initialMode = 'signin', onClose }) {
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    if (open) {
-      setMode(initialMode); setError(''); setNotice('');
-      if (!dialog.current.open) dialog.current.showModal();
-    } else {
-      dialog.current.close();
-      setPassword(''); setConfirmPassword('');
-    }
-  }, [open, initialMode]);
+    if(user) onAuthenticated();
+  },[user,onAuthenticated]);
 
   useEffect(() => {
-    if (open && user) onClose();
-  }, [open, user, onClose]);
-
-  useEffect(() => {
-    if (!open || !verificationSentAt) return;
+    if (!verificationSentAt) return;
     setNow(Date.now());
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [open, verificationSentAt]);
+  }, [verificationSentAt]);
 
   const switchMode = (nextMode) => {
     setMode(nextMode); setError(''); setNotice('');
@@ -84,18 +73,9 @@ export default function AuthDialog({ open, initialMode = 'signin', onClose }) {
   }
 
   return (
-    <dialog
-      ref={dialog}
-      className="modal"
-      aria-labelledby={titleId}
-      onCancel={event => { event.preventDefault(); onClose(); }}
-      onClose={onClose}
-    >
-      <div className="modal-box relative max-w-md">
-        <button type="button" className="btn btn-circle btn-ghost btn-sm absolute top-3 right-3" aria-label="Close sign-in window" onClick={onClose}>✕</button>
-        <div className="mb-6 pr-8">
-          <p className="text-primary mb-2 text-xs font-semibold tracking-widest uppercase">Dynamic Events Map</p>
-          <h2 id={titleId} className="text-2xl font-semibold">{title}</h2>
+    <Modal title={title} onClose={onClose} closeLabel="Close sign-in window" className="auth-dialog">
+        <div className="mb-6">
+          {reason && <p className="auth-purpose">Sign in to {reason}. We’ll bring you right back.</p>}
           {!account && <p className="text-base-content/70 mt-2 text-sm">
             {mode === 'register' ? 'Save events and keep your plans in one place.'
               : mode === 'reset' ? 'Enter your email and we will help you get back in.'
@@ -165,8 +145,6 @@ export default function AuthDialog({ open, initialMode = 'signin', onClose }) {
             </div>
           </>
         )}
-      </div>
-      <form method="dialog" className="modal-backdrop"><button aria-label="Close sign-in window" onClick={onClose}>Close</button></form>
-    </dialog>
+    </Modal>
   );
 }

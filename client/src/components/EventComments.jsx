@@ -2,11 +2,14 @@ import {useEffect,useRef,useState} from 'react';
 import {fetchComments,addComment,removeComment} from '../services/commentsService';
 import socket,{subscribeEvent} from '../services/socket';
 import {useAuth} from '../contexts/AuthContext';
+import {useAuthAction} from '../contexts/AuthFlowContext';
 export default function EventComments({eventId}) {
   const {user}=useAuth();
   const [comments,setComments]=useState([]),[text,setText]=useState(''),[error,setError]=useState('');
   const [busy,setBusy]=useState(false),[connected,setConnected]=useState(socket.connected),[loading,setLoading]=useState(true);
   const refresh=useRef(()=>{}),activeEvent=useRef(eventId);
+  const composer=useRef(null);
+  const signIn=useAuthAction(()=>composer.current?.focus(),'join this conversation');
   useEffect(()=>{
     let active=true,generation=0,controller,revision=-1;
     activeEvent.current=eventId;setComments([]);setText('');setError('');setLoading(true);
@@ -56,11 +59,11 @@ export default function EventComments({eventId}) {
         <time dateTime={comment.createdAt} className="text-xs text-base-content/75">{new Date(comment.createdAt).toLocaleString()}</time>
       </li>)}
     </ul>
-    <form onSubmit={submit} className="comment-composer">
+    {user?<form onSubmit={submit} className="comment-composer">
       <label htmlFor={`comment-${eventId}`} className="text-sm font-medium">{user?'Add a comment':'Sign in to join the conversation'}</label>
-      <textarea id={`comment-${eventId}`} value={text} onChange={event=>setText(event.target.value)} maxLength={5000}
+      <textarea ref={composer} id={`comment-${eventId}`} value={text} onChange={event=>setText(event.target.value)} maxLength={5000}
         className="textarea textarea-bordered w-full min-h-24" disabled={!user||busy} placeholder={user?'Share something helpful…':'Sign in using the button above'}/>
       <button className="btn btn-primary self-end" disabled={!user||busy||!text.trim()}>{busy?'Saving…':'Post comment'}</button>
-    </form>
+    </form>:<div className="comment-sign-in"><p className="text-sm muted">Have a question or a tip for other visitors?</p><button className="btn btn-outline" onClick={signIn}>Sign in to comment</button></div>}
   </section>;
 }
