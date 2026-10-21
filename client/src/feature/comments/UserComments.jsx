@@ -1,110 +1,51 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { fetchUserComments, removeComment } from "../../services/commentsService";
-import { getEventStatus, normalize } from "../../utils/date";
-import EventStatusBadge from "../../components/EventStatusBadge";
-import EventImage from "../../components/EventImage";
-import SearchInput from "../../components/SearchInput";
-import LoadingSpinner from "../../components/LoadingSpinner";
-import Description from "../../components/Description";
-import EmptyState from "../../components/EmptyState";
-import { useNotifications } from "../../contexts/NotificationContext.jsx";
+import {useState,useEffect,useMemo,useCallback} from 'react';
+import {Link} from 'react-router-dom';
+import {fetchUserComments,removeComment} from '../../services/commentsService';
+import {getEventStatus,normalize} from '../../utils/date';
+import EventStatusBadge from '../../components/EventStatusBadge';
+import EventImage from '../../components/EventImage';
+import SearchInput from '../../components/SearchInput';
+import Description from '../../components/Description';
+import EmptyState from '../../components/EmptyState';
+import PageLayout from '../../components/PageLayout';
+import {useNotifications} from '../../contexts/NotificationContext';
 
-const CommentListItem = ({ item, onDelete, pending }) => {
-  const eventStatus = getEventStatus(item.event);
-  const isExpired = eventStatus === "Expired";
-
-  const handleDelete = async () => {
-    if (!confirm("Delete this comment?")) return;
-    await onDelete(item.event.id, item.comment.id);
-  };
-
-  return (
-    <div
-      className={[
-        "card bg-base-200 relative shadow-sm transition",
-        isExpired ? "border border-base-300" : "",
-      ].join(" ")}
-    >
-      <EventStatusBadge status={eventStatus} />
-
-      <div className="card-body p-4">
-        <div className="flex flex-col items-start gap-4 md:flex-row">
-          <EventImage event={item.event} fallbackSeed={item.event?.id} />
-
-          {/* Comment Details */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h3 className="card-title text-lg">
-                  {item.event?.title || `Event ${item.event?.id || "Unknown"}`}
-                </h3>
-
-                {item.comment?.text && <Description text={item.comment.text} />}
-
-                {item.event?.locationAddress && (
-                  <p className="text-base-content/50 mt-1 text-xs">{item.event.locationAddress}</p>
-                )}
-
-                <p className="text-base-content/75 mt-1 text-xs">
-                  Commented: {new Date(item.comment.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex gap-2">
-                <button
-                  className={`btn btn-sm ${pending ? "btn-disabled" : "btn-ghost"} text-error`}
-                  onClick={handleDelete}
-                  disabled={pending}
-                  title="Delete comment"
-                >
-                  {pending ? (
-                    <span className="loading loading-spinner loading-xs" />
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="h-4 w-4"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.07a3 3 0 01-2.991 2.77H8.084a3 3 0 01-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 013.369 0c1.603.051 2.815 1.387 2.815 2.951zm-6.136-1.452a51.196 51.196 0 013.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 00-6 0v-.113c0-.794.609-1.428 1.364-1.452zm-.355 5.945a.75.75 0 10-1.5.058l.347 9a.75.75 0 101.499-.058l-.346-9zm5.48.058a.75.75 0 10-1.498-.058l-.347 9a.75.75 0 001.5.058l.345-9z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+const CommentListItem=({item,onDelete,pending})=>{
+  const ended=getEventStatus(item.event)==='Expired';
+  return <article className="content-card saved-card">
+    <div className="saved-artwork"><EventImage event={item.event} showDates={false} className="aspect-[4/3] w-full"/></div>
+    <div className="saved-card-body"><div className="card-heading"><div className="min-w-0">
+      <EventStatusBadge event={item.event} position="inline-block mb-2"/>
+      <h2>{!ended&&item.event?.id?<Link to={`/?event=${item.event.id}`}>{item.event.title}</Link>:item.event?.title||'Event no longer available'}</h2>
+    </div><button className="btn btn-ghost text-error" disabled={pending} aria-label={`Delete your comment on ${item.event?.title||'this event'}`} onClick={()=>{if(confirm('Delete this comment?')) void onDelete(item.event.id,item.comment.id);}}>{pending?'…':'✕'}</button></div>
+      {item.comment?.text&&<blockquote className="comment-quote"><Description text={item.comment.text}/></blockquote>}
+      {item.event?.locationAddress&&<p className="text-sm muted mt-3">{item.event.locationAddress}</p>}
+      <p className="saved-date">Commented {new Date(item.comment.createdAt).toLocaleDateString()}</p>
     </div>
-  );
+  </article>;
 };
 
 export default function UserComments() {
   const [comments, setComments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading,setLoading]=useState(true),[error,setError]=useState('');
   const [pendingOps, setPendingOps] = useState(new Set());
   const [q, setQ] = useState("");
   const [sortKey, setSortKey] = useState("created-desc");
   const { push } = useNotifications();
 
   const loadComments = useCallback(async () => {
-    setLoading(true);
+    setLoading(true);setError('');
     try {
       const data = await fetchUserComments();
       setComments(data);
     } catch (err) {
-      push({ type: "error", message: "Failed to load comments", autoCloseMs: 5000 });
+      setError('Unable to load your comments. Please try again.');
 
       console.error("Failed to load comments:", err);
     } finally {
       setLoading(false);
     }
-  },[push]);
+  },[]);
 
   useEffect(() => {void loadComments();},[loadComments]);
 
@@ -159,56 +100,16 @@ export default function UserComments() {
     [comments]
   );
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
-  return (
-    <div className="card bg-base-100">
-      <div className="card-body">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h2 className="card-title">My Comments</h2>
-            <p className="text-sm opacity-70">
-              {comments.length} total · {expiredCount} on expired events
-            </p>
-          </div>
-
-          {/* Toolbar */}
-          <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
-            <SearchInput value={q} onChange={setQ} ariaLabel="Search comments" />
-
-            {/* Sort */}
-            <select
-              className="select select-sm w-full"
-              value={sortKey}
-              onChange={(e) => setSortKey(e.target.value)}
-              title="Sort by"
-            >
-              <option value="created-desc">Recently commented</option>
-              <option value="created-asc">Oldest first</option>
-              <option value="title-asc">Event Title A–Z</option>
-              <option value="title-desc">Event Title Z–A</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Display comments */}
-        <div className="mt-4 grid gap-4">
-          {filteredSorted.length === 0 ? (
-            <EmptyState message={q ? "No comments match your search." : "No comments yet."} />
-          ) : (
-            filteredSorted.map((item) => (
-              <CommentListItem
-                key={item.comment.id}
-                item={item}
-                onDelete={handleDelete}
-                pending={pendingOps.has(`delete-${item.comment.id}`)}
-              />
-            ))
-          )}
-        </div>
-      </div>
+  return <PageLayout title="My comments" intro={`${comments.length} conversations · ${expiredCount} on ended events. Questions, tips and plans you have shared.`}>
+    <div className="page-toolbar"><SearchInput value={q} onChange={setQ} ariaLabel="Search comments" placeholder="Search your comments"/>
+      <label className="sort-field"><span className="sr-only">Sort comments</span><select className="select select-bordered" value={sortKey} onChange={event=>setSortKey(event.target.value)}>
+        <option value="created-desc">Recently commented</option><option value="created-asc">Oldest first</option><option value="title-asc">Event title A–Z</option><option value="title-desc">Event title Z–A</option>
+      </select></label>
     </div>
-  );
+    {error&&<div role="alert" className="page-error"><p>{error}</p><button className="btn btn-outline" onClick={loadComments}>Retry</button></div>}
+    {loading?<p role="status" className="content-card">Loading your comments…</p>:!error&&<div className="comment-grid">
+      {!filteredSorted.length?<EmptyState message={q?'No comments match your search.':'Your conversations will appear here.'}><Link to="/" className="btn btn-outline mt-4">Find an event</Link></EmptyState>
+        :filteredSorted.map(item=><CommentListItem key={item.comment.id} item={item} onDelete={handleDelete} pending={pendingOps.has(`delete-${item.comment.id}`)}/>)}
+    </div>}
+  </PageLayout>;
 }

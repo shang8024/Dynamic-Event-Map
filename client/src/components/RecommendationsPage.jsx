@@ -3,17 +3,9 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useBookmarks } from "../hooks";
 import EventArtwork from "./EventArtwork";
-import {eventImage} from "../utils/event";
+import {eventImage,eventTime,nextStart} from "../utils/event";
+import PageLayout from "./PageLayout";
 import { interestApi } from "../services/interestApi";
-
-function eventTime(value) {
-  if (!value || Number.isNaN(new Date(value).getTime())) return "Check the event schedule";
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Toronto",
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
 
 export default function RecommendationsPage() {
   const { user } = useAuth();
@@ -37,20 +29,7 @@ export default function RecommendationsPage() {
   }, [user.id, attempt]);
 
   return (
-    <main className="mx-auto max-w-5xl pt-3 pb-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Discover your next event</h1>
-          <p className="mt-2 max-w-xl text-sm opacity-75">
-            {result?.personalized
-              ? "Suggestions based on the categories you have saved. Each event explains why it appears."
-              : "Upcoming events in Toronto. Turn on personalization in settings for suggestions based on your saved categories."}
-          </p>
-        </div>
-        <Link to="/settings" className="btn btn-outline btn-sm">
-          Recommendation settings
-        </Link>
-      </div>
+    <PageLayout title="For you" intro={result?.personalized?"Suggestions based on the categories you have saved. Each event explains why it appears.":"Explore upcoming events. Turn on personalization for suggestions based on your saved categories."} actions={<Link to="/settings" className="btn btn-outline">Recommendation settings</Link>}>
       {error && (
         <div role="alert" className="alert alert-error mt-6">
           <span>{error}</span>
@@ -67,7 +46,7 @@ export default function RecommendationsPage() {
       {result && (
         <>
           <div className="mt-5 flex items-center justify-between gap-3">
-            <p className="text-sm opacity-70">
+            <p className="text-sm muted">
               Times shown in Toronto time. Saved and ended events are excluded when this list
               refreshes.
             </p>
@@ -89,24 +68,24 @@ export default function RecommendationsPage() {
           ) : (
             <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {result.events.map((event) => (
-                <article key={event.id} className="card bg-base-200 overflow-hidden shadow-sm">
+                <article key={event.id} className="content-card recommendation-card">
                   <EventArtwork src={eventImage(event)?.url} category={event.category} title={event.title} className="aspect-[16/10] w-full"/>
                   <div className="card-body gap-3 p-5">
                     <span className="badge badge-outline text-xs">{event.category || "Other"}</span>
-                    <h2 className="card-title text-lg">{event.title}</h2>
-                    <p className="text-sm font-medium">{eventTime(event.starts_at)}</p>
-                    <p className="text-sm opacity-75">
+                    <h2 className="card-title text-lg"><Link to={`/?event=${event.id}`}>{event.title}</Link></h2>
+                    <p className="text-sm font-medium">{eventTime(nextStart(event))}</p>
+                    <p className="text-sm muted">
                       {event.location_name || event.location_address || "Toronto"}
                       {event.location_name && event.location_address
                         ? ` · ${event.location_address}`
                         : ""}
                     </p>
-                    <p className="bg-base-100 rounded-md p-3 text-sm">
+                    <p className="recommendation-reason">
                       <span className="font-medium">Why this event: </span>
                       {event.reason}
                     </p>
                     <button
-                      className={`btn btn-sm mt-auto ${isBookmarked(event.id) ? "btn-outline" : "btn-primary"}`}
+                      className={`btn btn-outline mt-auto ${isBookmarked(event.id) ? "is-saved" : ""}`}
                       disabled={isPending(event.id)}
                       aria-pressed={isBookmarked(event.id)}
                       onClick={() => toggle(event.id, undefined, event)}
@@ -124,6 +103,6 @@ export default function RecommendationsPage() {
           )}
         </>
       )}
-    </main>
+    </PageLayout>
   );
 }

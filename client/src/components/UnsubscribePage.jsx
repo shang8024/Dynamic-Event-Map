@@ -22,7 +22,7 @@ export default function UnsubscribePage() {
     }
   };
   return (
-    <main className="mx-auto max-w-lg py-10">
+    <main className="personal-page page-narrow">
       <h1 className="text-2xl font-semibold">Email preferences</h1>
       {scope ? (
         <p role="status" className="mt-5">

@@ -10,7 +10,8 @@ export default function Modal({title,children,onClose,className='',closeLabel='C
     };
     resize();viewport?.addEventListener('resize',resize);viewport?.addEventListener('scroll',resize);
     node.showModal();heading.current?.focus({preventScroll:true});
-    return()=>{viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);node.close();if(previous?.isConnected) previous.focus({preventScroll:true});};
+    return()=>{viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);node.close();
+      const target=previous?.isConnected?previous:document.querySelector('#main-content h1')||document.getElementById('main-content');target?.focus({preventScroll:true});};
   },[]);
   useEffect(()=>{body.current?.scrollTo({top:0});heading.current?.focus({preventScroll:true});},[title]);
   function trapFocus(event) {

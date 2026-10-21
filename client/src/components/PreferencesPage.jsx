@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { interestApi } from "../services/interestApi";
+import PageLayout from "./PageLayout";
 
 export default function PreferencesPage() {
   const { user } = useAuth();
@@ -51,12 +52,7 @@ export default function PreferencesPage() {
   };
 
   return (
-    <main className="mx-auto max-w-2xl pt-3 pb-10">
-      <h1 className="text-2xl font-semibold">Notifications & privacy</h1>
-      <p className="mt-2 text-sm opacity-75">
-        Choose what you receive and how we suggest events. Saving an event does not subscribe you to
-        marketing.
-      </p>
+    <PageLayout title="Email & privacy" narrow intro="Choose what you receive and how we suggest events. Saving an event does not subscribe you to marketing.">
       {error && (
         <div role="alert" className="alert alert-error mt-5">
           <span>{error}</span>
@@ -87,7 +83,7 @@ export default function PreferencesPage() {
           )}
           <fieldset disabled={saving} className="space-y-5">
             <legend className="sr-only">Email and personalization preferences</legend>
-            <section className="rounded-box bg-base-200 p-5">
+            <section className="content-card preference-card">
               <label className="flex items-start gap-3">
                 <input
                   type="checkbox"
@@ -98,7 +94,7 @@ export default function PreferencesPage() {
                 />
                 <span>
                   <span className="font-semibold">Remind me about saved events</span>
-                  <span id="reminder-help" className="mt-1 block text-sm opacity-75">
+                  <span id="reminder-help" className="mt-1 block text-sm muted">
                     Email me before an upcoming event I have bookmarked. Remove its bookmark to stop
                     reminders for that event.
                   </span>
@@ -117,12 +113,12 @@ export default function PreferencesPage() {
                 <option value={24}>24 hours before the event</option>
                 <option value={1}>1 hour before the event</option>
               </select>
-              <p className="mt-2 text-xs opacity-70">
+              <p className="mt-2 text-xs muted">
                 Event schedules use Toronto time (America/Toronto). Last-minute event changes may
                 affect a reminder.
               </p>
             </section>
-            <section className="rounded-box bg-base-200 p-5">
+            <section className="content-card preference-card">
               <label className="flex items-start gap-3">
                 <input
                   type="checkbox"
@@ -133,14 +129,14 @@ export default function PreferencesPage() {
                 />
                 <span>
                   <span className="font-semibold">Send me newsletters and marketing emails</span>
-                  <span id="marketing-help" className="mt-1 block text-sm opacity-75">
+                  <span id="marketing-help" className="mt-1 block text-sm muted">
                     I would like to receive event roundups and promotional updates from Dynamic
                     Events Map. This is optional and separate from saved-event reminders.
                   </span>
                 </span>
               </label>
             </section>
-            <section className="rounded-box bg-base-200 p-5">
+            <section className="content-card preference-card">
               <label className="flex items-start gap-3">
                 <input
                   type="checkbox"
@@ -151,7 +147,7 @@ export default function PreferencesPage() {
                 />
                 <span>
                   <span className="font-semibold">Personalize my event recommendations</span>
-                  <span id="personalization-help" className="mt-1 block text-sm opacity-75">
+                  <span id="personalization-help" className="mt-1 block text-sm muted">
                     Use the categories of events I have bookmarked to suggest other upcoming events.
                     When this is off, show upcoming events without using my interests. My bookmarks
                     stay saved.
@@ -162,7 +158,7 @@ export default function PreferencesPage() {
                 Explore recommendations
               </Link>
             </section>
-            <p className="text-sm opacity-75">
+            <p className="text-sm muted">
               You can turn either email option off here at any time. Emails include an unsubscribe
               link that works without signing in. We use your verified account email for delivery
               and your saved categories only when personalization is enabled.
@@ -179,6 +175,6 @@ export default function PreferencesPage() {
           )}
         </form>
       )}
-    </main>
+    </PageLayout>
   );
 }

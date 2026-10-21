@@ -1,4 +1,4 @@
-import React from "react";
+import React,{useEffect,useRef} from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
 import BookmarksPage from "./feature/bookmarks/EventBookmarks.jsx";
@@ -14,7 +14,7 @@ import RecommendationsPage from "./components/RecommendationsPage.jsx";
 import UnsubscribePage from "./components/UnsubscribePage.jsx";
 import NotificationInbox from "./components/NotificationInbox";
 import {AuthFlowProvider,useAuthFlow} from './contexts/AuthFlowContext';
-import {Link} from 'react-router-dom';
+import {Link,useLocation} from 'react-router-dom';
 
 const MAP_LIBRARIES=["places","marker"];
 function MapPage() {
@@ -24,11 +24,13 @@ function MapPage() {
 }
 
 function PageWrapper({ children }) {
+  const content=useRef(null),location=useLocation();
+  useEffect(()=>{content.current?.scrollTo({top:0});},[location.pathname]);
   return (
     <div className="app-shell">
       <Navbar />
       <NotificationBanner />
-      <div id="main-content" className="app-content" tabIndex={-1}>{children}</div>
+      <div ref={content} id="main-content" className="app-content" tabIndex={-1}>{children}</div>
     </div>
   );
 }

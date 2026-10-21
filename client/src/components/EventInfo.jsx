@@ -10,7 +10,7 @@ import Icon from './Icon';
 import {eventImage,isEnded,eventOccurrences,occurrenceTime,scheduleSummary} from '../utils/event';
 
 export default function EventInfo({event,onClose,onEdit,onDelete,onSaved}) {
-  const {user}=useAuth(),{isBookmarked,isPending,toggle}=useBookmarks();
+  const {user}=useAuth(),{isBookmarked,isPending,toggle,loading:bookmarksLoading,error:bookmarkError,refetchBookmarks}=useBookmarks();
   const count=useCountBookmarks(event?.id);
   const [failedURL,setFailedURL]=useState(null);
   const save=useAuthAction(next=>toggle(event.id,next,event),'save this event');
@@ -38,7 +38,8 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved}) {
         <div><Icon name="pin"/><div><dt>Location</dt><dd>{event.location_name&&<>{event.location_name}<br/></>}{event.location_address||'Location to be confirmed'}</dd></div></div>
       </dl>
       <div className="event-save">
-        <button className={`btn w-full ${isBookmarked(event.id)?'btn-outline':'btn-primary'}`} aria-pressed={isBookmarked(event.id)} disabled={isPending(event.id)} onClick={()=>save(user?undefined:true)}><Icon name="bookmark"/>{isPending(event.id)?'Updating…':isBookmarked(event.id)?'Saved · remove bookmark':'Save event'}</button>
+        <button className={`btn w-full ${isBookmarked(event.id)?'btn-outline':'btn-primary'}`} aria-pressed={isBookmarked(event.id)} disabled={isPending(event.id)||!!user&&bookmarksLoading} onClick={()=>save(user?undefined:true)}><Icon name="bookmark"/>{isPending(event.id)?'Updating…':user&&bookmarksLoading?'Checking saved events…':isBookmarked(event.id)?'Saved · remove bookmark':'Save event'}</button>
+        {bookmarkError&&<p role="alert" className="text-sm text-error">{bookmarkError} <button className="link min-h-11" onClick={refetchBookmarks}>Retry</button></p>}
         {count>0&&<p className="text-sm muted">Saved by {count} {count===1?'person':'people'}</p>}
       </div>
       <section className="detail-section"><h3>About this event</h3><p className="event-description">{event.description||'The organizer has not provided a description yet.'}</p>

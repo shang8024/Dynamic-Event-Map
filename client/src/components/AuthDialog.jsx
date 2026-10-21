@@ -119,11 +119,10 @@ export default function AuthDialog({initialMode='signin',reason='',onClose,onAut
                 <span className="mb-1 block text-sm font-medium">Email</span>
                 <input className="input input-bordered w-full" name="email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required value={email} onChange={event => setEmail(event.target.value)} disabled={pending} />
               </label>
-              {mode !== 'reset' && <label className="form-control block">
+              {mode !== 'reset' && <div><label className="form-control block">
                 <span className="mb-1 block text-sm font-medium">Password</span>
-                <input className="input input-bordered w-full" name="password" type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} required minLength={mode === 'register' ? 8 : undefined} value={password} onChange={event => setPassword(event.target.value)} disabled={pending} />
-                {mode === 'register' && <span className="text-base-content/60 mt-1 block text-xs">Use at least 8 characters. A longer, unique password is best.</span>}
-              </label>}
+                <input className="input input-bordered w-full" name="password" type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} aria-describedby={mode==='register'?'signup-password-help':undefined} required minLength={mode === 'register' ? 8 : undefined} value={password} onChange={event => setPassword(event.target.value)} disabled={pending} />
+              </label>{mode==='register'&&<p id="signup-password-help" className="muted mt-2 text-xs">Use at least 8 characters. A longer, unique password is best.</p>}</div>}
               {mode === 'register' && <label className="form-control block">
                 <span className="mb-1 block text-sm font-medium">Confirm password</span>
                 <input className="input input-bordered w-full" name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} disabled={pending} />

@@ -29,10 +29,10 @@ function Banner({ n, dismiss, autoCloseMs = 0 }) {
 
   // optional auto-close
   React.useEffect(() => {
-    if (!autoCloseMs) return;
+    if (!autoCloseMs || n.type==='error') return;
     const t = setTimeout(() => handleClose(), autoCloseMs);
     return () => clearTimeout(t);
-  }, [autoCloseMs, handleClose]);
+  }, [autoCloseMs, handleClose,n.type]);
 
   return (
     <div

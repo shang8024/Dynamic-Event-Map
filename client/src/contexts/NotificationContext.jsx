@@ -16,7 +16,9 @@ function reducer(state, action) {
       const item = { id: action.id ?? idSeq++, ...action.payload };
       // if stickyKey is dismissed for today, skip
       if (item.stickyKey && isDismissedToday(item.stickyKey)) return state;
-      return { ...state, items: [item, ...state.items] };
+      return { ...state, items: [item, ...state.items.filter(previous=>item.stickyKey
+        ?previous.stickyKey!==item.stickyKey
+        :previous.type!==item.type||previous.message!==item.message||previous.title!==item.title)] };
     }
     case "DISMISS": {
       const { id, stickyKey } = action;

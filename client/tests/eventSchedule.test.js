@@ -25,3 +25,10 @@ test('detail labels distinguish an ongoing slot, a gap and an unconfirmed next d
   assert.equal(unknown.label,'Dates to be confirmed');
   assert.doesNotMatch(unknown.text,/Nov 1/);
 });
+
+test('saved legacy comment rows retain their date display without claiming unknown ends are ongoing',()=>{
+  const legacy={startsAt:'2026-11-01T15:00:00Z',endsAt:'2026-11-01T17:00:00Z'};
+  assert.equal(scheduleSummary(legacy,Date.parse('2026-11-01T16:00:00Z')).label,'Happening now');
+  assert.match(scheduleSummary(legacy,Date.parse('2026-11-02T00:00:00Z')).text,/Nov 1/);
+  assert.equal(scheduleSummary({...legacy,endsAt:null},Date.parse('2026-11-02T00:00:00Z')).label,'Dates to be confirmed');
+});

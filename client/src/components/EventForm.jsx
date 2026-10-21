@@ -12,11 +12,21 @@ export default function EventForm({initialData={},onSaved,onCancel}) {
   }));
   const [dates,setDates]=useState(()=>editableOccurrences(initialData));
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
+  const [dateErrors,setDateErrors]=useState({});
   const warning=useRef(null);
   useEffect(()=>{if(error) warning.current?.focus();},[error]);
   const update=event=>setForm(old=>({...old,[event.target.name]:event.target.value}));
+  function updateDate(key,name,value) {
+    setDateErrors(old=>({...old,[key]:null}));
+    setDates(old=>old.map(row=>row.key===key?{...row,[name]:value}:row));
+  }
   async function submit(event) {
     event.preventDefault();setError('');
+    const invalid={};
+    dates.forEach(item=>{try {serializeOccurrences([item]);} catch(failure) {invalid[item.key]=failure instanceof RangeError?'This Toronto time is ambiguous or does not exist during the daylight-saving transition. Choose another time.':failure.message;}});
+    setDateErrors(invalid);
+    const invalidIndex=dates.findIndex(item=>invalid[item.key]);
+    if(invalidIndex>=0) {setError(`Check date range ${invalidIndex+1}. ${invalid[dates[invalidIndex].key]}`);return;}
     let occurrences;
     try {occurrences=serializeOccurrences(dates);}
     catch(failure) {setError(failure instanceof RangeError?'This Toronto time is ambiguous or does not exist during the daylight-saving transition. Choose another time.':failure.message);return;}
@@ -53,7 +63,8 @@ export default function EventForm({initialData={},onSaved,onCancel}) {
       <p className="form-help">Each date range is a separate occurrence. Leave the end blank if it is unknown.</p>
       <div className="date-ranges">{dates.map((item,index)=><div key={item.key} className="date-range">
         <div className="date-range-heading"><span>Date range {index+1}</span><button type="button" className="btn btn-ghost btn-sm" disabled={dates.length===1} aria-label={`Remove occurrence ${index+1}`} onClick={()=>setDates(old=>old.filter(row=>row.key!==item.key))}>Remove</button></div>
-        <div className="form-grid">{['starts_at','ends_at'].map(name=><label key={name} className="form-field"><span>{name==='starts_at'?'Start':'End (optional)'}</span><input type="datetime-local" className="input input-bordered w-full" aria-label={`Occurrence ${index+1} ${name==='starts_at'?'start':'end'}`} required={name==='starts_at'} value={item[name]} onChange={event=>setDates(old=>old.map(row=>row.key===item.key?{...row,[name]:event.target.value}:row))}/></label>)}</div>
+        <div className="form-grid">{['starts_at','ends_at'].map(name=><label key={name} className="form-field"><span>{name==='starts_at'?'Start':'End (optional)'}</span><input type="datetime-local" className="input input-bordered w-full" aria-label={`Occurrence ${index+1} ${name==='starts_at'?'start':'end'}`} aria-invalid={!!dateErrors[item.key]} aria-describedby={dateErrors[item.key]?`date-error-${item.key}`:undefined} required={name==='starts_at'} value={item[name]} onChange={event=>updateDate(item.key,name,event.target.value)}/></label>)}</div>
+        {dateErrors[item.key]&&<p id={`date-error-${item.key}`} className="text-sm text-error mt-3">{dateErrors[item.key]}</p>}
       </div>)}</div>
       <button type="button" className="btn btn-outline self-start" disabled={dates.length>=366} onClick={()=>setDates(old=>[...old,{key:crypto.randomUUID(),starts_at:'',ends_at:''}])}>＋ Add another date range</button>
     </fieldset>

@@ -23,7 +23,8 @@ export function getEventStatus(item) {
       : null;
 
   if (ends && ends < now) return "Expired";
-  if (starts && starts <= now && (!ends || ends >= now)) return "In progress";
+  if (starts && starts <= now && ends && ends >= now) return "In progress";
+  if (starts && starts <= now && !ends) return 'Time to confirm';
   return null;
 }
 

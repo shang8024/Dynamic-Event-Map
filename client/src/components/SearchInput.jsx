@@ -7,7 +7,7 @@ export default function SearchInput({
   ariaLabel = "Search",
 }) {
   return (
-    <label className="input input-sm flex w-full items-center gap-2" aria-label={ariaLabel}>
+    <label className="input input-bordered flex w-full items-center gap-2">
       <svg className="h-4 opacity-60" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
         <g
           strokeLinejoin="round"
@@ -22,6 +22,7 @@ export default function SearchInput({
       </svg>
       <input
         type="search"
+        aria-label={ariaLabel}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}

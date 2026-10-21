@@ -1,13 +1,13 @@
 import React from "react";
 import {eventImage} from "../utils/event";
 import EventArtwork from "./EventArtwork.jsx";
+import {scheduleSummary} from '../utils/event';
 
-export default function EventImage({ event, className }) {
+export default function EventImage({ event, className,showDates=true }) {
   if (!event) return null;
 
   const image = eventImage(event);
-  const startsAt = event.startsAt || event._row?.starts_at;
-  const endsAt = event.endsAt || event._row?.ends_at;
+  const when=scheduleSummary(event);
 
   const imageWrapperClass = className || "aspect-[4/3] w-40 flex-none md:w-56";
 
@@ -17,16 +17,7 @@ export default function EventImage({ event, className }) {
         <EventArtwork src={image?.url} alt={image?.alt} category={event.category || event._row?.category} title={event.title} className="h-full w-full rounded" />
       </div>
 
-      {startsAt && (
-        <div className="text-base-content/50 mt-1 text-xs">
-          <strong>Starts:</strong> {new Date(startsAt).toLocaleDateString()}
-        </div>
-      )}
-      {endsAt && (
-        <div className="text-base-content/50 mt-1 text-xs">
-          <strong>Ends:</strong> {new Date(endsAt).toLocaleDateString()}
-        </div>
-      )}
+      {showDates&&<div className="muted mt-2 text-xs"><strong>{when.label}:</strong> {when.text}</div>}
     </div>
   );
 }

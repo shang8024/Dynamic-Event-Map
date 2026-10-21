@@ -14,6 +14,7 @@ export function useBookmarks() {
   const [bookmarkedIds, setBookmarkedIds] = useState(() => new Set());
   const [items, setItems] = useState([]); // [{ data: eventRow, created_at }]
   const [pendingIds, setPendingIds] = useState(() => new Set()); // <— NEW
+  const [loading,setLoading]=useState(true),[error,setError]=useState('');
   const latestRunRef = useRef(false);
   const { user } = useAuth();
   const { push } = useNotifications();
@@ -40,11 +41,13 @@ export function useBookmarks() {
     if (!user) {
       setBookmarkedIds(new Set());
       setItems([]);
+      latestRunRef.current=false;setLoading(false);setError('');
       return;
     }
 
     const runId = Symbol();
     latestRunRef.current = runId;
+    setLoading(true);setError('');
 
     try {
       const { items: serverItems = [] } = await fetchBookmarks();
@@ -58,19 +61,23 @@ export function useBookmarks() {
       setBookmarkedIds(ids);
     } catch {
       if (latestRunRef.current !== runId) return; // Don't show error if outdated
-      push({ type: "error", message: "Failed to load bookmarks", autoCloseMs: 5000 });
+      setError('Unable to load your saved events. Please try again.');
+    } finally {
+      if(latestRunRef.current===runId) setLoading(false);
     }
-  }, [user, push]);
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;
     if (!user) {
       setBookmarkedIds(new Set());
       setItems([]);
+      latestRunRef.current=false;setLoading(false);setError('');
       return;
     }
     const runId = Symbol();
     latestRunRef.current = runId;
+    setLoading(true);setError('');
 
     (async () => {
       try {
@@ -84,7 +91,9 @@ export function useBookmarks() {
         );
         setBookmarkedIds(ids);
       } catch {
-        push({ type: "error", message: "Failed to load bookmarks", autoCloseMs: 5000 });
+        if(!cancelled && latestRunRef.current===runId) setError('Unable to load your saved events. Please try again.');
+      } finally {
+        if(!cancelled && latestRunRef.current===runId) setLoading(false);
       }
     })();
     (async () => {
@@ -236,7 +245,8 @@ export function useBookmarks() {
       toggle,
       listBookmarkedEvents,
       refetchBookmarks,
+      loading,error,
     }),
-    [isBookmarked, isPending, toggle, listBookmarkedEvents, refetchBookmarks]
+    [isBookmarked, isPending, toggle, listBookmarkedEvents, refetchBookmarks,loading,error]
   );
 }
