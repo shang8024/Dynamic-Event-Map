@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { fetchUserComments, removeComment } from "../../services/commentsService";
 import { getEventStatus, normalize } from "../../utils/date";
 import EventStatusBadge from "../../components/EventStatusBadge";
@@ -22,13 +22,13 @@ const CommentListItem = ({ item, onDelete, pending }) => {
     <div
       className={[
         "card bg-base-200 relative shadow-sm transition",
-        isExpired ? "opacity-60 grayscale" : "",
+        isExpired ? "border border-base-300" : "",
       ].join(" ")}
     >
       <EventStatusBadge status={eventStatus} />
 
       <div className="card-body p-4">
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col items-start gap-4 md:flex-row">
           <EventImage event={item.event} fallbackSeed={item.event?.id} />
 
           {/* Comment Details */}
@@ -45,7 +45,7 @@ const CommentListItem = ({ item, onDelete, pending }) => {
                   <p className="text-base-content/50 mt-1 text-xs">{item.event.locationAddress}</p>
                 )}
 
-                <p className="text-base-content/40 mt-1 text-xs">
+                <p className="text-base-content/75 mt-1 text-xs">
                   Commented: {new Date(item.comment.createdAt).toLocaleDateString()}
                 </p>
               </div>
@@ -92,11 +92,7 @@ export default function UserComments() {
   const [sortKey, setSortKey] = useState("created-desc");
   const { push } = useNotifications();
 
-  useEffect(() => {
-    loadComments();
-  }, []);
-
-  const loadComments = async () => {
+  const loadComments = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchUserComments();
@@ -108,7 +104,9 @@ export default function UserComments() {
     } finally {
       setLoading(false);
     }
-  };
+  },[push]);
+
+  useEffect(() => {void loadComments();},[loadComments]);
 
   const handleDelete = async (eventId, commentId) => {
     const key = `delete-${commentId}`;

@@ -3,22 +3,24 @@ import {Link} from 'react-router-dom';
 import {useAuth} from '../contexts/AuthContext';
 import {get,post} from '../services/apiService';
 import socket,{onRealtimeWake} from '../services/socket';
-export function useInbox() {
-  const {user}=useAuth();const [data,setData]=useState({items:[],unread:0,next:null}),[error,setError]=useState('');
+function useInbox() {
+  const {user}=useAuth();const uid=user?.uid;const [data,setData]=useState({items:[],unread:0,next:null}),[error,setError]=useState('');
   const generation=useRef(0);
   const refresh=useCallback(async()=>{
-    if(!user) return;
+    if(!uid) return;
     const request=++generation.current;
     try {const result=await get('/notifications');if(request===generation.current) {setData(result);setError('');}}
     catch {if(request===generation.current) setError('Notifications are temporarily unavailable.');}
-  },[user?.uid]);
+  },[uid]);
   useEffect(()=>{
     generation.current++;setData({items:[],unread:0,next:null});setError('');
-    if(!user) return;
+    if(!uid) return;
     const changed=()=>{void refresh();};socket.on('notification:changed',changed);const stop=onRealtimeWake(changed);
     const timer=setInterval(()=>{if(document.visibilityState==='visible') changed();},30000);changed();
+    // This is a request-generation counter, not a DOM ref; invalidate pending reads on logout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     return()=>{generation.current++;socket.off('notification:changed',changed);stop();clearInterval(timer);};
-  },[user?.uid,refresh]);
+  },[uid,refresh]);
   async function mark(id) {try {await post('/notifications/read',id?{id}:{});await refresh();} catch {setError('Unable to update notifications. Please try again.');}}
   async function more() {
     if(!data.next) return;

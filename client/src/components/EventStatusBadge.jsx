@@ -15,10 +15,11 @@ export default function EventStatusBadge({ event, status, position = "absolute l
         position,
         "z-10 rounded-md px-2 py-0.5 text-xs font-semibold",
         isInProgress ? "border border-emerald-200 bg-emerald-100 text-emerald-800" : "",
+        displayStatus === "Cancelled" ? "border border-rose-200 bg-rose-100 text-rose-800" : "",
         isExpired ? "border border-slate-300 bg-slate-200 text-slate-700" : "",
       ].join(" ")}
     >
-      {displayStatus}
+      {isExpired ? "Ended" : displayStatus}
     </span>
   );
 }

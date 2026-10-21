@@ -1,17 +1,18 @@
 export function getEventStatus(item) {
-  const event = item?.event || item?.eventData;
+  const event = item?.event || item?.eventData || item;
   if (!event) return null;
 
+  if ((event.status || event._row?.status) === 'cancelled') return 'Cancelled';
   const now = new Date();
   const starts = event.startsAt
     ? new Date(event.startsAt)
-    : event._row?.starts_at
-      ? new Date(event._row.starts_at)
+    : (event.starts_at || event._row?.starts_at)
+      ? new Date(event.starts_at || event._row.starts_at)
       : null;
   const ends = event.endsAt
     ? new Date(event.endsAt)
-    : event._row?.ends_at
-      ? new Date(event._row.ends_at)
+    : (event.ends_at || event._row?.ends_at)
+      ? new Date(event.ends_at || event._row.ends_at)
       : null;
 
   if (ends && ends < now) return "Expired";

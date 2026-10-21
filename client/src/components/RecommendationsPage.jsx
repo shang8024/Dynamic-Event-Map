@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useBookmarks } from "../hooks";
+import EventArtwork from "./EventArtwork";
+import {eventImage} from "../utils/event";
 import { interestApi } from "../services/interestApi";
 
 function eventTime(value) {
@@ -87,7 +89,8 @@ export default function RecommendationsPage() {
           ) : (
             <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {result.events.map((event) => (
-                <article key={event.id} className="card bg-base-200 shadow-sm">
+                <article key={event.id} className="card bg-base-200 overflow-hidden shadow-sm">
+                  <EventArtwork src={eventImage(event)?.url} category={event.category} title={event.title} className="aspect-[16/10] w-full"/>
                   <div className="card-body gap-3 p-5">
                     <span className="badge badge-outline text-xs">{event.category || "Other"}</span>
                     <h2 className="card-title text-lg">{event.title}</h2>

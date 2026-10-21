@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
 import BookmarksPage from "./feature/bookmarks/EventBookmarks.jsx";
 import UserComments from "./feature/comments/UserComments.jsx";
-import { LoadScript } from "@react-google-maps/api";
+import { useJsApiLoader } from "@react-google-maps/api";
 import EventMap from "./feature/events/EventMap.jsx";
 import { useAuth, AuthProvider } from "./contexts/AuthContext.jsx";
 import Navbar from "./components/Navbar.jsx";
@@ -14,11 +14,18 @@ import RecommendationsPage from "./components/RecommendationsPage.jsx";
 import UnsubscribePage from "./components/UnsubscribePage.jsx";
 import NotificationInbox from "./components/NotificationInbox";
 
+const MAP_LIBRARIES=["places","marker"];
+function MapPage() {
+  const {isLoaded,loadError}=useJsApiLoader({id:'eventmap-google-maps',googleMapsApiKey:import.meta.env.VITE_GOOGLE_MAPS_KEY,libraries:MAP_LIBRARIES});
+  if(loadError) return <div role="alert" className="p-6">The map could not be loaded. Check your connection and <button className="link" onClick={()=>window.location.reload()}>try again</button>.</div>;
+  return isLoaded?<EventMap/>:<p role="status" className="p-4">Loading map…</p>;
+}
+
 function PageWrapper({ children }) {
   return (
-    <div className="flex h-dvh flex-col gap-4 overflow-hidden">
+    <div className="app-shell">
       <Navbar />
-      <div className="h-dvh overflow-auto px-4">{children}</div>
+      <div className="app-content">{children}</div>
     </div>
   );
 }
@@ -46,8 +53,6 @@ function AuthorizedRoute({ children }) {
 }
 
 export default function App() {
-  const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
-
   return (
     <NotificationProvider>
       <NotificationBanner />
@@ -99,9 +104,7 @@ export default function App() {
               path="*"
               element={
                 <PageWrapper>
-                  <LoadScript googleMapsApiKey={API_KEY} libraries={["places"]}>
-                    <EventMap />
-                  </LoadScript>
+                  <MapPage />
                 </PageWrapper>
               }
             />

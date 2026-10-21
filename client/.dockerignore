@@ -11,6 +11,8 @@ build/
 .git/
 *.log
 secrets/
+.local/
+docs/
 **/firebase-service-account*.json
 **/*-firebase-adminsdk-*.json
 **/service-account*.json

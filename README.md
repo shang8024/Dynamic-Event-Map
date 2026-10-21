@@ -1,6 +1,6 @@
 # Dynamic Event Map
 
-Discover Toronto events on an interactive map. Browse by location, category and date, save activities, and share local discoveries.
+Discover Toronto events across a GTA-wide interactive map. Browse by location, category and date, save activities, and share local discoveries.
 
 [Open the live map](https://www.dynamic-event-map.cloud)
 
@@ -8,10 +8,10 @@ Discover Toronto events on an interactive map. Browse by location, category and 
 
 ## Features
 
-- Google Maps with clustered event markers, location search and filters.
+- Google Maps with photo thumbnails, counted marker groups, GTA location search and filters.
 - Official City of Toronto event data alongside community submissions.
 - Google sign-in and email/password registration with verification and password reset.
-- Bookmarks, comments and ownership-controlled event editing.
+- Bookmarks, live comments, a notification inbox and owner/admin event management.
 - Recommendations with explanations and optional personalization based on saved categories.
 - Independent opt-in settings for event reminders and weekly discovery emails, with signed unsubscribe links.
 - Live updates through Socket.IO and Redis.
@@ -49,10 +49,10 @@ Install Docker with Compose and Node.js 22.12 or later. Shell examples use Bash;
    docker compose -f docker-compose.dev.yml up --build -d --wait
    ```
 
-5. Apply both migrations to the development database:
+5. Apply the numbered migrations to the development database:
 
    ```sh
-   for migration in db/migrations/001_ingestion_identity.sql db/migrations/002_notifications.sql; do
+   for migration in db/migrations/[0-9]*.sql; do
      docker compose -f docker-compose.dev.yml exec -T db sh -ec \
        'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < "$migration"
    done
@@ -61,6 +61,29 @@ Install Docker with Compose and Node.js 22.12 or later. Shell examples use Bash;
 Open `http://localhost:3000`; the API is available at `http://localhost:5000/api`. Development database/cache ports bind to loopback. Do not use `docker compose down -v` to update a database you want to keep.
 
 The API validates Firebase ID tokens with public signing certificates and the configured project ID. Web login requires no Firebase service-account private key. Administrative user lookups and revocation checks require separate credentials; the optional mail worker uses a dedicated read-only identity.
+
+### Event administration
+
+New accounts receive the `member` role. An administrator can edit or cancel imported listings without becoming their author. Imports retain the Toronto system author and preserve edited fields, custom image links and hidden-photo choices. Cancelling an official listing retains its bookmarks and history. Ordinary members can manage only their own events; browser-supplied roles or author IDs grant no permission.
+
+To grant an administrator, first create and verify that person's Firebase account. Run the operator-only command with a matching project and a protected read-only Firebase Auth credential outside the repository:
+
+```sh
+GOOGLE_APPLICATION_CREDENTIALS=/protected/firebase-auth-reader.json \
+  node --env-file=.env api/scripts/set-admin.js verified-admin@example.com
+```
+
+It verifies the exact Firebase UID and verified, enabled account before updating the database role. Do not put an administrator email, service-account key or automatic admin seed in source control. On an existing server, use a protected operator connection to the intended database, then sign in again to refresh the displayed role.
+
+### Event photos and saved history
+
+This version accepts **image links only**, with optional alt text and credit. Direct HTTPS links are limited to `secure.toronto.ca` (official event image paths), `images.unsplash.com`, `i.imgur.com`, `res.cloudinary.com` and `images.pexels.com`. A rejected link produces a visible warning and leaves the previous photo intact. The database stores the URL and credit, not image files. Official imports also retain their supplied photo links and credits.
+
+The API serves linked photos through an isolated image worker. Every redirect and DNS answer is checked, connections use the checked addresses, and non-public destinations are rejected. Only still JPEG, PNG, WebP and AVIF inputs up to 8 MiB and 12 million pixels are decoded and re-encoded as metadata-free WebP. Production refuses to decode inside the API process. The worker has no database/cache/cloud secrets, mounts or published port; it runs as UID 1000 with a read-only filesystem, dropped capabilities, a separate network, 256 MiB memory and 0.5 CPU limits. Download/decoding deadlines, one concurrent decode, a bounded queue and HTTP rate limits constrain abuse. These controls reduce risk; processing untrusted images is not a guarantee against vulnerabilities.
+
+The detail view prefers the event's linked photo, then an attributed Google venue photo, then a category illustration. Google venue photos load only when details are opened; they are labelled as venue photos, matched to the event location, and never imported into our storage. Marker thumbnails use the event's linked photo and do not trigger Google photo searches for every pin. Create a JavaScript vector Map ID and set `VITE_GOOGLE_MAPS_MAP_ID` locally / `GOOGLE_MAPS_MAP_ID` in the production GitHub environment. Set explicit Maps and Places quotas, including Text Search and Photo Media; budget alerts alone do not stop requests.
+
+Linked-image bytes are cached only in worker memory (20 MiB maximum, one-hour expiry) and by the browser for up to an hour. Ended, cancelled or hidden event photos stop being served; cached bytes expire without a storage-cleanup job or bucket. Event records and bookmarks remain available with an ended/cancelled badge. No scheduled job deletes saved-event history merely because its photo expired.
 
 ### Import event data
 
@@ -158,7 +181,7 @@ sudo docker service ps eventmap_db eventmap_redis
 sudo docker ps --format 'table {{.Names}}\t{{.Status}}'
 ```
 
-Wait until both data-service containers report healthy, then apply and record migrations 001 and 002 using the database section below. This bootstrap refuses an existing database service. For an existing deployment, use the backup/migration procedure instead. Full application deployment requires the migration ledger and installed schema.
+Wait until both data-service containers report healthy, then apply and record every numbered migration using the database section below. This bootstrap refuses an existing database service. For an existing deployment, use the backup/migration procedure instead. Full application deployment requires the migration ledger and installed schema.
 
 ### GitHub Actions and releases
 
@@ -167,7 +190,7 @@ CI tests and builds changes without cloud credentials. Image publication is a se
 | Location | Names |
 | --- | --- |
 | Environment secrets | `GOOGLE_MAPS_KEY`, `FIREBASE_API_KEY` |
-| Environment variables | `FIREBASE_PROJECT_ID`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_APP_ID`, `FIREBASE_MESSAGING_SENDER_ID` |
+| Environment variables | `GOOGLE_MAPS_MAP_ID`, `FIREBASE_PROJECT_ID`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_APP_ID`, `FIREBASE_MESSAGING_SENDER_ID` |
 | Built-in workflow token | `GITHUB_TOKEN` with package write permission for image publication |
 
 Copy Firebase browser fields from the registered web app; do not derive its storage bucket or authorized auth domain by guesswork. Browser values appear in the delivered JavaScript even when stored as GitHub secrets. Apply production website/API restrictions to the keys.
@@ -206,7 +229,7 @@ mapfile -t db_tasks < <(docker ps -q --filter label=com.docker.swarm.service.nam
 test "${#db_tasks[@]}" = 1
 db_container="${db_tasks[0]}"
 install -d -m 700 /var/lib/eventmap/migrations
-for migration in db/migrations/001_ingestion_identity.sql db/migrations/002_notifications.sql; do
+for migration in db/migrations/[0-9]*.sql; do
   ledger="/var/lib/eventmap/migrations/$(basename "$migration" .sql).applied"
   expected=$(sha256sum "$migration" | awk '{print $1}')
   if test -f "$ledger"; then
@@ -222,7 +245,7 @@ flock -u 9
 exec 9>&-
 ```
 
-Both current migrations own their transactions and are idempotent. Review future migrations individually and never edit an applied migration. Retain Firebase UID ownership when moving user data. Use compatible PostgreSQL dump/restore versions; a newer-major dump is not guaranteed to restore to PostgreSQL 16.
+The current numbered migrations own their transactions and are idempotent. Review future migrations individually and never edit an applied migration. Retain Firebase UID ownership when moving user data. Use compatible PostgreSQL dump/restore versions; a newer-major dump is not guaranteed to restore to PostgreSQL 16.
 
 ## Backups, recovery and scheduled jobs
 
@@ -286,7 +309,7 @@ The outbox uses unique delivery keys and bounded send windows. An opt-out cannot
 
 ## Release validation and rollback
 
-Verify HTTPS and the apex redirect, `/api/healthz` (liveness), `/api/readyz` (PostgreSQL/Redis readiness), map/search, verified login, bookmark/comment ownership, settings, recommendations, Socket.IO, ingestion and an off-host restore. Confirm that restricted browser keys work only on intended domains.
+Verify HTTPS and the apex redirect, `/api/healthz` (liveness), `/api/readyz` (PostgreSQL, Redis, Socket.IO and image-worker readiness), map/search, verified login, bookmark/comment ownership, settings, recommendations, Socket.IO, ingestion and an off-host restore. Confirm that restricted browser keys work only on intended domains.
 
 To roll back application code, inspect `/root/deploy/.release.previous.env` and the previous digest manifest, then run `deploy.sh` with that prior prefix, SHA and retained release-bundle directory after checking schema compatibility. A failed rollout also retains its previous configuration and image references under `/root/eventmap-release-history/`; inspect actual service tasks before recovery. Preserve prior images and release bundles. Application rollback does not undo a database migration. Recover damaged data into a separate database and perform a controlled cutover; do not overwrite newer user writes with an old backup automatically.
 

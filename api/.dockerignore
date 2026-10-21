@@ -8,6 +8,8 @@ coverage/
 test/
 tmp/
 secrets/
+.local/
+docs/
 backups/
 **/firebase-service-account*.json
 **/*-firebase-adminsdk-*.json

@@ -1,6 +1,7 @@
 // tailwind.config.js
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+import daisyui from 'daisyui';
+export default {
   content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"],
   safelist: [
     // add the ones you build dynamically:
@@ -9,6 +10,6 @@ module.exports = {
     { pattern: /btn-(primary|secondary|ghost)/ },
     { pattern: /bg-(red|green|blue)-(100|500|700)/ },
   ],
-  plugins: [require("daisyui")],
+  plugins: [daisyui],
   daisyui: { themes: ["light"] } // set your default (see #2)
 }
