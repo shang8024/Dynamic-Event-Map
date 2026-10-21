@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {assessQuality} from '../quality.js';
+import {assessQuality,enforceImportQuality} from '../quality.js';
 import {verifyImportedRows,lostSourceFields} from '../verify-import.js';
 const events=(bad,total)=>Array.from({length:total},(_,index)=>({ref_id:`event:${index}`,issue:index<bad}));
 test('alerts use both a minimum count and a ratio; legitimate unknown ends are not errors',()=>{
@@ -23,4 +23,23 @@ test('post-write validation detects missing database content and preserves expli
   const before={...row,title:'Admin title',data:{...row.data,editor_overrides:['title'],import_snapshot:{...event,content_hash:'previous'}}};
   assert.doesNotThrow(()=>verifyImportedRows({events:[event]},[before],[{...row,title:'Admin title'}]));
   assert.ok(lostSourceFields({...before,description:null},{...event,description:null}).includes('existing:description'));
+});
+
+test('source completeness checks include non-date content and keep policy exclusions separate',async()=>{
+  const snapshot={events:[],review:{candidates:[]}};
+  const before=Array.from({length:3},(_,index)=>({ref_id:`event:${index}`,description:'Details',
+    data:{import_snapshot:{description:'Details'},source_categories:['Music'],locations:[{name:'Hall'}],
+      imported_image:{url:'https://example.test/photo.jpg'}}}));
+  for(const item of before) {
+    snapshot.events.push({ref_id:item.ref_id,description:'Details',data:{source_categories:[],locations:[],imported_image:null}});
+    snapshot.review.candidates.push({ref_id:item.ref_id,issue:false,known_exclusions:['imported_image']});
+  }
+  await assert.rejects(()=>enforceImportQuality({query:async()=>({rows:before})},snapshot),error=>{
+    assert.equal(error.code,'INGEST_QUALITY');
+    assert.deepEqual(error.anomalies[0].fields,['source_categories','locations']);
+    assert.equal(error.quality.total_errors,3);
+    return true;
+  });
+  for(const item of snapshot.events) Object.assign(item.data,{source_categories:['Music'],locations:[{name:'Hall'}]});
+  assert.equal((await enforceImportQuality({query:async()=>({rows:before})},snapshot)).blocked,false);
 });

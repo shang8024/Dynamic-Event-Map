@@ -186,7 +186,8 @@ export function createFeedNormalizer({ asOf, limits = {} }) {
   report.active_series = events.length;
   report.occurrence_starts = events.reduce((sum, event) => sum + event.data.occurrences.length, 0);
   report.future_occurrence_starts = events.reduce((sum, event) => sum + event.data.occurrences.filter(occurrence => occurrence.starts_at >= cutoff).length, 0);
-  report.schedule_anomalies=candidates.filter(item=>item.issue).length;
+  report.data_anomalies=candidates.filter(item=>item.issue).length;
+  report.schedule_anomalies=report.data_anomalies; // Retain the existing report key for operators.
   report.unknown_occurrence_ends=events.reduce((sum,event)=>sum+event.data.occurrences.filter(item=>!item.ends_at).length,0);
   if (!events.length) throw Object.assign(new Error('No valid non-ended events; refusing an empty import'),{provenance,report});
   groups.clear();

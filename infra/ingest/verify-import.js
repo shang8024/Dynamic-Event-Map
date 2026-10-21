@@ -12,7 +12,10 @@ export function lostSourceFields(before,event) {
     && !(before.data.editor_overrides||[]).includes(field)) fields.push(`existing:${field}`);
   if(before.data.imported_image?.url && !event.data.imported_image?.url) fields.push('imported_image');
   if(before.data.website && !event.data.website) fields.push('website');
-  return fields;
+  for(const field of ['source_categories','locations']) {
+    if(Array.isArray(before.data[field]) && before.data[field].length && !event.data[field]?.length) fields.push(field);
+  }
+  return [...new Set(fields)];
 }
 export function verifyImportedRows(snapshot,beforeRows,afterRows) {
   const before=new Map(beforeRows.map(row=>[row.ref_id,row])),after=new Map(afterRows.map(row=>[row.ref_id,row]));

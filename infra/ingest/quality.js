@@ -15,12 +15,17 @@ export async function enforceImportQuality(client,snapshot) {
   if(!candidates) return;
   const known=await client.query("SELECT * FROM events WHERE source='external' AND ref_id=ANY($1::text[])",[candidates.map(item=>item.ref_id)]);
   const old=new Map(known.rows.map(item=>[item.ref_id,item])),events=new Map(snapshot.events.map(item=>[item.ref_id,item]));
-  const reviewed=candidates.map(item=>({...item,issue:item.issue||events.has(item.ref_id)
-    && lostSourceFields(old.get(item.ref_id),events.get(item.ref_id)).some(field=>!item.known_exclusions?.includes(field))}));
+  const reviewed=candidates.map(item=>{
+    const missing_fields=[...new Set([...(item.missing_fields||[]),...(events.has(item.ref_id)
+      ?lostSourceFields(old.get(item.ref_id),events.get(item.ref_id)):[])])]
+      .filter(field=>!item.known_exclusions?.includes(field));
+    return {...item,missing_fields,issue:item.issue||missing_fields.length>0};
+  });
   const quality=assessQuality(reviewed,new Set(old.keys()),{
     ratio:Number(process.env.INGEST_ERROR_RATIO||0.1),minimum:Number(process.env.INGEST_ERROR_MINIMUM||3)});
-  if(quality.blocked) throw Object.assign(new Error('Official event parsing error ratio exceeded the review threshold; import refused'),
-    {code:'INGEST_QUALITY',quality,provenance:snapshot.provenance});
+  if(quality.blocked) throw Object.assign(new Error('Official event data quality error ratio exceeded the review threshold; import refused'),
+    {code:'INGEST_QUALITY',quality,anomalies:reviewed.filter(item=>item.issue).slice(0,20)
+      .map(item=>({ref_id:item.ref_id,fields:item.missing_fields})),provenance:snapshot.provenance});
   return quality;
 }
 export async function recordIngestAlert(client,error,fallbackRevision='unknown') {
@@ -29,8 +34,9 @@ export async function recordIngestAlert(client,error,fallbackRevision='unknown')
   const key=createHash('sha256').update(`${code}:${revision}`).digest('hex');
   // Operational details contain counts and controlled codes, never raw rows,
   // organizer contacts, SQL errors or credentials.
-  const details={revision,...(error.quality?{quality:error.quality}:error.losses?{field_losses:error.losses}:{reason:'Source retrieval, validation or schema check failed. Review the job journal.'})};
-  const message=error.quality?`Import paused: ${error.quality.new_errors}/${error.quality.new_events} new events and ${error.quality.total_errors}/${error.quality.total_events} total events have parsing errors. Existing listings were not replaced. Review the Toronto source format.`
+  const details={revision,...(error.quality?{quality:error.quality,anomalies:error.anomalies||[]}:error.losses?{field_losses:error.losses}:{reason:'Source retrieval, validation or schema check failed. Review the job journal.'})};
+  const affected=[...new Set((error.anomalies||[]).flatMap(item=>item.fields))];
+  const message=error.quality?`Import paused: ${error.quality.new_errors}/${error.quality.new_events} new events and ${error.quality.total_errors}/${error.quality.total_events} total events have data quality problems.${affected.length?` Affected fields: ${affected.join(', ')}.`:''} Existing listings were not replaced. Review the Toronto source format.`
     :error.losses?`Import rolled back: ${error.losses.length} events failed database integrity checks. Affected fields: ${[...new Set(error.losses.flatMap(item=>item.fields))].join(', ')}. Review the import before retrying.`
     :'Toronto event ingestion failed. Existing listings were not replaced. Review the source format and job journal.';
   await client.query('BEGIN');
