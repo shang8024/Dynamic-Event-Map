@@ -30,8 +30,9 @@ export default function useScrollNavigation(header,routeKey) {
   useEffect(()=>{
     const scroll=event=>{
       const node=event.target;
-      // Google map gestures and nested controls/dialogs are not page scrolling.
-      if(!(node instanceof Element)||!node.matches('.app-content,.event-panel')) return;
+      // Only page scrolling drives navigation. Map gestures and nested activity
+      // panels/dialogs/controls keep their own scroll behavior.
+      if(!(node instanceof Element)||!node.matches('.app-content')) return;
       let tracker=trackers.current.get(node);
       if(!tracker) {tracker=createNavigationScrollTracker();trackers.current.set(node,tracker);}
       const navigation=header.current;
@@ -47,7 +48,7 @@ export default function useScrollNavigation(header,routeKey) {
     const focus=event=>{if(header.current?.contains(event.target)) reveal();};
     const key=event=>{if(event.key==='Tab') {keyboard.current=true;reveal();}};
     const pointer=()=>{keyboard.current=false;};
-    const gestureTarget=target=>target instanceof Element&&!target.closest('dialog,input,textarea,select,[contenteditable],.map-canvas')&&target.closest('.app-content,.event-panel');
+    const gestureTarget=target=>target instanceof Element&&!target.closest('dialog,input,textarea,select,[contenteditable],.map-canvas,.event-panel')&&target.closest('.app-content');
     const wheel=event=>{if(hiddenNow.current&&event.deltaY<-12&&gestureTarget(event.target)) reveal();};
     let touch=null;
     const touchStart=event=>{touch=gestureTarget(event.target)&&event.touches.length===1?{y:event.touches[0].clientY,distance:0}:null;};
@@ -64,6 +65,7 @@ export default function useScrollNavigation(header,routeKey) {
     document.addEventListener('wheel',wheel,{passive:true});
     document.addEventListener('touchstart',touchStart,{passive:true});
     document.addEventListener('touchmove',touchMove,{passive:true});
+    window.addEventListener('eventmap:show-navigation',reveal);
     return()=>{
       document.removeEventListener('scroll',scroll,true);
       document.removeEventListener('focusin',focus,true);
@@ -72,6 +74,7 @@ export default function useScrollNavigation(header,routeKey) {
       document.removeEventListener('wheel',wheel);
       document.removeEventListener('touchstart',touchStart);
       document.removeEventListener('touchmove',touchMove);
+      window.removeEventListener('eventmap:show-navigation',reveal);
     };
   },[header,reveal,visibility]);
   return {hidden,height,reveal};

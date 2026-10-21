@@ -44,8 +44,7 @@
   .count-pin { width:36px; height:36px; border-width:2px; font-size:14px; }
   .photo-pin.is-selected,.count-pin.is-selected { outline-width:2px; outline-offset:2px; }
 
-  .event-detail-actions { padding:6px 8px; gap:6px; }
-  .event-detail-actions .btn { font-size:13px; }
+  .event-full-link { min-height:36px; }
   .event-panel .event-detail-hero { height:120px; }
   .event-detail-body { padding:16px; gap:16px; }
   .event-heading h2 { font-size:22px; margin-top:6px; }

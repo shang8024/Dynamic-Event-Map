@@ -41,7 +41,6 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
   const Heading=standalone?'h1':'h2';
   const SectionHeading=standalone?'h2':'h3';
   return <article className="event-detail-content">
-    {!standalone&&<div className="event-detail-actions"><Link className="btn bg-base-100 shadow" to={`/events/${event.id}`} target="_blank" rel="noopener noreferrer">Full details <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></Link><button className="btn btn-circle bg-base-100 shadow" aria-label="Close event details" onClick={onClose}>✕</button></div>}
     <div className="event-detail-hero">{mapsReady&&!image&&!ended&&!cancelled&&!event.data?.image_hidden
       ?<VenuePhoto key={[event.id,event.data?.place_id,event.location_address,event.latitude,event.longitude].join(':')} event={event}/>
       :<EventArtwork src={image?.url} alt={image?.alt} title={event.title} category={event.category} className="h-full w-full" loading="eager" onUnavailable={()=>setFailedURL(candidate?.url)}/>}
@@ -49,7 +48,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
     <div className="event-detail-body">
       {image&&<p className="photo-credit">{image.credit||(image.source==='toronto'?'Photo supplied with the Toronto event listing':'Event photo')}
         {image.source==='toronto'&&<> · <a href="https://open.toronto.ca/dataset/festivals-events/" target="_blank" rel="noopener noreferrer" className="link">Source</a></>}</p>}
-      <header className="event-heading"><span className="category-label">{event.category||'Other'}</span><Heading id="event-detail-title" tabIndex={-1}>{event.title}</Heading></header>
+      <header className="event-heading"><div className="event-heading-topline"><span className="category-label">{event.category||'Other'}</span>{!standalone&&<div className="event-heading-links"><Link className="event-full-link" to={`/events/${event.id}`} target="_blank" rel="noopener noreferrer">Full details <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></Link><button className="btn btn-circle btn-ghost" aria-label="Close event details" onClick={onClose}>✕</button></div>}</div><Heading id="event-detail-title" tabIndex={-1}>{event.title}</Heading></header>
       {(ended||cancelled)&&<p role="status" className="event-status-note">{cancelled?'This event has been cancelled.':'This event has ended. It stays in your saved events.'}</p>}
       <dl className="event-facts">
         <div><Icon name="calendar"/><div><dt>{when.label} <span>· Toronto time</span></dt><dd>{when.text}</dd></div></div>
