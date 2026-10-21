@@ -1,0 +1,9 @@
+[Unit]
+Description=Eventmap expiry cleanup and metadata-only source verification
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=25min
+ExecStart=/usr/bin/bash /root/deploy/infra/scripts/run_swarm_job.sh event-maintenance

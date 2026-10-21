@@ -27,13 +27,17 @@ install -m 644 "$DEPLOY_DIR/infra/system/backup/db-backup.service" /etc/systemd/
 install -m 644 "$DEPLOY_DIR/infra/system/backup/db-backup.timer" /etc/systemd/system/eventmap-db-backup.timer
 install -m 644 "$DEPLOY_DIR/infra/system/ingest/eventmap-events-ingest.service" /etc/systemd/system/eventmap-events-ingest.service
 install -m 644 "$DEPLOY_DIR/infra/system/ingest/eventmap-events-ingest.timer" /etc/systemd/system/eventmap-events-ingest.timer
+install -m 644 "$DEPLOY_DIR/infra/system/ingest/eventmap-events-maintenance.service" /etc/systemd/system/eventmap-events-maintenance.service
+install -m 644 "$DEPLOY_DIR/infra/system/ingest/eventmap-events-maintenance.timer" /etc/systemd/system/eventmap-events-maintenance.timer
 systemctl daemon-reload
 if [[ "${1:-}" == --enable-backup-timer ]]; then
   [[ -s /var/lib/eventmap/job-status/backup.last-success ]] || { echo "Run and verify the first off-host backup before enabling its timer" >&2; exit 1; }
   systemctl enable --now eventmap-db-backup.timer
 elif [[ "${1:-}" == --enable-ingest-timer ]]; then
   [[ -s /var/lib/eventmap/job-status/ingest.last-success ]] || { echo "Run and verify the first memory-bounded ingestion before enabling its timer" >&2; exit 1; }
-  systemctl enable --now eventmap-events-ingest.timer
+  [[ -s /var/lib/eventmap/job-status/event-maintenance.last-success ]] || { echo "Verify metadata-only maintenance before enabling its timer" >&2; exit 1; }
+  systemctl enable --now eventmap-events-ingest.timer eventmap-events-maintenance.timer
+  systemctl restart eventmap-events-ingest.timer eventmap-events-maintenance.timer
 elif [[ -n "${1:-}" ]]; then
   echo "Usage: $0 [--enable-backup-timer|--enable-ingest-timer]" >&2; exit 1
 fi

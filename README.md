@@ -83,7 +83,7 @@ The API serves linked photos through an isolated image worker. Every redirect an
 
 The detail view prefers the event's linked photo, then an attributed Google venue photo, then a category illustration. Google venue photos load only when details are opened; they are labelled as venue photos, matched to the event location, and never imported into our storage. Marker thumbnails use the event's linked photo and do not trigger Google photo searches for every pin. Create a JavaScript vector Map ID and set `VITE_GOOGLE_MAPS_MAP_ID` locally / `GOOGLE_MAPS_MAP_ID` in the production GitHub environment. Set explicit Maps and Places quotas, including Text Search and Photo Media; budget alerts alone do not stop requests.
 
-Linked-image bytes are cached only in worker memory (20 MiB maximum, one-hour expiry) and by the browser for up to an hour. Ended, cancelled or hidden event photos stop being served; cached bytes expire without a storage-cleanup job or bucket. Event records and bookmarks remain available with an ended/cancelled badge. No scheduled job deletes saved-event history merely because its photo expired.
+Linked-image bytes are cached only in worker memory (20 MiB maximum, one-hour expiry) and by the browser for up to an hour. Ended, cancelled or hidden event photos stop being served; cached bytes expire without a storage-cleanup job or bucket. Daily maintenance deletes finished listings without bookmarks or comments. Referenced listings become small history summaries: bookmarks and discussions remain, while full descriptions, coordinates, photo links and occurrence payloads are removed. Once the last bookmark/comment is removed, the next cleanup can delete the summary. Unknown end times are not guessed.
 
 ### Import event data
 
@@ -99,7 +99,18 @@ DB_HOST=127.0.0.1 REDIS_HOST=127.0.0.1 \
   node --env-file=.env infra/ingest/update_toronto_events.js --write
 ```
 
-A fresh database starts without downloaded events. Imports preserve internal events and manual edits, and use a transaction and advisory lock. A failed, partial or stale download does not replace existing data. Missing source entries are not automatically deleted or declared cancelled. Recurring event ranges are not treated as continuous opening hours.
+A fresh database starts without downloaded events. Imports preserve internal events and manual edits, and use a transaction and advisory lock. A failed, partial or stale download does not replace existing data. Missing source entries are not automatically deleted or declared cancelled. Recurring event ranges are not treated as continuous opening hours. One source submission stays one event, with distinct occurrence starts; series expiry uses its final known end, never its first occurrence. An ongoing/future scheduled occurrence blocks cleanup when dates conflict.
+
+Successful full imports atomically record the resource ID, URL, publication timestamp, declared size/hash, downloaded SHA-256/byte count and importer format version. A later write run first reads the small official catalogue. An identical verified revision skips the large JSON download, parsing and upsert; unknown, changed or incompatible checkpoints require a full verified import. Failed imports never advance the checkpoint. `--force-download` bypasses this optimization for a reviewed manual refresh. Dry runs still download/validate the snapshot and never change the database.
+
+```sh
+# Metadata-only source verification plus local expiry cleanup; no event download.
+node --env-file=.env infra/ingest/update_toronto_events.js --write --check-only
+# Expiry cleanup alone; does not contact Toronto or download any feed.
+node --env-file=.env infra/ingest/update_toronto_events.js --write --cleanup-only
+```
+
+A metadata-only check renews source freshness only when the publication exactly matches the verified import. A changed publication sets `check_status='changed'` and stops old official occurrence reminders/recommendations until a full import; it does not import updates or declare cancellations. Network/schema errors fail the job. Inspect `event_ingest_state` and the job journal for `source_changed`; a successful metadata check is distinct from a successful full download. Monthly imports can miss short-lived events and leave listings outdated between runs. An operator can explicitly run a full refresh earlier.
 
 The feed is large: allow at least 400 MiB of free disk for its temporary snapshot. Production ingestion uses a 768 MiB container limit and a 512 MiB Node heap. Do not put its staging directory on tmpfs. Legacy external rows require a reviewed source-ID mapping before importing; do not delete them to bypass that guard.
 
@@ -216,7 +227,7 @@ The helper validates migration checksums and schema, pulls the recorded image di
 
 ## Database upgrades
 
-`db/init.sql` runs only when PostgreSQL initializes an empty volume. Editing it does not upgrade an existing database. Apply `001_ingestion_identity.sql`, then `002_notifications.sql`, including on a fresh installation. The first removes an obsolete cross-source uniqueness rule; the second adds consent, occurrences, suppression and the notification outbox without enabling mail.
+`db/init.sql` runs only when PostgreSQL initializes an empty volume. Editing it does not upgrade an existing database. Apply all numbered migrations in order, including on a fresh installation. `001` fixes source identities; `002` adds consent, occurrences and the email outbox; `003` adds admin event management; `004` adds durable realtime activity; `005` adds import checkpoints and expiry cleanup. Applying `005` creates the cleanup function but does not delete data or enable a timer. No migration enables mail.
 
 Before changing an existing database, run a backup and restore rehearsal, review migration SQL, and record its SHA-256 and target. For later releases, use the reviewed migrations from the staged candidate bundle rather than an older installed copy. Run these commands in a root Bash shell on the manager:
 
@@ -279,15 +290,16 @@ sudo bash /root/deploy/infra/scripts/cleanup/docker_clean.sh --apply
 
 Cleanup preserves current and rollback images and does not prune volumes or containers.
 
-Refresh official events manually before enabling the single host ingestion schedule:
+After deployment approval and migration verification, refresh official events manually before enabling the host schedules:
 
 ```sh
 sudo bash /root/deploy/infra/scripts/run_swarm_job.sh ingest
+sudo bash /root/deploy/infra/scripts/run_swarm_job.sh event-maintenance
 sudo bash /root/deploy/infra/scripts/bootstrap/setup_infra.sh --enable-ingest-timer
-sudo systemctl list-timers eventmap-events-ingest.timer
+sudo systemctl list-timers eventmap-events-ingest.timer eventmap-events-maintenance.timer
 ```
 
-The ingestion timer runs daily at 02:00 UTC with up to five minutes of jitter. Use one scheduler only; do not enable the legacy ingestion Actions workflow alongside it. Inspect `eventmap-events-ingest.service` logs and `/var/lib/eventmap/job-status/{ingest,backup}.last-success`. Configure operational alerts for failed or missing runs; a local success timestamp does not send an alert.
+Full ingestion runs monthly on the 1st at 02:00 UTC, with up to five minutes of jitter. Daily maintenance at 04:00 UTC checks only the small catalogue and cleans local expired listings; it never downloads the large event feed. Bootstrap installs both timers and restarts them when explicitly enabled, so an existing daily import schedule is replaced. Use one scheduler only; do not enable legacy ingestion units or the legacy Actions workflow alongside these host timers. Inspect both service journals, `event_ingest_state`, and `/var/lib/eventmap/job-status/{ingest,event-maintenance,backup}.last-success`. Configure operational alerts for failed/missing checks and changed-but-not-imported publications; local timestamps do not send alerts. Backup remains weekly with the configured 14-day current-object retention and one-day noncurrent recovery window.
 
 ## Optional email delivery
 

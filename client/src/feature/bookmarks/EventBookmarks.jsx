@@ -42,6 +42,7 @@ const BookmarkListItem = ({ id, eventData, bookmarkInfo, toggle, pending }) => {
                 {eventData?.description && (
                   <Description text={eventData.description} valid={!isExpired} />
                 )}
+                {eventData?._row?.archived_at && <p className="mt-2 text-sm text-base-content/75">This event has ended. A saved summary is kept here; its photos and full listing have been removed.</p>}
                 {eventData?._row?.location_address && (
                   <p className="text-base-content/75 mt-1 text-xs">
                     {eventData._row.location_address}

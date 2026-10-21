@@ -1,6 +1,6 @@
 name: Toronto Events Ingest
 
-# Daily work runs on the host timer; this is a manual fallback.
+# Scheduled work runs on the host timers; this is a legacy manual fallback.
 on:
   workflow_dispatch:
 

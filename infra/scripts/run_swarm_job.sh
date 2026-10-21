@@ -12,6 +12,7 @@ case "$JOB" in
   backup) SERVICE=eventmap_db_backup ;;
   list) SERVICE=eventmap_db_backup; EXTRA_ENV+=(--env-add BACKUP_LIST_ONLY=true) ;;
   ingest) SERVICE=eventmap_events_ingest ;;
+  event-maintenance) SERVICE=eventmap_events_ingest; EXTRA_ENV+=(--env-add INGEST_CHECK_ONLY=true) ;;
   notifications) SERVICE=eventmap_notifications ;;
   restore)
     SERVICE=eventmap_db_restore
@@ -20,7 +21,7 @@ case "$JOB" in
     [[ "$TARGET" =~ ^recovery_[a-z0-9_]{1,54}$ ]] || { echo "Use a new recovery_ database name" >&2; exit 1; }
     EXTRA_ENV+=(--env-add "BACKUP_FILE=$BACKUP_FILE" --env-add "RESTORE_DB_NAME=$TARGET" --env-add "RESTORE_CONFIRM_TARGET=$TARGET")
     ;;
-  *) echo "Usage: $0 backup|list|ingest|notifications|restore [backup_basename recovery_target]" >&2; exit 1 ;;
+  *) echo "Usage: $0 backup|list|ingest|event-maintenance|notifications|restore [backup_basename recovery_target]" >&2; exit 1 ;;
 esac
 [[ "$(docker service inspect -f '{{.Spec.Mode.Replicated.Replicas}}' "$SERVICE")" == 0 ]] || {
   echo "Job service must be idle at zero replicas; inspect any active job first" >&2; exit 1;
@@ -42,7 +43,7 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM HUP
 docker service update --detach=true --force --replicas 1 \
-  --env-rm BACKUP_LIST_ONLY --env-add "JOB_RUN_ID=$RUN_ID" "${EXTRA_ENV[@]}" "$SERVICE" >/dev/null
+  --env-rm BACKUP_LIST_ONLY --env-rm INGEST_CHECK_ONLY --env-add "JOB_RUN_ID=$RUN_ID" "${EXTRA_ENV[@]}" "$SERVICE" >/dev/null
 DEADLINE=$((SECONDS + JOB_TIMEOUT_SECONDS))
 TASK_ID=""
 while ((SECONDS < DEADLINE)); do

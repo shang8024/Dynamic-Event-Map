@@ -1,0 +1,11 @@
+[Unit]
+Description=Eventmap daily expiry cleanup and small official metadata check
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=eventmap-events-maintenance.service
+
+[Install]
+WantedBy=timers.target
