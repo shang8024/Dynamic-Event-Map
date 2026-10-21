@@ -1,0 +1,120 @@
+name: CI and Release Images
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish_images:
+        description: Publish tested images and a manual deployment bundle to GHCR
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: eventmap-ci-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: eventmap_test
+        ports: ['55433:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d eventmap_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['56379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            api/package-lock.json
+            client/package-lock.json
+      - name: Validate workflow definitions
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint@sha256:a0383f60d92601e2694e24b24d37df7b6a40bed7cedbc447611c50009bf02d94
+      - name: Test API with PostgreSQL and Redis
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: '55433'
+          PGUSER: postgres
+          PGPASSWORD: ci-only-password
+          PGDATABASE: eventmap_test
+          NOTIFICATION_DB_TEST: '1'
+          NOTIFICATION_PG16_TEST: '1'
+          RATE_LIMIT_REDIS_TEST: '1'
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: '56379'
+        run: |
+          npm ci --prefix api
+          npm test --prefix api
+          npm audit --prefix api --audit-level=high
+      - name: Test and build client
+        run: |
+          npm ci --prefix client
+          npm test --prefix client
+          npm run build --prefix client
+          npm audit --prefix client --audit-level=high
+      - name: Test backup and recovery guardrails
+        run: |
+          docker build -t eventmap-backup-check:local infra/backup
+          python3 infra/backup/tests/integration.py
+      - name: Test manual deployment failure guardrails
+        run: |
+          for scenario in invalid_digest missing_migration changed_migration immutable_commit pull_failure readiness_failure fresh_success; do
+            docker run --rm --network none -e EVENTMAP_DEPLOY_TEST=1 \
+              -v "$PWD:/repo:ro" --entrypoint bash eventmap-backup-check:local \
+              /repo/infra/scripts/tests/deploy_guardrails.sh "$scenario"
+          done
+      - name: Test scoped image cleanup guardrails
+        run: |
+          docker build -f infra/scripts/tests/Dockerfile -t eventmap-ops-check:local infra/scripts/tests
+          docker run --rm --network none -e EVENTMAP_CLEANUP_TEST=1 \
+            -v "$PWD:/repo:ro" --entrypoint python3 eventmap-ops-check:local \
+            /repo/infra/scripts/tests/cleanup_guardrails.py
+  publish:
+    needs: verify
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_images && github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: Build immutable image references and deployment bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VITE_GOOGLE_MAPS_KEY: ${{ secrets.GOOGLE_MAPS_KEY }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.FIREBASE_MESSAGING_SENDER_ID }}
+        run: bash infra/scripts/build_release.sh
+      - name: Downloadable manual deployment bundle
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: eventmap-release-${{ github.sha }}
+          path: release/eventmap-release.tar.gz
+          if-no-files-found: error
+          retention-days: 7

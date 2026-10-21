@@ -80,7 +80,9 @@ try:
     filename = re.search(r"file=(\S+)", backup.stdout).group(1)
     succeeds(run(S3_PROVIDER="DigitalOcean", S3_REGION="tor1"), "BACKUP_SUCCESS")
     listing = run("list.sh")
-    succeeds(listing, filename + ".sha256")
+    succeeds(listing, filename)
+    assert filename in listing.stdout.splitlines()
+    assert '.sha256' not in listing.stdout
 
     for target in ("recovery_good", "recovery_corrupt", "recovery_missing"):
         docker("exec", database, "createdb", "-U", "app", target)

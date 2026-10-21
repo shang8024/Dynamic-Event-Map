@@ -5,6 +5,12 @@ set -euo pipefail
 [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 ]] || { echo "This bootstrap targets Ubuntu 24.04" >&2; exit 1; }
 export DEBIAN_FRONTEND=noninteractive
 
+# Manual deployment/bootstrap and scoped cleanup use Python's standard library.
+if ! command -v python3 >/dev/null || ! command -v curl >/dev/null; then
+  apt-get update
+  apt-get install -y ca-certificates curl python3
+fi
+
 if ! command -v docker >/dev/null; then
   # Official Docker apt repository; do not execute a downloaded convenience script.
   apt-get update
