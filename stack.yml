@@ -35,15 +35,17 @@ secrets:
     external: true
   redis_password:
     external: true
-  firebase_sa:
-    file: /root/deploy/firebase-service-account.json
+  s3_access_key:
+    external: true
+  s3_secret_key:
+    external: true
 
 services:
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.7.16
     command:
       - --log.level=INFO
-      - --api.dashboard=true
+      - --api.dashboard=false
 
       # Use Swarm provider
       - --providers.swarm=true
@@ -80,18 +82,15 @@ services:
       placement:
         constraints:
           - node.role == manager
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.${DOMAIN}`)"
-        - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
-        - "traefik.http.routers.traefik-dashboard.tls.certresolver=le"
-        - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      resources:
+        limits:
+          memory: 128M
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: user
+      POSTGRES_USER: "${DB_USER:-user}"
       POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_DB: eventsdb
+      POSTGRES_DB: "${DB_NAME:-eventsdb}"
       PGDATA: /var/lib/postgresql/data/pgdata
     secrets: [pg_password]
     volumes:
@@ -107,7 +106,7 @@ services:
         reservations:
           memory: 256M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d eventsdb -h 127.0.0.1 -p 5432 || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" -h 127.0.0.1 -p 5432 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -124,7 +123,7 @@ services:
           --appendfsync everysec \
           --dir /data \
           --save 900 1 --save 300 10 --save 60 10000 \
-          --maxmemory 200mb --maxmemory-policy allkeys-lru \
+          --maxmemory 96mb --maxmemory-policy allkeys-lru \
           --requirepass "$$PASS";
       '
     networks: [internal]
@@ -134,7 +133,7 @@ services:
       restart_policy: { condition: any, delay: 5s, max_attempts: 3 }
       resources:
         limits:
-          memory: 256M
+          memory: 128M
         reservations:
           memory: 64M
       placement: { constraints: [node.role == manager] }
@@ -152,9 +151,10 @@ services:
       - redis_password
 
   api:
-    image: ghcr.io/shang8024/dynamic-event-map-api:latest
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-api:${IMAGE_TAG:-latest}
     environment:
       NODE_ENV: production             
+      NODE_OPTIONS: --max-old-space-size=192
       PORT: "${BACKEND_PORT}"          
       DB_HOST: db
       DB_PORT: "${DB_PORT:-5432}"     
@@ -164,34 +164,30 @@ services:
       REDIS_PORT: "${REDIS_PORT:-6379}"
       DB_PASSWORD_FILE: /run/secrets/pg_password
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
-      ALLOWED_ORIGINS: "https://dynamic-event-map.cloud,https://www.dynamic-event-map.cloud"
-      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-service-account.json
+      ALLOWED_ORIGINS: "https://${DOMAIN},https://www.${DOMAIN}"
+      FIREBASE_PROJECT_ID: "${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID}"
       FRONTEND_PORT: 443
     secrets:
       - pg_password
       - redis_password
-      - source: firebase_sa
-        target: firebase-service-account.json
     networks: [proxy, internal]
     depends_on: [db, redis]
     deploy:
-      replicas: 2
+      replicas: ${API_REPLICAS:-1}
       update_config: { order: start-first }
       restart_policy: { condition: any }
       resources:
         limits:
-          memory: 384M
+          memory: 320M
         reservations:
           memory: 128M
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=eventmap_proxy"
-        - "traefik.http.routers.api.rule=Host(`www.${DOMAIN}`) && PathPrefix(`/api`)"
+        - "traefik.http.routers.api.rule=Host(`www.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/socket.io`))"
         - "traefik.http.routers.api.entrypoints=websecure"
         - "traefik.http.routers.api.tls.certresolver=le"
         - "traefik.http.routers.api.priority=10"
-        - "traefik.http.middlewares.api-strip.stripprefixregex.regex=/api"
-        - "traefik.http.routers.api.middlewares=api-strip"
         - "traefik.http.services.api.loadbalancer.server.port=5000"
         - "traefik.http.services.api.loadbalancer.sticky.cookie=true"
         - "traefik.http.services.api.loadbalancer.sticky.cookie.name=sio_sticky"
@@ -203,7 +199,7 @@ services:
       start_period: 30s
 
   client:
-    image: ghcr.io/shang8024/dynamic-event-map-client:latest
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-client:${IMAGE_TAG:-latest}
     networks: [proxy]
     depends_on: [api]
     deploy:
@@ -246,11 +242,12 @@ services:
       start_period: 10s
 
   events_ingest:
-    image: ghcr.io/shang8024/dynamic-event-map-events-ingest:latest
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-events-ingest:${IMAGE_TAG:-latest}
     secrets:
       - pg_password
       - redis_password
     environment:
+      NODE_OPTIONS: --max-old-space-size=512
       DB_HOST: db
       DB_PORT: "${DB_PORT:-5432}"
       DB_NAME: "${DB_NAME:-eventsdb}"
@@ -267,22 +264,30 @@ services:
       replicas: 0
       restart_policy:
         condition: none
+      resources:
+        limits:
+          memory: 768M
+          cpus: '0.75'
 
   db_backup:
-    image: ghcr.io/shang8024/dynamic-event-map-db-backup:latest
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-db-backup:${IMAGE_TAG:-latest}
     secrets:
       - pg_password
+      - s3_access_key
+      - s3_secret_key
     environment:
       DB_HOST: db
       DB_PORT: "${DB_PORT:-5432}"
       DB_NAME: "${DB_NAME:-eventsdb}"
       DB_USER: "${DB_USER:-user}"
       DB_PASSWORD_FILE: /run/secrets/pg_password
-      S3_BUCKET: "${DO_SPACES_BUCKET}"
-      S3_ENDPOINT: "${DO_SPACES_ENDPOINT}"
-      S3_ACCESS_KEY: "${DO_SPACES_ACCESS_KEY}"
-      S3_SECRET_KEY: "${DO_SPACES_SECRET_KEY}"
-      BACKUP_RETENTION_DAYS: "${BACKUP_RETENTION_DAYS:-30}"
+      S3_PROVIDER: "${S3_PROVIDER:-AWS}"
+      S3_REGION: "${S3_REGION:-ca-central-1}"
+      S3_BUCKET: "${S3_BUCKET:?Set S3_BUCKET}"
+      S3_ENDPOINT: "${S3_ENDPOINT:-}"
+      S3_PREFIX: "${S3_PREFIX:-backups}"
+      S3_ACCESS_KEY_FILE: /run/secrets/s3_access_key
+      S3_SECRET_KEY_FILE: /run/secrets/s3_secret_key
     depends_on: [db]
     networks:
       - internal
@@ -293,32 +298,35 @@ services:
         condition: none
       resources:
         limits:
-          memory: 512M
+          memory: 256M
           cpus: '0.5'
         reservations:
           memory: 128M
           cpus: '0.25'
 
   db_restore:
-    image: ghcr.io/shang8024/dynamic-event-map-db-backup:latest
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-db-backup:${IMAGE_TAG:-latest}
     secrets:
       - pg_password
-      - redis_password
+      - s3_access_key
+      - s3_secret_key
     environment:
       DB_HOST: db
       DB_PORT: "${DB_PORT:-5432}"
       DB_NAME: "${DB_NAME:-eventsdb}"
       DB_USER: "${DB_USER:-user}"
       DB_PASSWORD_FILE: /run/secrets/pg_password
-      REDIS_HOST: redis
-      REDIS_PORT: "${REDIS_PORT:-6379}"
-      REDIS_PASSWORD_FILE: /run/secrets/redis_password
-      BACKUP_FILE: "${RESTORE_BACKUP_FILE:-}"
-      S3_BUCKET: "${DO_SPACES_BUCKET}"
-      S3_ENDPOINT: "${DO_SPACES_ENDPOINT}"
-      S3_ACCESS_KEY: "${DO_SPACES_ACCESS_KEY}"
-      S3_SECRET_KEY: "${DO_SPACES_SECRET_KEY}"
-    depends_on: [db, redis]
+      BACKUP_FILE: ""
+      RESTORE_DB_NAME: ""
+      RESTORE_CONFIRM_TARGET: ""
+      S3_PROVIDER: "${S3_PROVIDER:-AWS}"
+      S3_REGION: "${S3_REGION:-ca-central-1}"
+      S3_BUCKET: "${S3_BUCKET:?Set S3_BUCKET}"
+      S3_ENDPOINT: "${S3_ENDPOINT:-}"
+      S3_PREFIX: "${S3_PREFIX:-backups}"
+      S3_ACCESS_KEY_FILE: /run/secrets/s3_access_key
+      S3_SECRET_KEY_FILE: /run/secrets/s3_secret_key
+    depends_on: [db]
     networks:
       - internal
     entrypoint: ["/usr/local/bin/restore.sh"]
@@ -329,7 +337,7 @@ services:
         condition: none
       resources:
         limits:
-          memory: 512M
+          memory: 256M
           cpus: '0.5'
         reservations:
           memory: 128M

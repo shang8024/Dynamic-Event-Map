@@ -1,17 +1,12 @@
 [Unit]
-Description=Database Backup Service
-After=docker.service
+Description=Eventmap verified off-host PostgreSQL backup
+After=docker.service network-online.target
 Requires=docker.service
 
 [Service]
 Type=oneshot
 WorkingDirectory=/root/deploy
-EnvironmentFile=/root/deploy/.env
-ExecStart=/usr/bin/docker service update --replicas 1 eventmap_db_backup
-ExecStartPost=/bin/bash -c 'sleep 5; while [ "$(/usr/bin/docker service ps eventmap_db_backup --filter "desired-state=running" --format "{{.CurrentState}}")" != "Complete" ]; do sleep 10; done'
-ExecStop=/usr/bin/docker service update --replicas 0 eventmap_db_backup
+ExecStart=/usr/bin/bash /root/deploy/infra/scripts/run_swarm_job.sh backup
+TimeoutStartSec=1250
 StandardOutput=journal
 StandardError=journal
-
-[Install]
-WantedBy=multi-user.target

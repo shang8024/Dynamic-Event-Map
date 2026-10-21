@@ -1,48 +1,31 @@
-name: Daily Toronto Ingest
+name: Toronto Events Ingest
 
+# Daily work runs on the host timer; this is a manual fallback.
 on:
-  schedule:
-    - cron: "0 3 * * *"  # every day 03:00 UTC
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: eventmap-production
+  cancel-in-progress: false
+
 jobs:
-  run-daily:
+  ingest:
+    if: vars.PRODUCTION_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    environment: production
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
-      - name: SSH and run ingest
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ vars.DO_SSH_HOST }}
-          username: ${{ vars.DO_SSH_USER }}
-          key: ${{ secrets.DO_SSH_KEY }}
-          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
-          script: |
-            set -euo pipefail
-
-            echo "[*] make sure service exists..."
-            if ! docker service ls --format '{{.Name}}' | grep -q '^eventmap_events_ingest$'; then
-              echo "FATAL: service eventmap_events_ingest not found. Deploy stack first."
-              docker service ls
-              exit 1
-            fi
-
-            echo "[*] run one-shot ingest..."
-            # set replicas to 1 so a task is actually created
-            docker service update --replicas 1 eventmap_events_ingest
-
-            echo "[*] task finished."
-            # get last task id
-            TID="$(docker service ps --no-trunc --format '{{.ID}}' eventmap_events_ingest | head -n1)"
-
-            # print logs if we can
-            CID="$(docker inspect "$TID" --format '{{.Status.ContainerStatus.ContainerID}}' 2>/dev/null || true)"
-            if [ -n "$CID" ]; then
-              echo "[*] logs from container $CID:"
-              docker logs "$CID" 2>&1 || true
-            else
-              echo "[!] no container id for task $TID"
-            fi
-
-            echo "[*] scale back to 0"
-            docker service update --replicas 0 eventmap_events_ingest
-            docker service ps eventmap_events_ingest --no-trunc
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Run bounded import and verify its exact task exit code
+        env:
+          DO_SSH_HOST: ${{ vars.DO_SSH_HOST }}
+          DO_SSH_USER: ${{ vars.DO_SSH_USER }}
+          DO_SSH_FINGERPRINT: ${{ vars.DO_SSH_FINGERPRINT }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_SSH_PASSPHRASE: ${{ secrets.DO_SSH_PASSPHRASE }}
+        run: |
+          source infra/scripts/ci_ssh.sh
+          ssh_ci 'sudo -n bash /root/deploy/infra/scripts/run_swarm_job.sh ingest'

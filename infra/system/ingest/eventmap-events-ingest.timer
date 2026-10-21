@@ -1,0 +1,11 @@
+[Unit]
+Description=Eventmap daily Toronto event ingestion
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=eventmap-events-ingest.service
+
+[Install]
+WantedBy=timers.target

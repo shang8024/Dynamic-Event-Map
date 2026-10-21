@@ -4,6 +4,8 @@ on:
 
 jobs:
   clean:
+    if: vars.PRODUCTION_ENABLED == 'true'
+    environment: production
     runs-on: ubuntu-latest
     steps:
       - name: Run docker clean on droplet

@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.*
+.s3cfg
+secrets/
+backups/
+*.dump
+*.backup
+*.sql.gz
+*.pem
+*.key
+*_password*.txt
+*.log

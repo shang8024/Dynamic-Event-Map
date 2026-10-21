@@ -1,0 +1,12 @@
+[Unit]
+Description=Eventmap verified Toronto event ingestion
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/deploy
+ExecStart=/usr/bin/bash /root/deploy/infra/scripts/run_swarm_job.sh ingest
+TimeoutStartSec=1250
+StandardOutput=journal
+StandardError=journal

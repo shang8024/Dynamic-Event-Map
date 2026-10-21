@@ -1,10 +1,11 @@
 [Unit]
-Description=Database Backup Timer (Weekly on Sundays at 3 AM)
-Requires=db-backup.service
+Description=Eventmap daily PostgreSQL backup
 
 [Timer]
-OnCalendar=Sun *-*-* 03:00:00
+OnCalendar=*-*-* 03:00:00 UTC
+RandomizedDelaySec=300
 Persistent=true
+Unit=eventmap-db-backup.service
 
 [Install]
 WantedBy=timers.target

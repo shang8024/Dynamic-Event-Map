@@ -86,6 +86,7 @@ $RequiredVars = @(
     "VITE_FIREBASE_API_KEY",
     "VITE_FIREBASE_AUTH_DOMAIN",
     "VITE_FIREBASE_PROJECT_ID",
+    "FIREBASE_PROJECT_ID",
     "VITE_FIREBASE_STORAGE_BUCKET",
     "VITE_FIREBASE_APP_ID",
     "VITE_FIREBASE_MESSAGING_SENDER_ID"
@@ -110,26 +111,14 @@ if ($MissingVars.Count -gt 0) {
 Write-Host "[OK] All required variables present" -ForegroundColor Green
 Write-Host ""
 
-# Check for Firebase service account
-Write-Host "[5/8] Checking Firebase credentials..." -ForegroundColor Yellow
-$FirebaseFile = Join-Path $ProjectRoot "api\firebase-service-account.json"
-if (-not (Test-Path $FirebaseFile)) {
-    Write-Host "[FAIL] Firebase service account file not found at:" -ForegroundColor Red
-    Write-Host "  $FirebaseFile" -ForegroundColor Gray
-    Write-Host "Please add your Firebase service account JSON file." -ForegroundColor Yellow
+# The API verifies signed Firebase ID tokens using the configured project and
+# public certificates. It does not need a private service-account JSON file.
+Write-Host "[5/8] Checking Firebase project configuration..." -ForegroundColor Yellow
+if ($env:FIREBASE_PROJECT_ID -cne $env:VITE_FIREBASE_PROJECT_ID) {
+    Write-Host "[FAIL] FIREBASE_PROJECT_ID must match VITE_FIREBASE_PROJECT_ID." -ForegroundColor Red
     exit 1
 }
-Write-Host "[OK] Firebase service account found" -ForegroundColor Green
-
-# Create or update Docker secret
-Write-Host "Creating/updating Docker secret..." -ForegroundColor Gray
-$SecretExists = docker secret ls --format '{{.Name}}' | Select-String -Pattern '^firebase-service-account.json$' -Quiet
-if ($SecretExists) {
-    Write-Host "  Removing existing secret..." -ForegroundColor Gray
-    docker secret rm firebase-service-account.json 2>$null | Out-Null
-}
-docker secret create firebase-service-account.json $FirebaseFile | Out-Null
-Write-Host "[OK] Docker secret created" -ForegroundColor Green
+Write-Host "[OK] Client and API Firebase project IDs match" -ForegroundColor Green
 Write-Host ""
 
 # Build images (unless -NoBuild flag is set)
