@@ -1,0 +1,22 @@
+.site-header-shell {
+  flex:none;
+  position:relative;
+  z-index:40;
+  height:var(--navigation-height,auto);
+  transition:height .18s ease;
+}
+.site-header-shell > .site-header {
+  transition:transform .18s ease,opacity .18s ease;
+}
+.site-header-shell[data-hidden="true"] {
+  height:0;
+  overflow:clip;
+  pointer-events:none;
+}
+.site-header-shell[data-hidden="true"] > .site-header {
+  transform:translateY(-100%);
+  opacity:0;
+}
+@media (prefers-reduced-motion:reduce) {
+  .site-header-shell,.site-header-shell > .site-header { transition:none; }
+}
