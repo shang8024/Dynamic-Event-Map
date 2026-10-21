@@ -11,6 +11,16 @@ function fail(res,error) {
 async function getEvents(_req,res) {
   try {res.json((await Event.getAll()).rows);} catch(error) {fail(res,error);}
 }
+async function getEvent(req,res) {
+  res.set('Cache-Control','no-store');
+  const id=String(req.params.id);
+  if(!/^[1-9]\d{0,9}$/.test(id)||Number(id)>2147483647) return res.status(400).json({error:'Invalid event ID'});
+  try {
+    const row=(await Event.getById(id)).rows[0];
+    if(!row) return res.status(404).json({error:'Event not found'});
+    res.json(row);
+  } catch {res.status(503).json({error:'Unable to load event. Please try again.'});}
+}
 async function createEvent(req,res) {
   if(!req.user) return res.status(401).json({error:'Authentication required'});
   if(req.body.source && req.body.source!=='internal') return res.status(403).json({error:'External events can only be created by the import job'});
@@ -49,4 +59,4 @@ async function deleteEvent(req,res) {
     res.json({message:'Event deleted'});
   } catch(error) {fail(res,error);}
 }
-module.exports={getEvents,createEvent,updateEvent,deleteEvent};
+module.exports={getEvents,getEvent,createEvent,updateEvent,deleteEvent};

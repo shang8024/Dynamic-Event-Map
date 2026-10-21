@@ -66,12 +66,12 @@ app.get('/api/readyz', require('./services/readiness').createReadiness({
   db:require('./config/db'),redis:require('./config/redis'),realtime:require('./socket'),imageProxyURL:process.env.IMAGE_PROXY_URL,
 }));
 app.use('/api',require('./middleware/rateLimit').anonymous);
+app.use("/api/events/external", externalEventsRoutes);
 app.use("/api/events", eventsRoutes);
 // Nested comments route: /api/events/:eventId/comments
 app.use("/api/events/:eventId/comments", commentsRoutes);
 app.use('/api/events/:eventId/image', require('./routes/eventImages'));
 app.use("/api/stats", statsRoutes);
-app.use("/api/events/external", externalEventsRoutes);
 app.use("/api/bookmarks", bookmarksRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/profiles", profilesRoutes);
