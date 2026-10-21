@@ -12,7 +12,7 @@ async function init(server,options={}) {
   defaultIO=io;
   for(const client of [pubClient,subClient]) client.on('error',error=>console.error('Realtime Redis unavailable',error.code||error.name));
   await Promise.all([pubClient.connect(),subClient.connect()]);
-  io.adapter(createAdapter(pubClient,subClient));
+  io.adapter(createAdapter(pubClient,subClient,{key:options.adapterKey||'eventmap:v1'}));
   io.realtimeReady=()=>pubClient.isReady && subClient.isReady;
   io.use(async(socket,next)=>{
     try {
@@ -38,7 +38,7 @@ async function init(server,options={}) {
       if(Date.now()-windowStart>60000) {joins=0;windowStart=Date.now();}
       if(++joins>60 || !/^\d{1,10}$/.test(String(eventId)) || joined.size>=5) return typeof ack==='function'&&ack({ok:false});
       try {
-        const exists=await (options.db||require('./config/db')).query('SELECT 1 FROM events WHERE id=$1',[eventId]);
+        const exists=await (options.db||options.eventDB||require('./config/db')).query('SELECT 1 FROM events WHERE id=$1',[eventId]);
         if(!exists.rowCount) return typeof ack==='function'&&ack({ok:false});
         await socket.join(`event_${eventId}`);joined.add(String(eventId));
         if(typeof ack==='function') ack({ok:true,eventId:String(eventId)});
