@@ -1,0 +1,51 @@
+version: "3.9"
+
+# Optional one-shot worker. Include only after its dedicated secret files exist.
+# No timer or delivery is enabled by deploying this zero-replica service.
+secrets:
+  ses_access_key:
+    external: true
+  ses_secret_key:
+    external: true
+
+services:
+  notifications:
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-api:${IMAGE_TAG:-latest}
+    command: ["node", "workers/notifications.js"]
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=128
+      DB_HOST: db
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_NAME: "${DB_NAME:-eventsdb}"
+      DB_USER: "${DB_USER:-user}"
+      DB_PASSWORD_FILE: /run/secrets/pg_password
+      UNSUBSCRIBE_SIGNING_SECRET_FILE: /run/secrets/unsubscribe_signing_secret
+      SES_ACCESS_KEY_ID_FILE: /run/secrets/ses_access_key
+      SES_SECRET_ACCESS_KEY_FILE: /run/secrets/ses_secret_key
+      SES_REGION: "${SES_REGION:-ca-central-1}"
+      EMAIL_PROVIDER: "${EMAIL_PROVIDER:-disabled}"
+      EMAIL_DELIVERY_ENABLED: "${EMAIL_DELIVERY_ENABLED:-false}"
+      EMAIL_FEEDBACK_READY: "${EMAIL_FEEDBACK_READY:-false}"
+      MARKETING_DELIVERY_ENABLED: "${MARKETING_DELIVERY_ENABLED:-false}"
+      EMAIL_FROM: "${EMAIL_FROM:-}"
+      EMAIL_SENDER_NAME: "${EMAIL_SENDER_NAME:-Dynamic Event Map}"
+      EMAIL_SENDER_CONTACT: "${EMAIL_SENDER_CONTACT:-}"
+      SES_CONFIGURATION_SET: "${SES_CONFIGURATION_SET:-}"
+      PUBLIC_APP_URL: "https://www.${DOMAIN}"
+      FIREBASE_PROJECT_ID: "${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID}"
+    secrets:
+      - pg_password
+      - unsubscribe_signing_secret
+      - ses_access_key
+      - ses_secret_key
+    networks: [internal]
+    deploy:
+      mode: replicated
+      replicas: 0
+      restart_policy:
+        condition: none
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'

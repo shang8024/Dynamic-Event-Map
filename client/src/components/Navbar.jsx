@@ -1,10 +1,28 @@
-import React from "react";
+import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import GuestAvatar from "../assets/guest.png";
+import AuthDialog from "./AuthDialog";
+import { authErrorMessage } from "../services/authSession";
 
 export default function Navbar() {
-  const { user, loginWithGoogle, logout } = useAuth();
+  const { user, account, loading, logout } = useAuth();
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState("signin");
+  const [logoutError, setLogoutError] = useState("");
+  const closeAuth = useCallback(() => setAuthOpen(false), []);
+  const openAuth = (mode) => {
+    setAuthMode(mode);
+    setAuthOpen(true);
+  };
+  const handleLogout = async () => {
+    setLogoutError("");
+    try {
+      await logout();
+    } catch (error) {
+      setLogoutError(authErrorMessage(error));
+    }
+  };
 
   return (
     <div className="navbar bg-base-100 px-4 shadow-sm">
@@ -22,6 +40,11 @@ export default function Navbar() {
       </div>
 
       <div className="flex-none">
+        {logoutError && (
+          <span role="alert" className="text-error mr-3 max-w-48 text-xs">
+            {logoutError}
+          </span>
+        )}
         {user ? (
           <div>
             <ul className="menu menu-horizontal relative z-50 px-1">
@@ -43,8 +66,14 @@ export default function Navbar() {
                       <Link to="/comments">My Comments</Link>
                     </li>
                     <li>
-                      <button onClick={logout} className="w-full text-left">
-                        Logout
+                      <Link to="/recommendations">Recommendations</Link>
+                    </li>
+                    <li>
+                      <Link to="/settings">Notifications & privacy</Link>
+                    </li>
+                    <li>
+                      <button onClick={handleLogout} className="w-full text-left">
+                        Sign out
                       </button>
                     </li>
                   </ul>
@@ -52,12 +81,30 @@ export default function Navbar() {
               </li>
             </ul>
           </div>
-        ) : (
-          <button onClick={loginWithGoogle} className="btn btn-primary btn-sm h-8">
-            Sign in with Google
+        ) : account ? (
+          <button onClick={() => openAuth("signin")} className="btn btn-primary btn-sm">
+            {account.emailVerified ? "Finish signing in" : "Verify email"}
           </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openAuth("signin")}
+              className="btn btn-ghost btn-sm"
+              disabled={loading}
+            >
+              {loading ? "Loading…" : "Sign in"}
+            </button>
+            <button
+              onClick={() => openAuth("register")}
+              className="btn btn-primary btn-sm"
+              disabled={loading}
+            >
+              Create account
+            </button>
+          </div>
         )}
       </div>
+      <AuthDialog open={authOpen} initialMode={authMode} onClose={closeAuth} />
     </div>
   );
 }

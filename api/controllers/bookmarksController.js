@@ -1,4 +1,3 @@
-const { parse } = require('yargs');
 const Bookmark = require('../models/bookmarkModel');
 const socket = require("../socket");
 

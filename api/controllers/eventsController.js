@@ -1,7 +1,5 @@
 const Event = require("../models/eventModel");
-const redisClient = require("../config/redis");
 const socket = require("../socket");
-const pool = require("../config/db");
 const { bumpEventCount } = require("./statsController");
 
 const getEvents = async (req, res) => {
@@ -40,22 +38,12 @@ const createEvent = async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  let user_id = null;
-  if (String(source) === "external") {
-    // use system profile
-    try {
-      const r = await pool.query(
-        "SELECT id FROM profiles WHERE username = 'system' LIMIT 1"
-      );
-      user_id = r.rows[0]?.id || null;
-    } catch (e) {
-      console.warn("Unable to resolve system profile", e);
-    }
-  } else {
-    if (!req.user)
-      return res.status(401).json({ error: "Authentication required" });
-    user_id = req.user.id;
+  if (!req.user)
+    return res.status(401).json({ error: "Authentication required" });
+  if (source !== "internal") {
+    return res.status(403).json({ error: "External events can only be created by the import job" });
   }
+  const user_id = req.user.id;
 
   const starts_at =
     typeof rawStarts === "string" ? new Date(rawStarts) : rawStarts;

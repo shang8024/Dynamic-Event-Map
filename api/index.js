@@ -12,6 +12,7 @@ require("dotenv").config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+const host = process.env.HOST || "0.0.0.0";
 app.set('trust proxy', 1);
 
 app.use(express.json());
@@ -60,14 +61,17 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Routes
+app.get('/api/healthz', (req, res) => res.json({ status: 'ok' }));
 app.use("/api/events", eventsRoutes);
 // Nested comments route: /api/events/:eventId/comments
 app.use("/api/events/:eventId/comments", commentsRoutes);
 app.use("/api/stats", statsRoutes);
-app.use("/events/external", externalEventsRoutes);
+app.use("/api/events/external", externalEventsRoutes);
 app.use("/api/bookmarks", bookmarksRoutes);
-app.use("/auth", authRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/profiles", profilesRoutes);
+app.use('/api', require('./routes/interests'));
+app.use('/api', require('./routes/emailFeedback'));
 
 // User comments route
 const { getUserComments } = require("./controllers/commentsController");
@@ -80,6 +84,6 @@ const server = http.createServer(app);
 const socket = require("./socket");
 socket.init(server);
 
-server.listen(port, () =>
-  console.log(`API running on http://localhost:${port}`)
+server.listen(port, host, () =>
+  console.log(`API running on http://${host}:${port}`)
 );

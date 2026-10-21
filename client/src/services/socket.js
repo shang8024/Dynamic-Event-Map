@@ -1,16 +1,8 @@
 import { io } from "socket.io-client";
+import { socketEndpoint } from "./endpoints";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://localhost:5000`;
-
-function socketTarget(apiBase, origin) {
-  const trimmed = apiBase.replace(/\/+$/, "");
-  if (/^https?:\/\//i.test(trimmed)) {
-    return { url: trimmed, path: "/socket.io" };
-  }
-  return { url: origin, path: `${trimmed || ""}/socket.io` };
-}
-
-const { url, path } = socketTarget(API_BASE, window.location.origin);
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+const { url, path } = socketEndpoint(API_BASE, window.location.origin);
 
 const socket = io(url, {
   path,

@@ -6,7 +6,7 @@ DEPLOY_DIR=/root/deploy
 [[ -f "$DEPLOY_DIR/stack.yml" && -f "$DEPLOY_DIR/db/init.sql" ]] || { echo "Upload the release to /root/deploy first" >&2; exit 1; }
 for command in docker flock systemctl install; do command -v "$command" >/dev/null; done
 [[ "$(docker info --format '{{.Swarm.LocalNodeState}}')" == active ]] || { echo "Initialize the intended single-node Swarm first" >&2; exit 1; }
-docker secret inspect pg_password redis_password s3_access_key s3_secret_key >/dev/null
+docker secret inspect pg_password redis_password s3_access_key s3_secret_key unsubscribe_signing_secret >/dev/null
 
 # Do not initialize/format disks, rotate credentials, or recursively change existing data.
 install -d -m 700 /mnt/pgdata/postgres-data /mnt/pgdata/redis-data /var/lib/eventmap/job-status

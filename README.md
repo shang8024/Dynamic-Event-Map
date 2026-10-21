@@ -2,18 +2,22 @@
 
 Discover Toronto events on an interactive map. Browse activities by location, category and date, save events for later, and share local discoveries with the community.
 
+[Open the live map](https://www.dynamic-event-map.cloud)
+
 ![Toronto events map](images/main_page.png)
 
 ## Features
 
 - Interactive Google Maps view with clustered markers, location search and event filters.
 - Official City of Toronto event data alongside community submissions.
-- Google sign-in through Firebase Authentication.
+- Google sign-in and email/password registration through Firebase Authentication, including verification and password reset.
 - Personal bookmarks, comments and ownership-controlled event editing.
+- Explainable recommendations based on saved categories, with an explicit personalization preference.
+- Separate opt-in preferences for event reminders and weekly discovery emails, plus signed unsubscribe links.
 - Live updates through Socket.IO, with Redis connecting API replicas.
 - Containerized services and documented database import, deployment and recovery workflows.
 
-Email registration, email reminders, opt-in newsletters and personalized recommendations are planned additions. They are not available in the current application.
+Email delivery remains disabled while provider feedback, administrative identity checks and real inbox tests are completed. The notification scheduler supports dry runs; saving a preference does not send mail. See [notification behavior and activation checks](docs/NOTIFICATIONS.md).
 
 ## Architecture
 
@@ -27,15 +31,17 @@ Email registration, email reminders, opt-in newsletters and personalized recomme
 | Runtime | Docker Compose for development; Docker Swarm deployment configuration |
 | Routing and TLS | Traefik, Nginx, Let's Encrypt |
 | Delivery | GitHub Actions, GitHub Container Registry |
+| Hosting and backups | AWS Lightsail, private versioned Amazon S3 |
+| Email integration | Amazon SES with a PostgreSQL outbox; delivery disabled pending activation checks |
 
-The initial hosting target is a single VM on DigitalOcean or AWS Lightsail. Multiple containers on one VM do not provide host-level high availability. See the [cloud comparison](docs/CLOUD_PLAN.md) for costs, tradeoffs and the path to managed AWS infrastructure.
+The live deployment uses a single AWS Lightsail VM in Canada (Central), with PostgreSQL, Redis, the API and web client running in Docker Swarm. Daily database backups are stored in a private S3 bucket, and a populated restore has been verified. Multiple containers on one VM do not provide host-level high availability. See the [cloud comparison](docs/CLOUD_PLAN.md) for costs, tradeoffs and the path to managed AWS infrastructure.
 
 ## Local development
 
 Requirements: Docker with Compose, a Firebase project, and a restricted Google Maps browser key. Use Node.js 22 or later when running tools outside containers.
 
 1. Copy `.env.example` to `.env` and fill in development configuration. Never commit credentials.
-2. Set `FIREBASE_PROJECT_ID` to the same project as `VITE_FIREBASE_PROJECT_ID`, enable Google sign-in, and authorize the development domain in Firebase. The current API verifies ID tokens with public signing certificates; no service-account private key is required. See [Firebase authentication configuration](docs/FIREBASE_AUTH.md) for capabilities and limits.
+2. Set `FIREBASE_PROJECT_ID` to the same project as `VITE_FIREBASE_PROJECT_ID`, enable Google and email/password sign-in, and authorize the development domain in Firebase. The API verifies ID tokens with public signing certificates; no service-account private key is required for web login. Live notification delivery separately requires administrative identity lookup. See [Firebase authentication configuration](docs/FIREBASE_AUTH.md) for capabilities and limits.
 3. Start the development stack:
 
    ```sh
@@ -54,10 +60,11 @@ Requirements: Docker with Compose, a Firebase project, and a restricted Google M
 - [Cloud costs and infrastructure choices](docs/CLOUD_PLAN.md)
 - [Account setup and credential rotation](docs/ACCOUNTS.md)
 - [Firebase verification without a service-account key](docs/FIREBASE_AUTH.md)
+- [Preferences, recommendations and notification operations](docs/NOTIFICATIONS.md)
 - [Authentication, email and recommendation roadmap](docs/PRODUCT_PLAN.md)
 - [Security review and remaining release checks](docs/SECURITY_AUDIT.md)
 
-Production deployment is manual and disabled until the repository variable `PRODUCTION_ENABLED` is set to `true` after provisioning and release checks. The presence of deployment files is not evidence of a currently running public service.
+The site is deployed over HTTPS. The GitHub Actions production workflow is a separate, manual deployment path, gated by the repository variable `PRODUCTION_ENABLED=true` and its configured environment/secrets. It is not enabled merely by cloning this repository.
 
 ## Data and license
 

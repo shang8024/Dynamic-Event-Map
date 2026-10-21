@@ -9,6 +9,9 @@ import { useAuth, AuthProvider } from "./contexts/AuthContext.jsx";
 import Navbar from "./components/Navbar.jsx";
 import { NotificationProvider } from "./contexts/NotificationContext.jsx";
 import NotificationBanner from "./components/NotificationBanner.jsx";
+import PreferencesPage from "./components/PreferencesPage.jsx";
+import RecommendationsPage from "./components/RecommendationsPage.jsx";
+import UnsubscribePage from "./components/UnsubscribePage.jsx";
 
 function PageWrapper({ children }) {
   return (
@@ -20,13 +23,20 @@ function PageWrapper({ children }) {
 }
 
 function AuthorizedRoute({ children }) {
-  // Placeholder for actual authorization logic
-  const { user } = useAuth();
+  const { user, account, loading } = useAuth();
   if (!user) {
     return (
       <PageWrapper>
         <div className="items-center justify-center">
-          <p className="text-center text-lg">Please log in to access this page.</p>
+          <p role="status" className="text-center text-lg">
+            {loading
+              ? "Loading your account…"
+              : account && !account.emailVerified
+                ? "Verify your email to access this page. Use Verify email above to continue."
+                : account
+                  ? "Finish signing in above to access this page."
+                  : "Sign in or create an account above to access this page."}
+          </p>
         </div>
       </PageWrapper>
     );
@@ -41,36 +51,60 @@ export default function App() {
     <NotificationProvider>
       <NotificationBanner />
       <AuthProvider>
-        <LoadScript googleMapsApiKey={API_KEY} libraries={["places"]}>
-          <Router>
-            <Routes>
-              <Route
-                path="/bookmarks"
-                element={
-                  <AuthorizedRoute>
-                    <BookmarksPage />
-                  </AuthorizedRoute>
-                }
-              />
-              <Route
-                path="/comments"
-                element={
-                  <AuthorizedRoute>
-                    <UserComments />
-                  </AuthorizedRoute>
-                }
-              />
-              <Route
-                path="*"
-                element={
-                  <PageWrapper>
+        <Router>
+          <Routes>
+            <Route
+              path="/settings"
+              element={
+                <AuthorizedRoute>
+                  <PreferencesPage />
+                </AuthorizedRoute>
+              }
+            />
+            <Route
+              path="/recommendations"
+              element={
+                <AuthorizedRoute>
+                  <RecommendationsPage />
+                </AuthorizedRoute>
+              }
+            />
+            <Route
+              path="/unsubscribe"
+              element={
+                <PageWrapper>
+                  <UnsubscribePage />
+                </PageWrapper>
+              }
+            />
+            <Route
+              path="/bookmarks"
+              element={
+                <AuthorizedRoute>
+                  <BookmarksPage />
+                </AuthorizedRoute>
+              }
+            />
+            <Route
+              path="/comments"
+              element={
+                <AuthorizedRoute>
+                  <UserComments />
+                </AuthorizedRoute>
+              }
+            />
+            <Route
+              path="*"
+              element={
+                <PageWrapper>
+                  <LoadScript googleMapsApiKey={API_KEY} libraries={["places"]}>
                     <EventMap />
-                  </PageWrapper>
-                }
-              />
-            </Routes>
-          </Router>
-        </LoadScript>
+                  </LoadScript>
+                </PageWrapper>
+              }
+            />
+          </Routes>
+        </Router>
       </AuthProvider>
     </NotificationProvider>
   );

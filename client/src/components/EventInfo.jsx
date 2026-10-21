@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useBookmarks, useCountBookmarks } from "../hooks";
 import EventComments from "./EventComments.jsx";
+import EventArtwork from "./EventArtwork.jsx";
 import { useAuth } from "../contexts/AuthContext.jsx";
 
 export default function EventInfo({
@@ -20,18 +21,6 @@ export default function EventInfo({
 
   if (!event) return null;
 
-  // Build a Google Street View image for the event location when possible.
-  const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
-  const hasPosition = !!(
-    event.position &&
-    typeof event.position.lat === "number" &&
-    typeof event.position.lng === "number"
-  );
-  // Prefer Street View image (gives an actual photographic view when available).
-  const googleStreetView =
-    hasPosition && API_KEY
-      ? `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${event.position.lat},${event.position.lng}&fov=90&heading=235&pitch=10&key=${API_KEY}`
-      : null;
   const bookmarked = isBookmarked(event.id);
   const pending = isPending(event.id);
   const liveBookmarkCount = numBookmarks ?? event.num_bookmarks;
@@ -65,12 +54,10 @@ export default function EventInfo({
       <div id="information">
         <div className="bg-base-100 rounded-md shadow-sm">
           <div className="bg-base-100 relative h-40 w-full overflow-hidden rounded-md">
-            <img
-              src={
-                event.img || googleStreetView || `https://picsum.photos/seed/${event.id}/800/400`
-              }
-              alt={event.title}
-              className="h-56 w-full object-cover object-center"
+            <EventArtwork
+              src={event.img}
+              title={event.title}
+              className="h-full w-full object-center"
             />
             {user && (
               <button

@@ -6,7 +6,9 @@ const fs = require('fs');
  * Priority:
  * 1) GOOGLE_APPLICATION_CREDENTIALS path to a JSON file inside the container
  * 2) FIREBASE_SERVICE_ACCOUNT env var containing the JSON string
- * If neither is provided, firebase-admin is not initialized and verification will fail at runtime.
+ * 3) FIREBASE_PROJECT_ID for ID-token signature verification only
+ * The third mode needs public signing certificates, but no private credentials.
+ * Revocation checks and administrative operations still require credentials.
  */
 try {
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -32,8 +34,11 @@ try {
     } catch (err) {
       console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT JSON', err);
     }
+  } else if (process.env.FIREBASE_PROJECT_ID?.trim()) {
+    admin.initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID.trim() });
+    console.log('firebase-admin initialized for ID-token verification using FIREBASE_PROJECT_ID');
   } else {
-    console.warn('No Firebase credentials provided (GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT).');
+    console.warn('No Firebase configuration provided (FIREBASE_PROJECT_ID or server credentials).');
   }
 } catch (err) {
   console.error('Unexpected error initializing firebase-admin', err);

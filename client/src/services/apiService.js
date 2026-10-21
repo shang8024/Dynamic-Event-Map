@@ -1,9 +1,12 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5000";
-export const API_BASE = `${API_BASE_URL}/api`;
+import { apiBase } from "./endpoints";
+import { getVerifiedIdToken } from "./authToken";
+
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+export const API_BASE = apiBase(API_BASE_URL);
 
 export async function get(url) {
   const headers = {};
-  const token = localStorage.getItem("idToken");
+  const token = await getVerifiedIdToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${url}`, { headers });
   if (!res.ok) {
@@ -21,7 +24,7 @@ export async function get(url) {
 
 export async function post(url, data) {
   const headers = { "Content-Type": "application/json" };
-  const token = localStorage.getItem("idToken");
+  const token = await getVerifiedIdToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${url}`, {
     method: "POST",
@@ -43,7 +46,7 @@ export async function post(url, data) {
 
 export async function del(url) {
   const headers = {};
-  const token = localStorage.getItem("idToken");
+  const token = await getVerifiedIdToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${url}`, {
     method: "DELETE",
@@ -64,7 +67,7 @@ export async function del(url) {
 
 export async function put(url, data) {
   const headers = { "Content-Type": "application/json" };
-  const token = localStorage.getItem("idToken");
+  const token = await getVerifiedIdToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${url}`, {
     method: "PUT",

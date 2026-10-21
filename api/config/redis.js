@@ -1,7 +1,7 @@
 const { createClient } = require("redis");
 require("dotenv").config();
 const fs = require("fs");
-const host = "redis";
+const host = process.env.REDIS_HOST || "redis";
 const port = Number(process.env.REDIS_PORT || 6379);
 const passwordFile = process.env.REDIS_PASSWORD_FILE;
 const password =

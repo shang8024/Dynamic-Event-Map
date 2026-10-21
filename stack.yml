@@ -39,6 +39,8 @@ secrets:
     external: true
   s3_secret_key:
     external: true
+  unsubscribe_signing_secret:
+    external: true
 
 services:
   traefik:
@@ -166,10 +168,14 @@ services:
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
       ALLOWED_ORIGINS: "https://${DOMAIN},https://www.${DOMAIN}"
       FIREBASE_PROJECT_ID: "${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID}"
+      UNSUBSCRIBE_SIGNING_SECRET_FILE: /run/secrets/unsubscribe_signing_secret
+      SES_FEEDBACK_TOPIC_ARN: "${SES_FEEDBACK_TOPIC_ARN:-}"
+      SES_AUTO_CONFIRM_SUBSCRIPTION: "${SES_AUTO_CONFIRM_SUBSCRIPTION:-false}"
       FRONTEND_PORT: 443
     secrets:
       - pg_password
       - redis_password
+      - unsubscribe_signing_secret
     networks: [proxy, internal]
     depends_on: [db, redis]
     deploy:

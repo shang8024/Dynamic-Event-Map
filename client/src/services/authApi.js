@@ -1,11 +1,8 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
-
-function getToken() {
-  return localStorage.getItem("idToken");
-}
+import { API_BASE } from "./apiService";
+import { getVerifiedIdToken } from "./authToken";
 
 export async function authFetch(path, opts = {}) {
-  const token = getToken();
+  const token = await getVerifiedIdToken();
   const headers = opts.headers ? { ...opts.headers } : {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
 

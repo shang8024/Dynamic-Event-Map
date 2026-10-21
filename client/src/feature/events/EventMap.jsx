@@ -8,6 +8,7 @@ import { useAuth } from "../../contexts/AuthContext.jsx";
 
 // services
 import { fetchEvents, deleteEvent, fetchTodaySummary } from "../../services/eventsService";
+import { createPlacesSearch } from "../../services/placesSearch";
 import socket from "../../services/socket";
 import { useNotifications } from "../../contexts/NotificationContext.jsx";
 
@@ -84,6 +85,10 @@ export default function EventMap() {
   const lastSelectedRef = useRef(null);
   const optimisticRef = useRef({});
   const hasLoadedRef = useRef(false);
+  const placesErrorRef = useRef(false);
+  const [placesSearch] = useState(() =>
+    createPlacesSearch(() => window.google?.maps?.places, TORONTO_BOUNDS)
+  );
 
   // core state
   const [center, setCenter] = useState({ lat: 43.7, lng: -79.42 });
@@ -127,64 +132,48 @@ export default function EventMap() {
   // other
   const { user } = useAuth();
   const { push } = useNotifications();
+  const notifyRef = useRef(push);
+
+  useEffect(() => {
+    notifyRef.current = push;
+  }, [push]);
 
   // -----------------------------
   // Helpers
   // -----------------------------
-  const hasPlaces = useCallback(
-    () => !!(window.google && window.google.maps && window.google.maps.places),
-    []
-  );
+  const reportPlacesError = useCallback(() => {
+    if (!placesErrorRef.current) {
+      notifyRef.current({
+        type: "error",
+        message: "Location search is unavailable. Please try again later.",
+        autoCloseMs: 5000,
+      });
+      placesErrorRef.current = true;
+    }
+  }, []);
 
-  const getPredictions = useCallback(
-    (input) =>
-      new Promise((resolve) => {
-        if (!hasPlaces()) return resolve([]);
-        try {
-          const service = new window.google.maps.places.AutocompleteService();
-          const bounds = new window.google.maps.LatLngBounds(
-            { lat: TORONTO_BOUNDS.south, lng: TORONTO_BOUNDS.west },
-            { lat: TORONTO_BOUNDS.north, lng: TORONTO_BOUNDS.east }
-          );
-          service.getPlacePredictions(
-            { input, bounds, strictBounds: true, componentRestrictions: { country: "ca" } },
-            (preds, status) => {
-              if (status === window.google.maps.places.PlacesServiceStatus.OK && preds)
-                resolve(preds);
-              else resolve([]);
-            }
-          );
-        } catch (err) {
-          console.warn("getPredictions error", err);
-          resolve([]);
-        }
-      }),
-    [hasPlaces]
-  );
+  const getPredictions = useCallback(async (input) => {
+    try {
+      const predictions = await placesSearch.getPredictions(input);
+      placesErrorRef.current = false;
+      return predictions;
+    } catch {
+      reportPlacesError();
+      return [];
+    }
+  }, [placesSearch, reportPlacesError]);
 
-  const getPlaceDetails = useCallback(
-    (placeId) =>
-      new Promise((resolve) => {
-        if (!hasPlaces()) return resolve(null);
-        const service = new window.google.maps.places.PlacesService(
-          mapRef.current || document.createElement("div")
-        );
-        try {
-          service.getDetails(
-            { placeId, fields: ["formatted_address", "geometry"] },
-            (place, status) => {
-              if (status === window.google.maps.places.PlacesServiceStatus.OK && place)
-                resolve(place);
-              else resolve(null);
-            }
-          );
-        } catch (err) {
-          console.warn("getPlaceDetails error", err);
-          resolve(null);
-        }
-      }),
-    [hasPlaces]
-  );
+  const getPlaceDetails = useCallback(async (prediction) => {
+    try {
+      const place = await placesSearch.getPlaceDetails(prediction);
+      if (!place) reportPlacesError();
+      else placesErrorRef.current = false;
+      return place;
+    } catch {
+      reportPlacesError();
+      return null;
+    }
+  }, [placesSearch, reportPlacesError]);
 
   const panToPosition = useCallback((pos, zoom = 15) => {
     if (!mapRef.current || !pos) return;
@@ -199,6 +188,12 @@ export default function EventMap() {
   // -----------------------------
   // Effects
   // -----------------------------
+  useEffect(() => {
+    placesSearch.resetSession();
+    setPredictions([]);
+    if (mode === "add") setInputValue("");
+  }, [mode, placesSearch]);
+
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
@@ -215,13 +210,6 @@ export default function EventMap() {
     mediaQuery.addEventListener("change", handler);
     return () => mediaQuery.removeEventListener("change", handler);
   }, []);
-  useEffect(() => {
-    if (mode === "add") {
-      setInputValue("");
-      setPredictions([]);
-    }
-  }, [mode]);
-
   // filtered events based on time window, category and distance
   const filteredEvents = React.useMemo(() => {
     const now = Date.now();
@@ -284,6 +272,7 @@ export default function EventMap() {
     // For 'search' and 'add' modes use Google Places Autocomplete
     if (!mapLoaded || (mode !== "search" && mode !== "add")) return;
     if (!inputValue || inputValue.length < 2) {
+      if (!inputValue) placesSearch.resetSession();
       setPredictions([]);
       return;
     }
@@ -292,14 +281,16 @@ export default function EventMap() {
       return;
     }
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    let cancelled = false;
     searchTimeoutRef.current = setTimeout(async () => {
       const preds = await getPredictions(inputValue);
-      setPredictions(preds);
-    }, 250);
+      if (!cancelled) setPredictions(preds);
+    }, 350);
     return () => {
+      cancelled = true;
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
-  }, [inputValue, mapLoaded, getPredictions, mode, filteredEvents]);
+  }, [inputValue, mapLoaded, getPredictions, mode, filteredEvents, placesSearch]);
 
   // geolocation
   useEffect(() => {
@@ -585,7 +576,7 @@ export default function EventMap() {
     setPredictions([]);
     setInputValue(p.description);
     lastSelectedRef.current = p.description;
-    const place = await getPlaceDetails(p.place_id);
+    const place = await getPlaceDetails(p);
     if (place && place.geometry) {
       const lat = place.geometry.location.lat();
       const lng = place.geometry.location.lng();
@@ -606,7 +597,7 @@ export default function EventMap() {
     setPredictions([]);
     setInputValue(p.description);
     lastSelectedRef.current = p.description;
-    const place = await getPlaceDetails(p.place_id);
+    const place = await getPlaceDetails(p);
     if (place && place.geometry) {
       const lat = place.geometry.location.lat();
       const lng = place.geometry.location.lng();

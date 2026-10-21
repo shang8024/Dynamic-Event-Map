@@ -16,15 +16,21 @@ if [[ -n "${3:-}" ]]; then
   [[ "$3" == "/root/eventmap-releases/$IMAGE_TAG" && -f "$3/stack.yml" ]] || exit 1
   # Install reviewed release files only while holding the same host job lock.
   cp "$3/stack.yml" ./stack.yml
+  cp "$3/stack.notifications.yml" ./stack.notifications.yml
   cp -a "$3/db" "$3/infra" ./
 fi
 [[ "${DOMAIN:-}" =~ ^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}$ ]] || { echo "Configure DOMAIN" >&2; exit 1; }
 : "${FIREBASE_PROJECT_ID:?Configure FIREBASE_PROJECT_ID}"
 [[ "$(docker info --format '{{.Swarm.LocalNodeState}}')" == active ]]
-docker secret inspect pg_password redis_password s3_access_key s3_secret_key >/dev/null
+docker secret inspect pg_password redis_password s3_access_key s3_secret_key unsubscribe_signing_secret >/dev/null
+STACK_ARGS=(-c stack.yml)
+if [[ "${NOTIFICATIONS_CONFIGURED:-false}" == true ]]; then
+  docker secret inspect ses_access_key ses_secret_key >/dev/null
+  STACK_ARGS+=(-c stack.notifications.yml)
+fi
 for component in api client events-ingest db-backup; do docker pull "$IMAGE_PREFIX-$component:$IMAGE_TAG"; done
-docker stack config -c stack.yml >/dev/null
-docker stack deploy --with-registry-auth --resolve-image always -c stack.yml eventmap
+docker stack config "${STACK_ARGS[@]}" >/dev/null
+docker stack deploy --with-registry-auth --resolve-image always "${STACK_ARGS[@]}" eventmap
 
 # Check current desired tasks against the service's exact resolved image.
 # An older healthy HTTP response alone must not pass a failed rollout.

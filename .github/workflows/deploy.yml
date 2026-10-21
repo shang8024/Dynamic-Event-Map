@@ -62,7 +62,7 @@ jobs:
         run: |
           source infra/scripts/ci_ssh.sh
           tar -czf "$RUNNER_TEMP/eventmap-release.tar.gz" \
-            stack.yml db infra/scripts infra/system infra/env/.env.production.example
+            stack.yml stack.notifications.yml db infra/scripts infra/system infra/env/.env.production.example
           ssh_ci "sudo -n install -d -m 700 '/root/eventmap-releases/$GITHUB_SHA' && sudo -n tar --no-same-owner -xzf - -C '/root/eventmap-releases/$GITHUB_SHA'" \
             < "$RUNNER_TEMP/eventmap-release.tar.gz"
           ssh_ci "sudo -n bash '/root/eventmap-releases/$GITHUB_SHA/infra/scripts/deploy.sh' '$IMAGE_PREFIX' '$GITHUB_SHA' '/root/eventmap-releases/$GITHUB_SHA'"

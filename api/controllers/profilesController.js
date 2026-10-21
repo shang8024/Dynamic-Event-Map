@@ -1,29 +1,20 @@
 const pool = require('../config/db');
 
 const addUser = async (req, res) => {
-  const { uid, email, displayName, photoURL } = req.body;
-  const username = displayName || email;
-  const db_values = [username, uid, email];
-  const db_updates = ['username = EXCLUDED.username', 'updated_at = NOW()'];
-  if (photoURL !== undefined && photoURL !== null) {
-    db_values.push(photoURL);
-    db_updates.push('picture = EXCLUDED.picture');
+  const { uid } = req.firebase;
+  if (req.body?.uid && req.body.uid !== uid) {
+    return res.status(403).json({ error: 'Cannot modify another profile' });
   }
-  try {
-    const result = await pool.query(
-        'INSERT INTO profiles (username, google_id, email, picture) VALUES ($1, $2, $3, $4) ' + 
-        'ON CONFLICT (google_id) DO UPDATE SET ' + db_updates.join(', '),
-        [username, uid, email, photoURL || null]);
-    console.log('User added/updated:', uid);
-    res.status(200).json({ message: 'User added/updated successfully' });
-  } catch (error) {
-    console.error('Error adding user', error);
-    res.status(500).json({ error: 'Unable to add user' });
-  }
+  // Middleware already provisioned this UID safely. Legacy profile sync must
+  // not replace its allocated unique username with a colliding display name.
+  return res.status(200).json({ message: 'Profile synced successfully', user: req.user });
 };
 
 const getUserByUid = async (req, res) => {
   const { uid } = req.params;
+  if (uid !== req.firebase.uid) {
+    return res.status(403).json({ error: 'Cannot access another profile' });
+  }
   try {
     const result = await pool.query(
         'SELECT id, username, google_id FROM profiles WHERE google_id = $1',
