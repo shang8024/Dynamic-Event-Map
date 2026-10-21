@@ -87,7 +87,7 @@ Linked-image bytes are cached only in worker memory (20 MiB maximum, one-hour ex
 
 ### Import event data
 
-The importer reads the City's [Festivals & Events dataset](https://open.toronto.ca/dataset/festivals-events/). No Toronto API key is required. It validates the complete official snapshot, normalizes Toronto dates, deduplicates source identities, and imports non-ended event series with individual occurrence starts.
+The importer reads the City's [Festivals & Events dataset](https://open.toronto.ca/dataset/festivals-events/). No Toronto API key or AI agent is required. It validates the complete official snapshot, normalizes Toronto dates, deduplicates source identities, and imports one event per source submission with separate occurrence ranges. Published occurrence dates and venue date rules provide individual starts/ends, including weekday-specific hours, multiple intervals, overnight ranges and Toronto daylight-saving changes. Ambiguous, conflicting or missing ends remain unknown; the series' final expiry is never copied onto every occurrence.
 
 ```sh
 npm ci --prefix infra/ingest
@@ -100,6 +100,12 @@ DB_HOST=127.0.0.1 REDIS_HOST=127.0.0.1 \
 ```
 
 A fresh database starts without downloaded events. Imports preserve internal events and manual edits, and use a transaction and advisory lock. A failed, partial or stale download does not replace existing data. Missing source entries are not automatically deleted or declared cancelled. Recurring event ranges are not treated as continuous opening hours. One source submission stays one event, with distinct occurrence starts; series expiry uses its final known end, never its first occurrence. An ongoing/future scheduled occurrence blocks cleanup when dates conflict.
+
+The create/edit form accepts separate date ranges, with optional ends. Saves atomically refresh `event_occurrences`; removed or rescheduled slots invalidate queued reminders. An admin's explicit schedule override on an official event survives later imports. Changing only a title does not take ownership of the official schedule. Maps keep one pin per event, details show all ranges, and reminders use each occurrence's start with distinct delivery keys. A manual schedule with an unknown final end cannot be automatically expired until resolved. User bookmarks/comments retain their small historical summaries after final expiry.
+
+Data quality is checked across normalization and PostgreSQL writes, including event fields, images/credits, source categories, locations, website and individual occurrence ranges. Available source fields must survive normalization; unexpected completeness regressions against existing imports count as anomalies. By default, at least three anomalous new events and a 10% anomaly ratio block the import; the same guard also checks the complete active candidate set. Configure `INGEST_ERROR_MINIMUM` and `INGEST_ERROR_RATIO` in the protected runtime environment. Normal unknown ends and explicit policy exclusions are distinct from unexplained loss.
+
+Every written event and occurrence range is checked before commit, including preserved manual edits and ownership. Any write mismatch rolls back regardless of the ratio. Failed imports do not advance the source checkpoint. Failures create a durable `ingest_alerts` record and a private `ingest_alert` inbox notification for project admins, with Socket.IO delivery. Repeated failures for the same official revision/code update a counter without duplicating inbox messages. Details contain controlled field names/counts, not raw organizer records or secrets. Email delivery remains disabled; these are administrator site notifications, not SES email alerts. If PostgreSQL itself is unavailable, the job fails and logs the error but cannot persist an alert in that unavailable database.
 
 Successful full imports atomically record the resource ID, URL, publication timestamp, declared size/hash, downloaded SHA-256/byte count and importer format version. A later write run first reads the small official catalogue. An identical verified revision skips the large JSON download, parsing and upsert; unknown, changed or incompatible checkpoints require a full verified import. Failed imports never advance the checkpoint. `--force-download` bypasses this optimization for a reviewed manual refresh. Dry runs still download/validate the snapshot and never change the database.
 
@@ -227,7 +233,7 @@ The helper validates migration checksums and schema, pulls the recorded image di
 
 ## Database upgrades
 
-`db/init.sql` runs only when PostgreSQL initializes an empty volume. Editing it does not upgrade an existing database. Apply all numbered migrations in order, including on a fresh installation. `001` fixes source identities; `002` adds consent, occurrences and the email outbox; `003` adds admin event management; `004` adds durable realtime activity; `005` adds import checkpoints and expiry cleanup. Applying `005` creates the cleanup function but does not delete data or enable a timer. No migration enables mail.
+`db/init.sql` runs only when PostgreSQL initializes an empty volume. Editing it does not upgrade an existing database. Apply all numbered migrations in order, including on a fresh installation. `001` fixes source identities; `002` adds consent, occurrences and the email outbox; `003` adds admin event management; `004` adds durable realtime activity; `005` adds import checkpoints and expiry cleanup; `006` supports independent occurrence ranges; `007` adds private ingestion alerts. These migrations define maintenance functions without running cleanup or enabling timers. No migration enables mail. Importer format version 4 forces the next reviewed full import to rebuild official ranges even if the source publication is unchanged.
 
 Before changing an existing database, run a backup and restore rehearsal, review migration SQL, and record its SHA-256 and target. For later releases, use the reviewed migrations from the staged candidate bundle rather than an older installed copy. Run these commands in a root Bash shell on the manager:
 

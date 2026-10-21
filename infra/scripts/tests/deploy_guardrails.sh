@@ -11,7 +11,7 @@ printf new > "$FIXTURE_CANDIDATE/infra/marker"
 printf 'DOMAIN=example.test\nFIREBASE_PROJECT_ID=test-project\n' > /root/deploy/.env
 chmod 600 /root/deploy/.env
 printf 'version: "3.9"\nservices: {}\n' > "$FIXTURE_CANDIDATE/stack.yml"
-for migration in 001_ingestion_identity 002_notifications 003_event_management 004_realtime_notifications 005_ingest_maintenance; do
+for migration in 001_ingestion_identity 002_notifications 003_event_management 004_realtime_notifications 005_ingest_maintenance 006_event_occurrences 007_ingest_alerts; do
   printf 'SELECT 1;\n' > "$FIXTURE_CANDIDATE/db/migrations/$migration.sql"
   sha256sum "$FIXTURE_CANDIDATE/db/migrations/$migration.sql" > "/var/lib/eventmap/migrations/$migration.applied"
 done

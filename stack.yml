@@ -285,6 +285,8 @@ services:
       - pg_password
       - redis_password
     environment:
+      INGEST_ERROR_RATIO: "${INGEST_ERROR_RATIO:-0.1}"
+      INGEST_ERROR_MINIMUM: "${INGEST_ERROR_MINIMUM:-3}"
       NODE_OPTIONS: --max-old-space-size=512
       DB_HOST: db
       DB_PORT: "${DB_PORT:-5432}"
