@@ -41,7 +41,7 @@ test('reminders fail closed after reschedule, stale source, opt-out or expiry',(
     scheduled_for:now,reminder_lead_hours:1,source:'external',source_observed_at:now-3600000,event_start:start,imported_start:start};
   assert.equal(eligibility(row,now),null);
   for(const changed of [{bookmarked:false},{reminders_enabled:false},{occurrence_status:'source_missing'},
-    {source_observed_at:now-73*3600000},{event_start:start+60000},{scheduled_start:start+60000},{expires_at:now-1}]) {
+    {source_observed_at:now-73*3600000},{event_start:start+60000},{scheduled_start:start+60000},{expires_at:now-1},{event_status:'cancelled'}]) {
     assert.notEqual(eligibility({...row,...changed},now),null);
   }
 });

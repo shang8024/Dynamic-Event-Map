@@ -49,17 +49,27 @@ test('notification PostgreSQL lifecycle and concurrency',{skip:process.env.NOTIF
       assert.equal(claims.filter(Boolean).length,1);
     });
     await t.test('opt-out, removed bookmark, changed schedule and suppression cancel before dispatch',async()=>{
-      for(const action of ['optout','bookmark','reschedule','suppression']) {
+      for(const action of ['optout','bookmark','reschedule','suppression','cancel']) {
         const {user,event,identity}=await reset();await outbox.scheduleNotifications(db);
         const job=await outbox.claimNext(db);
         if(action==='optout') await savePreferences(db,user.id,{reminders_enabled:false},identity);
         if(action==='bookmark') await db.query('DELETE FROM bookmarks');
         if(action==='reschedule') await db.query("UPDATE events SET starts_at=starts_at+interval '1 hour' WHERE id=$1",[event.id]);
+        if(action==='cancel') await db.query("UPDATE events SET status='cancelled' WHERE id=$1",[event.id]);
         if(action==='suppression') await db.query("INSERT INTO email_suppressions(email_hash,reason) VALUES($1,'complaint') ON CONFLICT DO NOTHING",[emailHash(identity.email)]);
         assert.equal(await outbox.beginDispatch(db,job,identity),null);
         assert.equal((await db.query('SELECT status FROM notification_outbox')).rows[0].status,'cancelled');
         await db.query('DELETE FROM email_suppressions');
       }
+    });
+    await t.test('cancelled listings retain bookmarks but schedule no reminder and cancel queued mail',async()=>{
+      const {event}=await reset();await outbox.scheduleNotifications(db);
+      await db.query("UPDATE events SET status='cancelled' WHERE id=$1",[event.id]);
+      await outbox.scheduleNotifications(db);
+      assert.equal((await db.query('SELECT status FROM notification_outbox')).rows[0].status,'cancelled');
+      assert.equal((await db.query('SELECT count(*)::int n FROM bookmarks')).rows[0].n,1);
+      await db.query('DELETE FROM notification_outbox');await outbox.scheduleNotifications(db);
+      assert.equal((await db.query('SELECT count(*)::int n FROM notification_outbox')).rows[0].n,0);
     });
     await t.test('expired leases recover; ambiguous dispatch never automatically retries',async()=>{
       await reset();await outbox.scheduleNotifications(db);const job=await outbox.claimNext(db);

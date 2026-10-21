@@ -12,7 +12,8 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved}) {
   const [failedURL,setFailedURL]=useState(null);
   if(!event) return null;
   const candidate=eventImage(event),image=candidate?.url===failedURL?null:candidate,ended=isEnded(event),manage=user&&(user.role==='admin'||String(user.id)===String(event.user_id));
-  const occurrences=event.data?.occurrences?.filter(item=>new Date(item.starts_at)>=new Date()).slice(0,10)||[];
+  const editedSchedule=event.data?.editor_overrides?.some(field=>field==='starts_at'||field==='ends_at');
+  const occurrences=editedSchedule?[]:event.data?.occurrences?.filter(item=>new Date(item.starts_at)>=new Date()).slice(0,10)||[];
   return <article className="event-detail-content">
     <div className="event-detail-actions"><button className="btn btn-circle bg-base-100 shadow" aria-label="Close event details" onClick={onClose}>✕</button></div>
     <div className="event-detail-hero">{!image && !ended && event.status!=='cancelled' && !event.data?.image_hidden?

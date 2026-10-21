@@ -45,6 +45,7 @@ module.exports = {
           JOIN events e ON e.id = b.event_id
           WHERE b.user_id = $1
             AND e.starts_at IS NOT NULL
+            AND e.status='scheduled'
             AND (e.starts_at AT TIME ZONE $2)::date = (NOW() AT TIME ZONE $2)::date
           ORDER BY e.starts_at ASC
         ) x
@@ -64,6 +65,7 @@ module.exports = {
           JOIN events e ON e.id = b.event_id
           WHERE b.user_id = $1
             AND e.ends_at IS NOT NULL
+            AND e.status='scheduled'
             AND (e.ends_at AT TIME ZONE $2)::date = (NOW() AT TIME ZONE $2)::date
           ORDER BY e.ends_at ASC
         ) y
