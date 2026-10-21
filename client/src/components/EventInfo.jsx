@@ -17,6 +17,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
   const count=useCountBookmarks(event?.id);
   const [failedURL,setFailedURL]=useState(null);
   const [management,setManagement]=useState(null),[managementBusy,setManagementBusy]=useState(false),[managementError,setManagementError]=useState(''),[photoOpen,setPhotoOpen]=useState(false);
+  const [photoEditing,setPhotoEditing]=useState({dirty:false,busy:false});
   const requestAuth=useAuthFlow(),handled=useRef(null),saveButton=useRef(null);
   const returnTo=standalone?`/events/${event?.id}`:`/?event=${event?.id}`;
   const save=()=>user?toggle(event.id,undefined,event):requestAuth('save this event',returnTo,{kind:'save',eventId:event.id});
@@ -44,8 +45,9 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
   const dateList=items=><ul className="occurrence-list">{items.map(item=><li key={item.key||item.source_row_id||item.starts_at}>{occurrenceTime(item)}</li>)}</ul>;
   const Heading=standalone?'h1':'h2';
   const SectionHeading=standalone?'h2':'h3';
+  const photoLocked=photoEditing.dirty||photoEditing.busy;
   async function applyManagement() {
-    if(managementBusy) return;
+    if(managementBusy||photoLocked) return;
     setManagementBusy(true);setManagementError('');
     try {
       if(management==='cancel') {
@@ -56,7 +58,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
     } catch(failure) {setManagementError(failure.message||'Unable to update this event. Please try again.');}
     finally {setManagementBusy(false);}
   }
-  const askManagement=action=>{setManagementError('');setManagement(action);};
+  const askManagement=action=>{if(photoLocked) return;setManagementError('');setManagement(action);};
   return <article className="event-detail-content">
     <div className="event-detail-hero">{mapsReady&&!image&&!ended&&!cancelled&&!event.data?.image_hidden
       ?<VenuePhoto key={[event.id,event.data?.place_id,event.location_address,event.latitude,event.longitude].join(':')} event={event}/>
@@ -88,9 +90,10 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
       <EventComments key={event.id} eventId={event.id} preview={!standalone} returnTo={standalone?`${returnTo}#comments`:returnTo}/>
       {manage&&<section className="event-management" aria-label="Manage event"><div><p className="eyebrow">Manage event</p><p className="text-sm muted">Only you and project administrators can change this listing.</p></div>
         <div className="flex flex-wrap gap-2"><button className="btn btn-outline flex-1" onClick={()=>onEdit(event)}>Edit event</button>
-          {!cancelled&&!ended&&<button className="btn btn-outline" onClick={()=>askManagement('cancel')}>Cancel event</button>}</div>
-        {event.source!=='external'&&<details className="rounded-xl border border-base-300 p-3"><summary className="cursor-pointer py-1 font-medium">More management options</summary><p className="text-sm muted mt-3 mb-3">Cancelling keeps the event, comments and saved history. Permanently deleting also removes its comments and bookmarks.</p><button className="btn btn-ghost text-error" onClick={()=>askManagement('delete')}>Delete event permanently</button></details>}
-        {!ended&&!cancelled&&<EventImageEditor key={event.id} event={event} onSaved={onSaved} initiallyOpen={photoOpen}/>}
+          {!cancelled&&!ended&&<button className="btn btn-outline" disabled={photoLocked} aria-describedby={photoLocked?'photo-management-help':undefined} onClick={()=>askManagement('cancel')}>Cancel event</button>}</div>
+        {photoLocked&&<p id="photo-management-help" role="status" className="text-sm muted">{photoEditing.busy?'Wait for the photo request to finish before cancelling or deleting this event.':'Save or discard your photo changes before cancelling or deleting this event.'}</p>}
+        {event.source!=='external'&&<details className="rounded-xl border border-base-300 p-3"><summary className="cursor-pointer py-1 font-medium">More management options</summary><p className="text-sm muted mt-3 mb-3">Cancelling keeps the event, comments and saved history. Permanently deleting also removes its comments and bookmarks.</p><button className="btn btn-ghost text-error" disabled={photoLocked} aria-describedby={photoLocked?'photo-management-help':undefined} onClick={()=>askManagement('delete')}>Delete event permanently</button></details>}
+        {!ended&&!cancelled&&<EventImageEditor key={event.id} event={event} onSaved={onSaved} initiallyOpen={photoOpen} onStateChange={setPhotoEditing}/>}
       </section>}
       {event.source==='external'&&<p className="source-disclosure">Listed by Toronto Festivals & Events. Details may change; confirm with the organizer. <a href="https://open.toronto.ca/open-data-licence/" target="_blank" rel="noopener noreferrer" className="link">Data licence</a></p>}
       {management&&<Modal title={management==='cancel'?'Cancel this event?':'Permanently delete this event?'} busy={managementBusy} onClose={()=>setManagement(null)}>
@@ -99,7 +102,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
         {managementError&&<p role="alert" className="form-error mt-4">{managementError}</p>}
         <div className="flex flex-wrap justify-end gap-3 mt-5"><button className="btn btn-ghost" disabled={managementBusy} onClick={()=>setManagement(null)}>Keep event</button>
           {management==='delete'&&!cancelled&&!ended&&<button className="btn btn-outline" disabled={managementBusy} onClick={()=>askManagement('cancel')}>Cancel event instead</button>}
-          <button className={`btn ${management==='delete'?'btn-error':'btn-primary'}`} disabled={managementBusy} onClick={applyManagement}>{managementBusy?(management==='cancel'?'Cancelling…':'Deleting…'):management==='cancel'?'Confirm cancellation':'Permanently delete'}</button></div>
+          <button className={`btn ${management==='delete'?'btn-error':'btn-primary'}`} disabled={managementBusy||photoLocked} onClick={applyManagement}>{managementBusy?(management==='cancel'?'Cancelling…':'Deleting…'):management==='cancel'?'Confirm cancellation':'Permanently delete'}</button></div>
       </Modal>}
     </div>
   </article>;

@@ -7,13 +7,15 @@ function imageFields(event) {
   const initial=event.data?.image_hidden?{}:event.data?.image||event.data?.imported_image||{};
   return {url:initial.url||'',alt:initial.alt||event.title,credit:initial.credit||''};
 }
-export default function EventImageEditor({event,onSaved,initiallyOpen=false}) {
+export default function EventImageEditor({event,onSaved,initiallyOpen=false,onStateChange}) {
   const [form,setForm]=useState(()=>imageFields(event)),[baseline,setBaseline]=useState(()=>imageFields(event));
   const [busy,setBusy]=useState(''),[error,setError]=useState(''),[errorAction,setErrorAction]=useState('save');
   const {push}=useNotifications(),warning=useRef(null),details=useRef(null),urlInput=useRef(null),savedVersion=useRef(Number(event.version||0));
   const dirty=Object.keys(form).some(key=>form[key]!==baseline[key]);
-  const discard=useCallback(()=>{const next=imageFields(event);setForm(next);setBaseline(next);setError('');},[event]);
+  const discard=useCallback(()=>{setForm({...baseline});setError('');requestAnimationFrame(()=>urlInput.current?.focus());},[baseline]);
   const {allowNavigation}=useUnsavedChanges({dirty,busy:Boolean(busy),title:'Leave this photo edit?',description:'Your image link changes have not been saved. Stay here to keep editing.',onDiscard:discard});
+  useEffect(()=>{onStateChange?.({dirty,busy:Boolean(busy)});},[dirty,busy,onStateChange]);
+  useEffect(()=>()=>onStateChange?.({dirty:false,busy:false}),[onStateChange]);
   useEffect(()=>{
     if(!initiallyOpen) return;
     details.current.open=true;
@@ -57,7 +59,8 @@ export default function EventImageEditor({event,onSaved,initiallyOpen=false}) {
       <p id="photo-help" className="text-xs text-base-content/75">Still JPEG, PNG, WebP or AVIF · Up to 8 MB and 12 million pixels. A rejected link leaves the current photo unchanged.</p>
       <label className="form-field" htmlFor="photo-alt"><span>Describe the image</span><input id="photo-alt" value={form.alt} maxLength={500} onChange={update('alt')} className="input input-bordered w-full" disabled={Boolean(busy)}/></label>
       <label className="form-field" htmlFor="photo-credit"><span>Photographer or image credit</span><input id="photo-credit" value={form.credit} maxLength={300} onChange={update('credit')} className="input input-bordered w-full" disabled={Boolean(busy)}/></label>
-      <div className="flex flex-wrap gap-2"><button className="btn btn-primary btn-sm" disabled={Boolean(busy)}>{busy==='save'?'Checking and saving…':'Save image link'}</button><button type="button" onClick={remove} className="btn btn-ghost btn-sm" disabled={Boolean(busy)||!baseline.url}>{busy==='remove'?'Removing photo…':'Remove photo'}</button></div>
+      <div className="flex flex-wrap gap-2"><button className="btn btn-primary btn-sm" disabled={Boolean(busy)}>{busy==='save'?'Checking and saving…':'Save image link'}</button><button type="button" onClick={remove} className="btn btn-ghost btn-sm" disabled={Boolean(busy)||!baseline.url}>{busy==='remove'?'Removing photo…':'Remove photo'}</button>
+        {dirty&&<button type="button" className="btn btn-ghost btn-sm" disabled={Boolean(busy)} onClick={discard}>Discard photo changes</button>}</div>
     </form>
   </details>;
 }
