@@ -10,7 +10,7 @@ for variable in VITE_GOOGLE_MAPS_KEY VITE_FIREBASE_API_KEY VITE_FIREBASE_PROJECT
 done
 export VITE_FIREBASE_AUTH_DOMAIN="${VITE_FIREBASE_AUTH_DOMAIN:-$VITE_FIREBASE_PROJECT_ID.firebaseapp.com}"
 export VITE_FIREBASE_STORAGE_BUCKET="${VITE_FIREBASE_STORAGE_BUCKET:-$VITE_FIREBASE_PROJECT_ID.firebasestorage.app}"
-IMAGE_PREFIX="ghcr.io/${GITHUB_REPOSITORY,,}"
+IMAGE_PREFIX="ghcr.io/${GITHUB_REPOSITORY,,}-production"
 mkdir -p release/files
 printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
@@ -30,6 +30,7 @@ for pair in api:api events-ingest:infra/ingest db-backup:infra/backup client:cli
     --metadata-file "release/$component.metadata.json" \
     --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
     --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+    --label "io.dynamic-event-map.image-prefix=$IMAGE_PREFIX" \
     --tag "$IMAGE_PREFIX-$component:$GITHUB_SHA" "${arguments[@]}" "$context"
   digest=$(jq -er '.["containerimage.digest"]' "release/$component.metadata.json")
   [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1

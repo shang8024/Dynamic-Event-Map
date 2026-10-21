@@ -103,14 +103,13 @@ try:
     images = inspect('image', sorted(set(docker('image', 'ls', '-aq', '--no-trunc').split())))
     protected = protected_refs() | accepted
     repositories = {prefix + '-' + component for component in COMPONENTS}
-    source = 'https://github.com/' + prefix.removeprefix('ghcr.io/')
     cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=int(hours))
     candidates = []
     for item in images:
         identity = item['Id']
         refs = set(item.get('RepoTags') or []) | set(item.get('RepoDigests') or [])
         labels = item.get('Config', {}).get('Labels') or {}
-        if labels.get('org.opencontainers.image.source', '').lower() != source or not refs:
+        if labels.get('io.dynamic-event-map.image-prefix') != prefix or not refs:
             continue
         if any(ref.split('@', 1)[0].split(':', 1)[0] not in repositories for ref in refs):
             continue  # Never delete an ID also tagged for another project.
@@ -128,7 +127,7 @@ try:
         current = inspect('image', [identity])[0]
         refs = set(current.get('RepoTags') or []) | set(current.get('RepoDigests') or [])
         labels = current.get('Config', {}).get('Labels') or {}
-        if labels.get('org.opencontainers.image.source', '').lower() != source or not refs or any(ref.split('@', 1)[0].split(':', 1)[0] not in repositories for ref in refs):
+        if labels.get('io.dynamic-event-map.image-prefix') != prefix or not refs or any(ref.split('@', 1)[0].split(':', 1)[0] not in repositories for ref in refs):
             print('KEEP changed ownership ' + identity)
             continue
         protected = protected_refs() | accepted

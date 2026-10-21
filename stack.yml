@@ -153,7 +153,7 @@ services:
       - redis_password
 
   api:
-    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-api:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map-production}-api:${IMAGE_TAG:-latest}
     environment:
       NODE_ENV: production             
       NODE_OPTIONS: --max-old-space-size=192
@@ -209,7 +209,7 @@ services:
       start_period: 30s
 
   client:
-    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-client:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map-production}-client:${IMAGE_TAG:-latest}
     networks: [proxy]
     depends_on: [api]
     deploy:
@@ -252,7 +252,7 @@ services:
       start_period: 10s
 
   events_ingest:
-    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-events-ingest:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map-production}-events-ingest:${IMAGE_TAG:-latest}
     secrets:
       - pg_password
       - redis_password
@@ -280,7 +280,7 @@ services:
           cpus: '0.75'
 
   db_backup:
-    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-db-backup:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map-production}-db-backup:${IMAGE_TAG:-latest}
     secrets:
       - pg_password
       - s3_access_key
@@ -315,7 +315,7 @@ services:
           cpus: '0.25'
 
   db_restore:
-    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-db-backup:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map-production}-db-backup:${IMAGE_TAG:-latest}
     secrets:
       - pg_password
       - s3_access_key

@@ -15,7 +15,7 @@ BIN = Path('/tmp/cleanup-bin')
 BIN.mkdir()
 FIXTURE = Path('/tmp/cleanup-fixture.json')
 CALLS = Path('/tmp/cleanup-calls.jsonl')
-PREFIX = 'ghcr.io/test/eventmap'
+PREFIX = 'ghcr.io/test/eventmap-production'
 SCRIPT = '/repo/infra/scripts/cleanup/docker_clean.sh'
 
 def digest(number):
@@ -26,7 +26,7 @@ def image(number, **changes):
         'Id': digest(number), 'RepoTags': [f'{PREFIX}-api:old-{number}'],
         'RepoDigests': [f'{PREFIX}-api@{digest(100 + number)}'],
         'Created': '2020-01-01T00:00:00Z',
-        'Config': {'Labels': {'org.opencontainers.image.source': 'https://github.com/test/eventmap'}},
+        'Config': {'Labels': {'org.opencontainers.image.source': 'https://github.com/test/eventmap', 'io.dynamic-event-map.image-prefix': PREFIX}},
     }
     value.update(changes)
     return value
@@ -94,11 +94,12 @@ class CleanupGuardrails(unittest.TestCase):
         self.assertEqual(self.run_helper('--dry-run').returncode, 0)
 
     def test_apply_preserves_all_reference_classes_and_foreign_or_recent_images(self):
-        self.fixture['images'] = [image(number) for number in range(1, 13)]
-        self.fixture['images'][8]['Config']['Labels'] = {}  # Ownership label absent.
+        self.fixture['images'] = [image(number) for number in range(1, 14)]
+        self.fixture['images'][8]['Config']['Labels'].pop('io.dynamic-event-map.image-prefix')  # Legacy source label alone is insufficient.
         self.fixture['images'][9]['RepoTags'].append('unrelated/project:keep')
         self.fixture['images'][10]['Created'] = dt.datetime.now(dt.timezone.utc).isoformat()
         self.fixture['images'][11]['RepoTags'] = ['ghcr.io/test/another-api:old']
+        self.fixture['images'][12]['Config']['Labels']['io.dynamic-event-map.image-prefix'] = 'ghcr.io/test/eventmap'  # Another release namespace.
         self.fixture['containers'] = [{'Id': 'stopped', 'Image': digest(2)}]
         self.fixture['services'] = [{
             'ID': 'zero-replica-job',

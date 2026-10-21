@@ -10,7 +10,7 @@ secrets:
 
 services:
   notifications:
-    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map}-api:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/shang8024/dynamic-event-map-production}-api:${IMAGE_TAG:-latest}
     command: ["node", "workers/notifications.js"]
     environment:
       NODE_ENV: production

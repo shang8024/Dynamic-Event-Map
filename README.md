@@ -174,7 +174,7 @@ Copy Firebase browser fields from the registered web app; do not derive its stor
 
 GitHub does not need SSH, AWS federation, database, S3, SES or Firebase Admin credentials. Host deployment, recovery and cleanup are operator-run commands. Enable GitHub Actions for a fork if necessary and allow the repository's workflow token to publish its GHCR packages.
 
-Run **CI and Release Images** manually from `main` with `publish_images` checked. After tests pass, it builds four x86-64 images (`api`, `client`, `events-ingest`, `db-backup`) tagged with the same full commit SHA using the short-lived `GITHUB_TOKEN`. Download the `eventmap-release-<sha>` artifact; it contains release configuration and image digests. Make the project's GHCR packages public for anonymous host pulls, or configure a protected host credential with only package read access. Do not put a registry password in application configuration.
+Run **CI and Release Images** manually from `main` with `publish_images` checked. After tests pass, it builds four x86-64 images (`api`, `client`, `events-ingest`, `db-backup`) under `ghcr.io/<owner>/<repository>-production-<component>`, tagged with the same full commit SHA using the short-lived `GITHUB_TOKEN`. Download the `eventmap-release-<sha>` artifact; it contains release configuration and image digests. Make only these newly published production packages public for anonymous host pulls, or configure a protected host credential with only package read access. Keep any legacy packages private until separately reviewed. Do not put a registry password in application configuration.
 
 Upload the release bundle over SSH and verify its commit and image digests. Extract it into a new root-owned, mode-0700 `/root/eventmap-releases/<full-commit-sha>` directory; never overwrite an accepted release directory. The bundle excludes the host's `.env` and credentials. Connect using the operator's SSH key and verified host fingerprint, then deploy manually:
 
@@ -186,7 +186,7 @@ sudo test ! -e "/root/eventmap-releases/$release_sha"
 sudo install -d -m 700 "/root/eventmap-releases/$release_sha"
 sudo tar --no-same-owner -xzf eventmap-release.tar.gz -C "/root/eventmap-releases/$release_sha"
 sudo bash "/root/eventmap-releases/$release_sha/infra/scripts/deploy.sh" \
-  ghcr.io/your-owner/your-repository "$release_sha" "/root/eventmap-releases/$release_sha"
+  ghcr.io/your-owner/your-repository-production "$release_sha" "/root/eventmap-releases/$release_sha"
 ```
 
 The helper validates migration checksums and schema, pulls the recorded image digests, and waits for the intended image tasks plus HTTPS readiness. It promotes staged files only after success and records `/root/deploy/.release.env`, `.release.images.lock` and previous-release copies. It preserves earlier configuration under `/root/eventmap-release-history/` and holds the maintenance lock throughout. It does not apply migrations. Never disable SSH host-key verification; confirm DNS before requesting TLS certificates.
