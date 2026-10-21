@@ -1,7 +1,7 @@
-import { API_BASE, get, post, del } from "./apiService.js";
+import { get, post, del } from "./apiService.js";
 
-export async function fetchComments(eventId, signal) {
-  return get(`/events/${eventId}/comments/snapshot`, {signal});
+export async function fetchComments(eventId, signal, preview=false) {
+  return get(`/events/${eventId}/comments/${preview?'preview':'snapshot'}`, {signal});
 }
 
 export async function fetchUserComments() {

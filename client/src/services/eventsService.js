@@ -4,6 +4,10 @@ export async function fetchEvents() {
   return get("/events");
 }
 
+export async function fetchEvent(id) {
+  return get(`/events/${id}`);
+}
+
 export async function createEvent(payload) {
   return post('/events', payload);
 }

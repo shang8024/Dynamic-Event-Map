@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
 import BookmarksPage from "./feature/bookmarks/EventBookmarks.jsx";
 import UserComments from "./feature/comments/UserComments.jsx";
-import { useJsApiLoader } from "@react-google-maps/api";
+import useGoogleMaps from './hooks/useGoogleMaps';
 import EventMap from "./feature/events/EventMap.jsx";
 import { useAuth, AuthProvider } from "./contexts/AuthContext.jsx";
 import Navbar from "./components/Navbar.jsx";
@@ -16,10 +16,10 @@ import NotificationInbox from "./components/NotificationInbox";
 import {AuthFlowProvider,useAuthFlow} from './contexts/AuthFlowContext';
 import {Link,useLocation} from 'react-router-dom';
 import AuthPage from './components/AuthPage';
+import EventPage from './feature/events/EventPage';
 
-const MAP_LIBRARIES=["places","marker"];
 function MapPage() {
-  const {isLoaded,loadError}=useJsApiLoader({id:'eventmap-google-maps',googleMapsApiKey:import.meta.env.VITE_GOOGLE_MAPS_KEY,libraries:MAP_LIBRARIES});
+  const {isLoaded,loadError}=useGoogleMaps();
   if(loadError) return <div role="alert" className="p-6">The map could not be loaded. Check your connection and <button className="link" onClick={()=>window.location.reload()}>try again</button>.</div>;
   return isLoaded?<EventMap/>:<p role="status" className="p-4">Loading map…</p>;
 }
@@ -28,7 +28,7 @@ function PageWrapper({ children }) {
   const content=useRef(null),location=useLocation();
   useEffect(()=>{
     content.current?.scrollTo({top:0});
-    if(!['/signin','/register','/reset-password'].includes(location.pathname)) {
+    if(!['/signin','/register','/reset-password'].includes(location.pathname)&&!location.pathname.startsWith('/events/')) {
       const title={'/bookmarks':'Saved events','/recommendations':'For you','/notifications':'Notifications','/comments':'My comments','/settings':'Email & privacy'}[location.pathname];
       document.title=title?`${title} · Dynamic Event Map`:'Dynamic Event Map';
     }
@@ -67,6 +67,7 @@ export default function App() {
         <Router>
           <AuthFlowProvider>
           <Routes>
+            <Route path="/events/:eventId" element={<PageWrapper><EventPage/></PageWrapper>}/>
             <Route path="/signin" element={<PageWrapper><AuthPage key="signin"/></PageWrapper>}/>
             <Route path="/register" element={<PageWrapper><AuthPage key="register" initialMode="register"/></PageWrapper>}/>
             <Route path="/reset-password" element={<PageWrapper><AuthPage key="reset-password" initialMode="reset"/></PageWrapper>}/>

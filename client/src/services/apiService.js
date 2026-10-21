@@ -17,7 +17,7 @@ export async function get(url, {signal} = {}) {
     } catch {
       // ignore, use default
     }
-    throw new Error(errorMessage);
+    throw Object.assign(new Error(errorMessage),{status:res.status});
   }
   return res.json();
 }

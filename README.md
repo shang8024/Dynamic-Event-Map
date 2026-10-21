@@ -12,6 +12,7 @@ Discover Toronto events across a GTA-wide interactive map. Browse by location, c
 - Official City of Toronto event data alongside community submissions.
 - Google sign-in and email/password registration with verification and password reset.
 - Bookmarks, live comments, a notification inbox and owner/admin event management.
+- Shareable event pages with full discussions; map panels show the latest three comments.
 - Recommendations with explanations and optional personalization based on saved categories.
 - Independent opt-in settings for event reminders and weekly discovery emails, with signed unsubscribe links.
 - Live updates through Socket.IO and Redis.
@@ -233,7 +234,7 @@ The helper validates migration checksums and schema, pulls the recorded image di
 
 ## Database upgrades
 
-`db/init.sql` runs only when PostgreSQL initializes an empty volume. Editing it does not upgrade an existing database. Apply all numbered migrations in order, including on a fresh installation. `001` fixes source identities; `002` adds consent, occurrences and the email outbox; `003` adds admin event management; `004` adds durable realtime activity; `005` adds import checkpoints and expiry cleanup; `006` supports independent occurrence ranges; `007` adds private ingestion alerts. These migrations define maintenance functions without running cleanup or enabling timers. No migration enables mail. Importer format version 4 forces the next reviewed full import to rebuild official ranges even if the source publication is unchanged.
+`db/init.sql` runs only when PostgreSQL initializes an empty volume. Editing it does not upgrade an existing database. Apply all numbered migrations in order, including on a fresh installation. `001` fixes source identities; `002` adds consent, occurrences and the email outbox; `003` adds admin event management; `004` adds durable realtime activity; `005` adds import checkpoints and expiry cleanup; `006` supports independent occurrence ranges; `007` adds private ingestion alerts; `008` indexes recent comments and advances realtime revisions for comment edits. These migrations define maintenance functions without running cleanup or enabling timers. No migration enables mail. Importer format version 4 forces the next reviewed full import to rebuild official ranges even if the source publication is unchanged.
 
 Before changing an existing database, run a backup and restore rehearsal, review migration SQL, and record its SHA-256 and target. For later releases, use the reviewed migrations from the staged candidate bundle rather than an older installed copy. Run these commands in a root Bash shell on the manager:
 

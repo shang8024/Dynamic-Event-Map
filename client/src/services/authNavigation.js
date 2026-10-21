@@ -1,9 +1,13 @@
 const destinations=new Set(['/','/bookmarks','/recommendations','/comments','/notifications','/settings']);
+export function eventPageId(pathname) {
+  const match=/^\/events\/([1-9]\d{0,9})$/.exec(pathname);
+  return match&&Number(match[1])<=2147483647?Number(match[1]):null;
+}
 export function safeReturnTo(value='/') {
   if(typeof value!=='string'||value.length>2048||!value.startsWith('/')||value.startsWith('//')||Array.from(value).some(char=>char==='\\'||char.charCodeAt(0)<32||char.charCodeAt(0)===127)) return '/';
   try {
     const target=new URL(value,'https://eventmap.invalid');
-    if(target.origin!=='https://eventmap.invalid'||!destinations.has(target.pathname)) return '/';
+    if(target.origin!=='https://eventmap.invalid'||!destinations.has(target.pathname)&&!eventPageId(target.pathname)) return '/';
     target.searchParams.delete('action');
     return target.pathname+target.search+target.hash;
   } catch {return '/';}
@@ -25,6 +29,6 @@ export function authIntent(value,returnTo='/') {
   if(value.kind==='create'&&target.pathname==='/') return {kind:'create'};
   const id=Number(value.eventId);
   if(['save','comment'].includes(value.kind)&&Number.isSafeInteger(id)&&id!==0&&Math.abs(id)<=2147483647
-    &&target.pathname==='/'&&target.searchParams.get('event')===String(id)) return {kind:value.kind,eventId:id};
+    &&(target.pathname==='/'&&target.searchParams.get('event')===String(id)||eventPageId(target.pathname)===id)) return {kind:value.kind,eventId:id};
   return null;
 }
