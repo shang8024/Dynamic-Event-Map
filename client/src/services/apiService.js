@@ -1,88 +1,17 @@
-import { apiBase } from "./endpoints";
-import { getVerifiedIdToken } from "./authToken";
+import {apiBase} from './endpoints';
+import {getVerifiedIdToken} from './authToken';
+import {clientError,requestJSON} from './apiErrors';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
-export const API_BASE = apiBase(API_BASE_URL);
-
-export async function get(url, {signal} = {}) {
-  const headers = {};
-  const token = await getVerifiedIdToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${url}`, { headers, signal });
-  if (!res.ok) {
-    let errorMessage = `Failed to fetch ${url}: ${res.status}`;
-    try {
-      const errorData = await res.json();
-      if (errorData.error) errorMessage = errorData.error;
-    } catch {
-      // ignore, use default
-    }
-    throw Object.assign(new Error(errorMessage),{status:res.status});
-  }
-  return res.json();
+export const API_BASE_URL=import.meta.env.VITE_API_BASE_URL??'/api';
+export const API_BASE=apiBase(API_BASE_URL);
+async function request(url,{method='GET',data,signal}={}) {
+  const headers={};let token;
+  try {token=await getVerifiedIdToken();} catch(error) {throw clientError(error);}
+  if(token) headers.Authorization=`Bearer ${token}`;
+  if(data!==undefined) headers['Content-Type']='application/json';
+  return requestJSON(`${API_BASE}${url}`,{method,headers,signal,...(data===undefined?{}:{body:JSON.stringify(data)})});
 }
-
-export async function post(url, data) {
-  const headers = { "Content-Type": "application/json" };
-  const token = await getVerifiedIdToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${url}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    let errorMessage = `Failed to post ${url}: ${res.status}`;
-    try {
-      const errorData = await res.json();
-      if (errorData.error) errorMessage = errorData.error;
-    } catch {
-      // ignore, use default
-    }
-    throw new Error(errorMessage);
-  }
-  return res.json();
-}
-
-export async function del(url) {
-  const headers = {};
-  const token = await getVerifiedIdToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${url}`, {
-    method: "DELETE",
-    headers,
-  });
-  if (!res.ok) {
-    let errorMessage = `Failed to delete ${url}: ${res.status}`;
-    try {
-      const errorData = await res.json();
-      if (errorData.error) errorMessage = errorData.error;
-    } catch {
-      // ignore, use default
-    }
-    throw new Error(errorMessage);
-  }
-  return res.json();
-}
-
-export async function put(url, data) {
-  const headers = { "Content-Type": "application/json" };
-  const token = await getVerifiedIdToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${url}`, {
-    method: "PUT",
-    headers,
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    let errorMessage = `Failed to put ${url}: ${res.status}`;
-    try {
-      const errorData = await res.json();
-      if (errorData.error) errorMessage = errorData.error;
-    } catch {
-      // ignore, use default
-    }
-    throw new Error(errorMessage);
-  }
-  return res.json();
-}
+export const get=(url,options={})=>request(url,options);
+export const post=(url,data)=>request(url,{method:'POST',data});
+export const put=(url,data)=>request(url,{method:'PUT',data});
+export const del=url=>request(url,{method:'DELETE'});

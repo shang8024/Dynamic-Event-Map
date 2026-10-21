@@ -110,3 +110,10 @@ test("expired unsubscribe and unavailable preferences expose helpful errors with
       error.message.includes("temporarily unavailable") && !error.message.includes("database")
   );
 });
+
+test('blocked accounts and rate limits are not confused with unverified email',async()=>{
+  for(const [status,body,code] of [[403,{code:'account_disabled'},'account_disabled'],[403,{},'forbidden'],[429,{},'rate_limited']]) {
+    const api=createInterestClient({baseUrl:'/api',getToken:async()=>'token',fetchImpl:async()=>({ok:false,status,json:async()=>body,headers:new Headers({'Retry-After':'60'})})});
+    await assert.rejects(api.getPreferences(),error=>error.status===status&&error.code===code&&!error.message.includes('Verify your email'));
+  }
+});
