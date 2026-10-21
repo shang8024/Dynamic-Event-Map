@@ -223,6 +223,7 @@ test('a database failure is retryable and does not masquerade as an invalid toke
 function events(create) {
   return load('controllers/eventsController.js', {
     '../models/eventModel': { create },
+    '../services/eventPermissions': require('../services/eventPermissions'),
     '../config/redis': {},
     '../socket': { getIO: () => ({ emit() {} }) },
     '../config/db': { query() { assert.fail('system identity lookup attempted'); } },

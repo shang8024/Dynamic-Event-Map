@@ -47,7 +47,7 @@ function category(categories = []) {
 export const DEFAULT_AGGREGATION_LIMITS = Object.freeze({ maxRows: 100000, maxSeries: 20000, maxRetainedBytes: 48 * 1024 * 1024 });
 
 function projectRow(raw) {
-  // Do not retain repeated event_dates, location_dates, contacts, images, or raw
+  // Do not retain repeated event_dates, location_dates, contacts, or raw
   // rows. Only one compact latest revision and occurrence starts per series stay
   // in memory while the source is streamed.
   const fields = ['event_startdate', 'event_expirydate', 'event_name', 'short_name',
@@ -55,6 +55,9 @@ function projectRow(raw) {
     'featured_event', 'free_event', 'event_website', '__ModifiedOn'];
   const projected = Object.fromEntries(fields.map(field => [field, raw[field]]));
   projected.locations = (Array.isArray(raw.event_locations) ? raw.event_locations : []).map(location);
+  const photo=(Array.isArray(raw.event_image)?raw.event_image:[]).find(image=>/^[A-Za-z0-9_-]{10,100}$/.test(image.bin_id||'') && ['image/jpeg','image/png','image/webp','image/avif'].includes(image.type) && (!image.size || Number(image.size)<=8*1024*1024));
+  if(photo) projected.image={url:`https://secure.toronto.ca/c3api_upload/retrieve/festivals_events/${photo.bin_id}`,
+    alt:String(photo.fields?.alt||raw.event_name||'Event photo').slice(0,500),credit:String(photo.fields?.credit||'').slice(0,300),source:'toronto',source_url:CATALOGUE_URL};
   return projected;
 }
 
@@ -145,7 +148,9 @@ export function createFeedNormalizer({ asOf, limits = {} }) {
       source_categories: raw.event_category || [],
       attribution: ATTRIBUTION,
       licence_url: LICENCE_URL,
-      // Omit organizer emails/phones, photos with separate rights, and raw rows.
+      imported_image: raw.image || null,
+      // Retain source-provided image links and credit, without copying image files.
+      // Organizer contacts and raw rows are deliberately omitted.
       import_metadata: { provider: PROVIDER, source_id: identity, source_modified_at: instant(raw.__ModifiedOn), ...provenance },
     };
     const contentHash = createHash('sha256').update(JSON.stringify({ fields, data: { ...data, import_metadata: { provider: PROVIDER, source_id: identity, source_modified_at: instant(raw.__ModifiedOn) } } })).digest('hex');

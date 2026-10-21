@@ -14,6 +14,7 @@ function requestPolicy(req,authenticated) {
   const pathname=(req.originalUrl || req.url || '').split('?')[0].toLowerCase().replace(/\/+$/,'');
   if(pathname==='/api/notifications/feedback/ses' || /^\/api\/(healthz|readyz)$/.test(pathname)) return null;
   if(pathname==='/api/notifications/unsubscribe') return authenticated?null:{bucket:'unsubscribe',limit:30,window:300000};
+  if(req.method==='GET' && /^\/api\/events\/\d+\/image$/.test(pathname)) return {bucket:'image',limit:120,window:60000};
   if(/^\/api\/(auth|profiles)(\/|$)/.test(pathname)) return {bucket:'auth',limit:authenticated?120:600,window:300000};
   if(['POST','PUT','PATCH','DELETE'].includes(req.method)) return {bucket:'write',limit:authenticated?30:300,window:60000};
   return null;

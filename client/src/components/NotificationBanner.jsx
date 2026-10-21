@@ -11,12 +11,12 @@ const toneCls = {
 export default function NotificationBanner() {
   const { items, dismiss } = useNotifications();
   return (
-    <div className="fixed top-3 left-1/2 z-1000 flex w-full max-w-3xl -translate-x-1/2 flex-col gap-2 px-3">
+    <div className="pointer-events-none fixed top-3 left-1/2 z-1000 flex w-full max-w-3xl -translate-x-1/2 flex-col gap-2 px-3">
       {items.map((n) => (
         <Banner
           key={n.id}
           n={n}
-          onClose={() => dismiss(n.id, n.stickyKey)}
+          dismiss={dismiss}
           autoCloseMs={n.autoCloseMs}
         />
       ))}
@@ -24,8 +24,8 @@ export default function NotificationBanner() {
   );
 }
 
-function Banner({ n, onClose, autoCloseMs = 0 }) {
-  const [closing, setClosing] = React.useState(false);
+function Banner({ n, dismiss, autoCloseMs = 0 }) {
+  const handleClose=React.useCallback(()=>dismiss(n.id,n.stickyKey),[dismiss,n.id,n.stickyKey]);
 
   // optional auto-close
   React.useEffect(() => {
@@ -34,19 +34,12 @@ function Banner({ n, onClose, autoCloseMs = 0 }) {
     return () => clearTimeout(t);
   }, [autoCloseMs, handleClose]);
 
-  function handleClose() {
-    // trigger fade-out first, then call onClose
-    setClosing(true);
-    setTimeout(() => onClose?.(), 300); // keep in sync with duration-300 below
-  }
-
   return (
     <div
+      role={n.type==='warning'||n.type==='error'?'alert':'status'}
       className={[
-        "rounded-xl border px-4 py-3 shadow",
+        "pointer-events-auto rounded-xl border px-4 py-3 shadow",
         toneCls[n.type] || toneCls.info,
-        "transition-opacity duration-300",
-        closing ? "opacity-0" : "opacity-100",
       ].join(" ")}
     >
       <div className="flex items-center gap-3">
@@ -57,7 +50,7 @@ function Banner({ n, onClose, autoCloseMs = 0 }) {
 
         <div className="min-w-0 flex-1">
           {n.title && (
-            <p className="truncate leading-tight font-medium text-slate-900">{n.title}</p>
+            <p className="leading-tight font-medium text-slate-900">{n.title}</p>
           )}
           {n.message && <p className="mt-0.5 text-sm leading-snug text-slate-800">{n.message}</p>}
         </div>
@@ -93,7 +86,7 @@ function Banner({ n, onClose, autoCloseMs = 0 }) {
             </div>
           )}
           <button
-            className="ml-2 rounded-md px-2 py-1 text-sm text-slate-700 hover:bg-white/60"
+            className="ml-2 min-h-11 min-w-11 rounded-md px-2 py-1 text-sm text-slate-700 hover:bg-white/60"
             onClick={handleClose}
             aria-label="Dismiss"
           >

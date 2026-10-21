@@ -51,6 +51,7 @@ services:
       REDIS_PORT: 6379
       FRONTEND_PORT: ${FRONTEND_PORT}
       FIREBASE_PROJECT_ID: "${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID}"
+      IMAGE_PROXY_URL: http://image_proxy:5100
     depends_on:
       db:
         condition: service_healthy
@@ -60,6 +61,22 @@ services:
       - "127.0.0.1:${BACKEND_PORT}:5000"
     networks:
       - app-network
+      - images
+  image_proxy:
+    build: ./api
+    command: ["node", "workers/imageProxy.js"]
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=96
+      IMAGE_PROXY_WORKER: "true"
+      PORT: "5100"
+    networks: [images]
+    mem_limit: 256m
+    cpus: 0.5
   client:
     build:
       context: ./client
@@ -72,8 +89,10 @@ services:
       - ./client/tailwind.config.js:/app/tailwind.config.js:ro
       - ./client/eslint.config.js:/app/eslint.config.js:ro
     environment:
-      VITE_API_BASE_URL: http://localhost:${BACKEND_PORT}
+      VITE_API_BASE_URL: /api
+      VITE_API_PROXY_TARGET: http://api:5000
       VITE_GOOGLE_MAPS_KEY: ${VITE_GOOGLE_MAPS_KEY}
+      VITE_GOOGLE_MAPS_MAP_ID: ${VITE_GOOGLE_MAPS_MAP_ID:-}
       VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
       VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
       VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
@@ -92,4 +111,6 @@ volumes:
   db-data:
 networks:
   app-network:
+    driver: bridge
+  images:
     driver: bridge

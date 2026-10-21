@@ -16,7 +16,7 @@ const BookmarkListItem = ({ id, eventData, bookmarkInfo, toggle, pending }) => {
       key={id}
       className={[
         "card bg-base-200 relative w-full shadow-sm transition",
-        isExpired ? "opacity-60 grayscale" : "",
+        isExpired ? "border border-base-300" : "",
       ].join(" ")}
     >
       <EventStatusBadge event={eventData} position="absolute left-4 top-4" />
@@ -43,16 +43,16 @@ const BookmarkListItem = ({ id, eventData, bookmarkInfo, toggle, pending }) => {
                   <Description text={eventData.description} valid={!isExpired} />
                 )}
                 {eventData?._row?.location_address && (
-                  <p className="text-base-content/50 mt-1 text-xs">
+                  <p className="text-base-content/75 mt-1 text-xs">
                     {eventData._row.location_address}
                   </p>
                 )}
                 {eventData?.position && (
-                  <p className="text-base-content/50 mt-2 text-xs">
+                  <p className="text-base-content/75 mt-2 text-xs">
                     📍 {eventData.position.lat.toFixed(4)}, {eventData.position.lng.toFixed(4)}
                   </p>
                 )}
-                <p className="text-base-content/40 mt-1 text-xs">
+                <p className="text-base-content/75 mt-1 text-xs">
                   Bookmarked: {new Date(bookmarkInfo.updatedAt).toLocaleDateString()}
                 </p>
               </div>

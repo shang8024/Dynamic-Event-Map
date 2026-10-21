@@ -4,11 +4,11 @@ import { getVerifiedIdToken } from "./authToken";
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 export const API_BASE = apiBase(API_BASE_URL);
 
-export async function get(url) {
+export async function get(url, {signal} = {}) {
   const headers = {};
   const token = await getVerifiedIdToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${url}`, { headers });
+  const res = await fetch(`${API_BASE}${url}`, { headers, signal });
   if (!res.ok) {
     let errorMessage = `Failed to fetch ${url}: ${res.status}`;
     try {

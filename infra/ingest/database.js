@@ -1,7 +1,7 @@
 import { FIELDS, PROVIDER } from './normalize.js';
 
 const types = { starts_at: 'timestamptz', ends_at: 'timestamptz', latitude: 'double precision', longitude: 'double precision' };
-const assignments = FIELDS.map(field => `${field} = CASE WHEN e.${field} IS NOT DISTINCT FROM (e.data->'import_snapshot'->>'${field}')::${types[field] || 'text'} THEN EXCLUDED.${field} ELSE e.${field} END`).join(',\n');
+const assignments = FIELDS.map(field => `${field} = CASE WHEN NOT (COALESCE(e.data->'editor_overrides','[]'::jsonb) ? '${field}') AND e.${field} IS NOT DISTINCT FROM (e.data->'import_snapshot'->>'${field}')::${types[field] || 'text'} THEN EXCLUDED.${field} ELSE e.${field} END`).join(',\n');
 const upsert = `INSERT INTO events AS e (user_id, source, ref_id, ${FIELDS.join(', ')}, data)
   VALUES ($1, 'external', $2, ${FIELDS.map((_, i) => `$${i+3}`).join(', ')}, $${FIELDS.length+3}::jsonb)
   ON CONFLICT (source, ref_id) DO UPDATE SET ${assignments},

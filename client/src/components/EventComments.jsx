@@ -1,198 +1,66 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { fetchComments, addComment, removeComment } from "../services/commentsService";
-import socket from "../services/socket";
-import { useAuth } from "../contexts/AuthContext.jsx";
-import { useNotifications } from "../contexts/NotificationContext.jsx";
-
-export default function EventComments({ eventId }) {
-  const [comments, setComments] = useState([]);
-  const [text, setText] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const { user } = useAuth();
-  const { push } = useNotifications();
-
-  // ---------------------------
-  // Load Comments
-  // ---------------------------
-  const loadComments = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const list = await fetchComments(eventId);
-      setComments(list || []);
-    } catch (err) {
-      console.warn("fetch comments failed", err);
-      setError("Failed to load comments");
-    } finally {
-      setLoading(false);
+import {useEffect,useRef,useState} from 'react';
+import {fetchComments,addComment,removeComment} from '../services/commentsService';
+import socket,{subscribeEvent} from '../services/socket';
+import {useAuth} from '../contexts/AuthContext';
+export default function EventComments({eventId}) {
+  const {user}=useAuth();
+  const [comments,setComments]=useState([]),[text,setText]=useState(''),[error,setError]=useState('');
+  const [busy,setBusy]=useState(false),[connected,setConnected]=useState(socket.connected),[loading,setLoading]=useState(true);
+  const refresh=useRef(()=>{}),activeEvent=useRef(eventId);
+  useEffect(()=>{
+    let active=true,generation=0,controller,revision=-1;
+    activeEvent.current=eventId;setComments([]);setText('');setError('');setLoading(true);
+    async function load() {
+      const request=++generation;controller?.abort();controller=new AbortController();
+      try {
+        const snapshot=await fetchComments(eventId,controller.signal);
+        if(!active || request!==generation || Number(snapshot.revision)<revision) return;
+        revision=Number(snapshot.revision);setComments(snapshot.comments);setError('');
+      } catch(failure) {if(active && request===generation && failure.name!=='AbortError') setError('Unable to refresh comments. Retrying automatically.');}
+      finally {if(active && request===generation) setLoading(false);}
     }
-  }, [eventId]);
-
-  // ---------------------------
-  // Add Comment
-  // ---------------------------
-  const handleAdd = useCallback(
-    async (e) => {
-      e?.preventDefault();
-      if (!user) return setError("You must be logged in to post comments");
-
-      const trimmed = text.trim();
-      if (!trimmed) return setError("Please enter a comment");
-
-      setLoading(true);
-      setError("");
-
-      try {
-        const created = await addComment(eventId, trimmed);
-        setComments((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
-        setText("");
-        push({ type: "success", message: "Comment posted successfully", autoCloseMs: 2000 });
-      } catch (err) {
-        console.warn("post failed", err);
-        push({
-          type: "error",
-          message: err.message || "Failed to post comment",
-          autoCloseMs: 5000,
-        });
-      } finally {
-        setLoading(false);
-      }
-    },
-    [user, text, eventId, push]
-  );
-
-  // ---------------------------
-  // Delete Comment
-  // ---------------------------
-  const handleDelete = useCallback(
-    async (id) => {
-      setLoading(true);
-      try {
-        await removeComment(eventId, id);
-        setComments((prev) => prev.filter((c) => c.id !== id));
-        push({ type: "success", message: "Comment deleted successfully", autoCloseMs: 2000 });
-      } catch (err) {
-        console.warn("delete failed", err);
-        push({
-          type: "error",
-          message: err.message || "Failed to delete comment",
-          autoCloseMs: 5000,
-        });
-      } finally {
-        setLoading(false);
-      }
-    },
-    [eventId, push]
-  );
-
-  // ---------------------------
-  // Real-time Handlers (room-based)
-  // ---------------------------
-  const onCommentCreated = useCallback(
-    (payload) => {
-      if (Number(payload.eventId) !== Number(eventId)) return;
-      setComments((prev) => [payload, ...prev.filter((c) => String(c.id) !== String(payload.id))]);
-    },
-    [eventId]
-  );
-
-  const onCommentDeleted = useCallback(
-    (payload) => {
-      if (Number(payload.eventId) !== Number(eventId)) return;
-      setComments((prev) => prev.filter((c) => String(c.id) !== String(payload.id)));
-    },
-    [eventId]
-  );
-
-  // ---------------------------
-  // Effects
-  // ---------------------------
-  useEffect(() => {
-    if (!eventId) return;
-
-    loadComments();
-
-    // Subscribe to room-specific events
-    socket.on(`comment:created:${eventId}`, onCommentCreated);
-    socket.on(`comment:deleted:${eventId}`, onCommentDeleted);
-
-    return () => {
-      socket.off(`comment:created:${eventId}`, onCommentCreated);
-      socket.off(`comment:deleted:${eventId}`, onCommentDeleted);
-    };
-  }, [eventId, loadComments, onCommentCreated, onCommentDeleted]);
-
-  // ---------------------------
-  // Render
-  // ---------------------------
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {/* Scrollable comments list */}
-      <div className="flex-1 overflow-y-auto p-2 pb-[100px]">
-        <ul className="flex w-full flex-col gap-2">
-          {comments.length === 0 && (
-            <li className="text-base-content/60 text-sm">No comments yet.</li>
-          )}
-          {comments.map((c) => (
-            <li key={c.id}>
-              <div className="card card-dash bg-base-100 w-full">
-                <div className="card-body p-3">
-                  <div className="text-sm font-semibold">{c.user?.name || "Anonymous"}</div>
-                  <p className="mt-1 text-sm break-words whitespace-pre-wrap">{c.text}</p>
-                  <div className="card-actions w-full items-center justify-between">
-                    <div className="text-base-content/50 text-xs">
-                      {new Date(c.createdAt).toLocaleString()}
-                    </div>
-                    {user && String(user.id) === String(c.user?.id) && (
-                      <button
-                        className="btn btn-ghost btn-xs p-1"
-                        onClick={() => handleDelete(c.id)}
-                        disabled={loading}
-                        title="Delete comment"
-                        aria-label="Delete comment"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 16 16">
-                          <path
-                            fill="currentColor"
-                            d="m4.818 4.111l-.707.707a.5.5 0 0 0 0 .707L6.586 8L4.11 10.475a.5.5 0 0 0 0 .707l.707.707a.5.5 0 0 0 .707 0L8 9.414l2.475 2.475a.5.5 0 0 0 .707 0l.707-.707a.5.5 0 0 0 0-.707L9.414 8l2.475-2.475a.5.5 0 0 0 0-.707l-.707-.707a.5.5 0 0 0-.707 0L8 6.586L5.525 4.11a.5.5 0 0 0-.707 0"
-                          />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Fixed bottom form */}
-      <div className="bg-base-200 fixed bottom-0 left-0 z-50 w-full p-4">
-        <form onSubmit={handleAdd} className="flex flex-row gap-3">
-          {error && <div className="text-error mb-1 text-xs">{error}</div>}
-
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={
-              user ? `Comment as ${user.displayName || user.email}...` : "Please login to comment"
-            }
-            className="textarea textarea-bordered w-4/5 resize-none"
-            disabled={!user}
-          />
-
-          <button
-            type="submit"
-            className="btn btn-neutral h-auto shrink-0"
-            disabled={loading || !user}
-          >
-            {loading ? "Posting…" : "Post"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
+    refresh.current=load;
+    const unsubscribe=subscribeEvent(eventId,load,payload=>{if(Number(payload.revision)>revision) void load();});
+    const connection=()=>{if(active) setConnected(socket.connected);};
+    socket.on('connect',connection);socket.on('disconnect',connection);socket.on('connect_error',connection);
+    const timer=setInterval(()=>{if(document.visibilityState==='visible') void load();},30000);
+    void load();
+    return()=>{active=false;controller?.abort();unsubscribe();clearInterval(timer);
+      socket.off('connect',connection);socket.off('disconnect',connection);socket.off('connect_error',connection);};
+  },[eventId]);
+  async function submit(event) {
+    event.preventDefault();if(!user || busy || !text.trim()) return;
+    const target=eventId;setBusy(true);setError('');
+    try {await addComment(target,text.trim());if(activeEvent.current===target) {setText('');await refresh.current();}}
+    catch(failure) {if(activeEvent.current===target) setError(failure.message||'Unable to post comment');}
+    finally {if(activeEvent.current===target) setBusy(false);}
+  }
+  async function remove(id) {
+    const target=eventId;setBusy(true);setError('');
+    try {await removeComment(target,id);if(activeEvent.current===target) await refresh.current();}
+    catch(failure) {if(activeEvent.current===target) setError(failure.message||'Unable to delete comment');}
+    finally {if(activeEvent.current===target) setBusy(false);}
+  }
+  return <section aria-label="Event comments" className="event-comments">
+    <div className="flex items-center justify-between gap-3"><h3 className="text-lg font-semibold">Comments</h3>
+      <span role="status" className="text-sm text-base-content/75">{connected?'Live':'Restoring live updates…'}</span></div>
+    {error && <p role="alert" className="text-error text-sm">{error}</p>}
+    {loading && <p role="status" className="text-sm">Loading comments…</p>}
+    <ul className="space-y-3" aria-live="polite" aria-relevant="additions removals">
+      {!loading && comments.length===0 && <li className="text-base-content/75 text-sm">Start the conversation.</li>}
+      {comments.map(comment=><li key={comment.id} className="rounded-xl bg-base-100 p-3">
+        <div className="flex items-start justify-between gap-2"><span className="font-medium text-sm">{comment.user?.name||'Community member'}</span>
+          {user && (String(user.id)===String(comment.user?.id)||user.role==='admin') &&
+            <button type="button" className="btn btn-ghost btn-sm" aria-label={`Delete comment by ${comment.user?.name||'community member'}`} disabled={busy} onClick={()=>remove(comment.id)}>Delete</button>}</div>
+        <p className="my-2 whitespace-pre-wrap break-words text-sm">{comment.text}</p>
+        <time dateTime={comment.createdAt} className="text-xs text-base-content/75">{new Date(comment.createdAt).toLocaleString()}</time>
+      </li>)}
+    </ul>
+    <form onSubmit={submit} className="comment-composer">
+      <label htmlFor={`comment-${eventId}`} className="text-sm font-medium">{user?'Add a comment':'Sign in to join the conversation'}</label>
+      <textarea id={`comment-${eventId}`} value={text} onChange={event=>setText(event.target.value)} maxLength={5000}
+        className="textarea textarea-bordered w-full min-h-24" disabled={!user||busy} placeholder={user?'Share something helpful…':'Sign in using the button above'}/>
+      <button className="btn btn-primary self-end" disabled={!user||busy||!text.trim()}>{busy?'Saving…':'Post comment'}</button>
+    </form>
+  </section>;
 }

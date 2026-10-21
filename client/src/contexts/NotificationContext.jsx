@@ -1,5 +1,5 @@
 // src/notifications/NotificationContext.jsx
-import React, { createContext, useContext, useMemo, useReducer, useEffect } from "react";
+import React, { createContext, useContext, useMemo, useReducer, useEffect, useCallback } from "react";
 import socket from "../services/socket";
 
 let idSeq = 1;
@@ -34,6 +34,7 @@ function todayStamp() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+// eslint-disable-next-line react-refresh/only-export-components
 export function isDismissedToday(key) {
   try {
     const raw = localStorage.getItem(`notif_dismiss_${key}`);
@@ -47,7 +48,7 @@ export function isDismissedToday(key) {
 function markDismissedToday(key) {
   try {
     localStorage.setItem(`notif_dismiss_${key}`, JSON.stringify({ day: todayStamp() }));
-  } catch {}
+  } catch { /* Private browsing may disallow persistence. */ }
 }
 
 export function NotificationProvider({ children }) {
@@ -63,19 +64,15 @@ export function NotificationProvider({ children }) {
     return () => socket.off("notify", handler);
   }, []);
 
-  const api = useMemo(
-    () => ({
-      push: (payload) => dispatch({ type: "PUSH", payload }),
-      dismiss: (id, stickyKey) => dispatch({ type: "DISMISS", id, stickyKey }),
-      clear: () => dispatch({ type: "CLEAR" }),
-      items: state.items,
-    }),
-    [state.items]
-  );
+  const push=useCallback(payload=>dispatch({type:'PUSH',payload}),[]);
+  const dismiss=useCallback((id,stickyKey)=>dispatch({type:'DISMISS',id,stickyKey}),[]);
+  const clear=useCallback(()=>dispatch({type:'CLEAR'}),[]);
+  const api=useMemo(()=>({push,dismiss,clear,items:state.items}),[push,dismiss,clear,state.items]);
 
   return <NotificationCtx.Provider value={api}>{children}</NotificationCtx.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useNotifications() {
   const ctx = useContext(NotificationCtx);
   if (!ctx) throw new Error("useNotifications must be used within NotificationProvider");

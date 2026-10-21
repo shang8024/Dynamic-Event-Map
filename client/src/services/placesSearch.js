@@ -30,7 +30,7 @@ export function createPlacesSearch(getLibrary, bounds) {
       const requestToken = sessionToken;
       const { suggestions } = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
         input: query,
-        locationRestriction: bounds,
+        locationBias: bounds,
         includedRegionCodes: ["ca"],
         sessionToken: requestToken,
       });
@@ -53,6 +53,7 @@ export function createPlacesSearch(getLibrary, bounds) {
       await place.fetchFields({ fields: ["formattedAddress", "location"] });
       if (!place.location) return null;
       return {
+        place_id: prediction.place_id,
         formatted_address: place.formattedAddress,
         geometry: { location: place.location },
       };

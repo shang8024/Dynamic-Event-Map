@@ -11,7 +11,7 @@ printf new > "$FIXTURE_CANDIDATE/infra/marker"
 printf 'DOMAIN=example.test\nFIREBASE_PROJECT_ID=test-project\n' > /root/deploy/.env
 chmod 600 /root/deploy/.env
 printf 'version: "3.9"\nservices: {}\n' > "$FIXTURE_CANDIDATE/stack.yml"
-for migration in 001_ingestion_identity 002_notifications; do
+for migration in 001_ingestion_identity 002_notifications 003_event_management 004_realtime_notifications; do
   printf 'SELECT 1;\n' > "$FIXTURE_CANDIDATE/db/migrations/$migration.sql"
   sha256sum "$FIXTURE_CANDIDATE/db/migrations/$migration.sql" > "/var/lib/eventmap/migrations/$migration.applied"
 done
@@ -23,6 +23,7 @@ printf '%s\n' "$1 $2" >> /tmp/docker-calls
 image() {
   case "$1" in
     eventmap_api|eventmap_client) printf 'ghcr.io/test/eventmap-%s@sha256:%064d' "${1#eventmap_}" 1 ;;
+    eventmap_image_proxy) printf 'ghcr.io/test/eventmap-api@sha256:%064d' 1 ;;
     eventmap_events_ingest) printf 'ghcr.io/test/eventmap-events-ingest@sha256:%064d' 1 ;;
     eventmap_db_backup) printf 'ghcr.io/test/eventmap-db-backup@sha256:%064d' 1 ;;
     *) printf '%s:test' "$1" ;;

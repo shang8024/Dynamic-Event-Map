@@ -101,7 +101,7 @@ export function useBookmarks() {
           push({
             type: "info",
             message: `You have ${todays[0]?.total ?? 0} bookmarked events starting and ${todays[1]?.total ?? 0} ending today.`,
-            stickyKey: `todays-bookmarks:${user?.id}`,
+            stickyKey: `todays-bookmarks:${user.uid}`,
             action: {
               label: "View",
               onClick: () => {},
@@ -109,13 +109,13 @@ export function useBookmarks() {
             },
           });
         }
-      } catch {}
+      } catch { /* The optional daily reminder must not block bookmarks. */ }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user,push]);
 
   const isBookmarked = useCallback((eventId) => bookmarkedIds.has(eventId), [bookmarkedIds]);
 
@@ -183,7 +183,7 @@ export function useBookmarks() {
             await fetchBookmarkStats(eventId);
             setItems((old) => old.filter((it) => it?.data?.id !== eventId));
             push({ type: "success", message: "Bookmark removed successfully", autoCloseMs: 2000 });
-          } catch (e) {
+          } catch {
             // If 404, bookmark was already deleted (possibly on another device)
             // Just refetch to sync state, don't show error
             await refetchBookmarks();

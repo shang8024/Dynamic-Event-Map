@@ -46,6 +46,7 @@ jobs:
           cache-dependency-path: |
             api/package-lock.json
             client/package-lock.json
+            infra/ingest/package-lock.json
       - name: Validate workflow definitions
         run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint@sha256:a0383f60d92601e2694e24b24d37df7b6a40bed7cedbc447611c50009bf02d94
       - name: Test API with PostgreSQL and Redis
@@ -67,13 +68,30 @@ jobs:
       - name: Test and build client
         run: |
           npm ci --prefix client
+          npm run lint --prefix client
           npm test --prefix client
           npm run build --prefix client
           npm audit --prefix client --audit-level=high
+      - name: Test Toronto snapshot normalization and database merge
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: '55433'
+          PGUSER: postgres
+          PGPASSWORD: ci-only-password
+          PGDATABASE: eventmap_test
+          INGEST_DB_TEST: '1'
+          INGEST_PG16_TEST: '1'
+        run: |
+          npm ci --prefix infra/ingest
+          npm test --prefix infra/ingest
       - name: Test backup and recovery guardrails
         run: |
           docker build -t eventmap-backup-check:local infra/backup
           python3 infra/backup/tests/integration.py
+      - name: Test isolated image processing
+        run: |
+          docker build -t eventmap-api-check:local api
+          python3 infra/scripts/tests/image_proxy_guardrails.py
       - name: Test manual deployment failure guardrails
         run: |
           for scenario in invalid_digest missing_migration changed_migration immutable_commit pull_failure readiness_failure fresh_success; do
@@ -103,6 +121,7 @@ jobs:
       - name: Build immutable image references and deployment bundle
         env:
           GH_TOKEN: ${{ github.token }}
+          VITE_GOOGLE_MAPS_MAP_ID: ${{ vars.GOOGLE_MAPS_MAP_ID }}
           VITE_GOOGLE_MAPS_KEY: ${{ secrets.GOOGLE_MAPS_KEY }}
           VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}

@@ -47,13 +47,14 @@ function fixture({ detailsError = false, missingLocation = false } = {}) {
   };
 }
 
-test("Places New queries restrict Toronto/Canada and share one token while typing", async () => {
+test("Places New queries bias GTA within Canada and share one token while typing", async () => {
   const { search, requests } = fixture();
   const first = await search.getPredictions("  Toronto  ");
   await search.getPredictions("Toronto city");
 
   assert.equal(requests[0].input, "Toronto");
-  assert.deepEqual(requests[0].locationRestriction, bounds);
+  assert.deepEqual(requests[0].locationBias, bounds);
+  assert.equal(requests[0].locationRestriction, undefined);
   assert.deepEqual(requests[0].includedRegionCodes, ["ca"]);
   assert.equal(requests[0].sessionToken, requests[1].sessionToken);
   assert.equal(first.length, 1);
@@ -70,6 +71,7 @@ test("selection uses the original prediction and only Essentials fields, then st
   assert.deepEqual(fieldRequests, [{ fields: ["formattedAddress", "location"] }]);
   assert.equal(place.formatted_address, "100 Queen St W, Toronto, ON");
   assert.equal(place.geometry.location, location);
+  assert.equal(place.place_id, "toronto-place");
   await search.getPredictions("union station");
   assert.notEqual(requests[0].sessionToken, requests[1].sessionToken);
 });

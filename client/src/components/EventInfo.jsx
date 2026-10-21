@@ -1,249 +1,41 @@
-import React, { useState } from "react";
-import { useBookmarks, useCountBookmarks } from "../hooks";
-import EventComments from "./EventComments.jsx";
-import EventArtwork from "./EventArtwork.jsx";
-import { useAuth } from "../contexts/AuthContext.jsx";
-
-export default function EventInfo({
-  event,
-  onClose,
-  onEdit,
-  onDelete,
-  clusterEvents,
-  clusterIndex,
-  onPrevCluster,
-  onNextCluster,
-}) {
-  const { isBookmarked, isPending, toggle } = useBookmarks();
-  const { user } = useAuth();
-  const numBookmarks = useCountBookmarks(event?.id);
-  const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
-
-  if (!event) return null;
-
-  const bookmarked = isBookmarked(event.id);
-  const pending = isPending(event.id);
-  const liveBookmarkCount = numBookmarks ?? event.num_bookmarks;
-
-  const handleBookmark = async () => {
-    if (!pending) {
-      await toggle(event.id, undefined, event);
-    }
-  };
-
-  const handleEdit = () => {
-    if (onEdit) onEdit(event);
-  };
-
-  const handleDelete = () => {
-    if (!onDelete) return;
-    if (!confirm("Delete this event?")) return;
-    onDelete(event.id);
-  };
-
-  const dateFormatOptions = {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  };
-
-  return (
-    <div className="bg-base-200 flex h-full w-full flex-col overflow-y-auto p-4">
-      <div id="information">
-        <div className="bg-base-100 rounded-md shadow-sm">
-          <div className="bg-base-100 relative h-40 w-full overflow-hidden rounded-md">
-            <EventArtwork
-              src={event.img}
-              title={event.title}
-              className="h-full w-full object-center"
-            />
-            {user && (
-              <button
-                className={`btn btn-circle btn-sm absolute top-2 left-2 ${
-                  bookmarked ? "btn-neutral" : ""
-                }`}
-                onClick={handleBookmark}
-                disabled={pending}
-                aria-busy={pending}
-                title={
-                  pending
-                    ? "Updating..."
-                    : bookmarked
-                      ? "Remove from bookmarks"
-                      : "Add to bookmarks"
-                }
-              >
-                {pending ? (
-                  <span className="loading loading-spinner loading-xs" />
-                ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    strokeWidth="2.5"
-                    stroke="currentColor"
-                    fill={bookmarked ? "currentColor" : "none"}
-                    className="size-[1.2em]"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"
-                    />
-                  </svg>
-                )}
-              </button>
-            )}
-
-            <button
-              className="btn btn-circle btn-sm absolute top-2 right-2"
-              onClick={onClose}
-              title="Close"
-            >
-              <svg width="14" height="14" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
-                <path
-                  fill="currentColor"
-                  d="m4.818 4.111l-.707.707a.5.5 0 0 0 0 .707L6.586 8L4.11 10.475a.5.5 0 0 0 0 .707l.707.707a.5.5 0 0 0 .707 0L8 9.414l2.475 2.475a.5.5 0 0 0 .707 0l.707-.707a.5.5 0 0 0 0-.707L9.414 8l2.475-2.475a.5.5 0 0 0 0-.707l-.707-.707a.5.5 0 0 0-.707 0L8 6.586L5.525 4.11a.5.5 0 0 0-.707 0"
-                />
-              </svg>
-            </button>
-          </div>
-
-          <div className="flex flex-1 flex-col justify-between p-4">
-            <div>
-              <div className="flex items-start justify-between">
-                <h3 className="mr-3 text-lg font-semibold">{event.title}</h3>
-                <div className="flex items-center space-x-2">
-                  {user && String(user.id) === String(event.user_id) && (
-                    <>
-                      <button
-                        className="btn btn-xs btn-outline"
-                        onClick={handleEdit}
-                        title="Edit event"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="btn btn-xs btn-outline btn-error"
-                        onClick={handleDelete}
-                        title="Delete event"
-                      >
-                        Delete
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="text-base-content/50 my-3 text-xs">
-                <div>
-                  <b>Address:</b> {event.location_address || "N/A"}
-                </div>
-                <div>
-                  <b>Start:</b>{" "}
-                  {event.starts_at
-                    ? new Date(event.starts_at).toLocaleString(undefined, dateFormatOptions)
-                    : "N/A"}
-                </div>
-                <div>
-                  <b>End:</b>{" "}
-                  {event.ends_at
-                    ? new Date(event.ends_at).toLocaleString(undefined, dateFormatOptions)
-                    : "N/A"}
-                </div>
-              </div>
-              {liveBookmarkCount > 0 && (
-                <div className="text-base-content/60 my-3 text-sm">
-                  <div>
-                    <b>
-                      {liveBookmarkCount} user{liveBookmarkCount !== 1 && "s"} ha
-                      {liveBookmarkCount !== 1 ? "ve" : "s"} bookmarked this event.
-                    </b>
-                  </div>
-                </div>
-              )}
-
-              <div className="text-base-content/60 mt-1 max-h-25 overflow-y-auto pr-1 text-sm">
-                {event.description}
-              </div>
-
-              {/* Cluster pagination controls (placed before comments) */}
-              {clusterEvents && clusterEvents.length > 1 && (
-                <div className="bg-base-content/10 mt-2 mb-0 w-full rounded-md">
-                  <div className="flex w-full items-center gap-2">
-                    <button
-                      className={`btn btn-sm ${clusterIndex <= 0 ? "btn-disabled" : ""}`}
-                      onClick={onPrevCluster}
-                      title="Previous"
-                      disabled={clusterIndex <= 0}
-                    >
-                      &lt;&lt;
-                    </button>
-
-                    <div className="flex-1 text-center text-sm">
-                      {clusterIndex + 1} / {clusterEvents.length}
-                    </div>
-
-                    <button
-                      className={`btn btn-sm ${
-                        clusterIndex >= clusterEvents.length - 1 ? "btn-disabled" : ""
-                      }`}
-                      onClick={onNextCluster}
-                      title="Next"
-                      disabled={clusterIndex >= clusterEvents.length - 1}
-                    >
-                      &gt;&gt;
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+import {useBookmarks,useCountBookmarks} from '../hooks';
+import {useAuth} from '../contexts/AuthContext';
+import EventArtwork from './EventArtwork';
+import EventComments from './EventComments';
+import EventImageEditor from './EventImageEditor';
+import VenuePhoto from './VenuePhoto';
+import {eventImage,eventTime,nextStart,isEnded} from '../utils/event';
+import {useState} from 'react';
+export default function EventInfo({event,onClose,onEdit,onDelete,onSaved}) {
+  const {user}=useAuth(),{isBookmarked,isPending,toggle}=useBookmarks();
+  const count=useCountBookmarks(event?.id);
+  const [failedURL,setFailedURL]=useState(null);
+  if(!event) return null;
+  const candidate=eventImage(event),image=candidate?.url===failedURL?null:candidate,ended=isEnded(event),manage=user&&(user.role==='admin'||String(user.id)===String(event.user_id));
+  const occurrences=event.data?.occurrences?.filter(item=>new Date(item.starts_at)>=new Date()).slice(0,10)||[];
+  return <article className="event-detail-content">
+    <div className="event-detail-actions"><button className="btn btn-circle bg-base-100 shadow" aria-label="Close event details" onClick={onClose}>✕</button></div>
+    <div className="event-detail-hero">{!image && !ended && event.status!=='cancelled' && !event.data?.image_hidden?
+      <VenuePhoto key={[event.id,event.data?.place_id,event.location_address,event.latitude,event.longitude].join(':')} event={event}/>:<EventArtwork src={image?.url} alt={image?.alt} title={event.title} category={event.category} className="h-full w-full" loading="eager" onUnavailable={()=>setFailedURL(candidate?.url)}/>}
       </div>
-
-      {/* Mobile: show a button to open comments on a separate page/overlay */}
-      <div className="mt-4 md:hidden">
-        <button
-          className="btn btn-block"
-          onClick={() => setMobileCommentsOpen(true)}
-          title="View comments"
-        >
-          View comments
-        </button>
-      </div>
-
-      <div id="comments" className="hidden min-h-0 flex-1 flex-col md:flex md:h-[calc(100vh)]">
-        <div className="divider mt-4 mb-2">
-          <span className="text-base-content/50 text-sm">Comments</span>
-        </div>
-        {/* Event comments section */}
-        <EventComments eventId={event.id} />
-      </div>
-
-      {/* Mobile-only full-screen comments "next page" */}
-      {mobileCommentsOpen && (
-        <div className="bg-base-200 fixed inset-0 z-50 flex flex-col p-4 md:hidden">
-          <div className="flex items-center justify-between">
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => setMobileCommentsOpen(false)}
-              title="Back to info"
-            >
-              ← Back
-            </button>
-            <h4 className="text-md font-semibold">Comments</h4>
-            <div className="w-12" />
-          </div>
-
-          <div className="divider mt-2 mb-2" />
-
-          <div className="min-h-0 flex-1 overflow-auto">
-            <EventComments eventId={event.id} />
-          </div>
-        </div>
-      )}
+    <div className="space-y-5 p-5">
+      {image && <p className="text-xs text-base-content/75">{image.credit|| (image.source==='toronto'?'Photo supplied with the Toronto event listing':'Event photo')}
+        {image.source==='toronto' && <> · <a href="https://open.toronto.ca/dataset/festivals-events/" target="_blank" rel="noopener noreferrer" className="link">Source</a></>}</p>}
+      <div><span className="badge badge-outline mb-3">{event.category||'Other'}</span><h2 id="event-detail-title" tabIndex={-1} className="text-2xl font-semibold leading-tight outline-none">{event.title}</h2></div>
+      {(ended||event.status==='cancelled') && <p role="status" className="rounded-xl bg-base-300 p-3 font-medium">{event.status==='cancelled'?'This event has been cancelled.':'This event has ended. It stays in your saved events.'}</p>}
+      <dl className="space-y-3 text-sm"><div><dt className="font-semibold">{ended?'Event dates':'Next occurrence'} · Toronto time</dt><dd className="mt-1">{eventTime(nextStart(event))}</dd></div>
+        <div><dt className="font-semibold">Location</dt><dd className="mt-1 break-words">{event.location_name && <>{event.location_name}<br/></>}{event.location_address||'Location to be confirmed'}</dd></div></dl>
+      {user?<button className={`btn w-full ${isBookmarked(event.id)?'btn-outline':'btn-primary'}`} aria-pressed={isBookmarked(event.id)} disabled={isPending(event.id)} onClick={()=>toggle(event.id,undefined,event)}>{isPending(event.id)?'Updating…':isBookmarked(event.id)?'Saved · remove bookmark':'Save event'}</button>
+        :<p className="rounded-xl bg-base-200 p-3 text-sm">Sign in to save this event and receive updates.</p>}
+      {count>0 && <p className="text-sm text-base-content/75">Saved by {count} {count===1?'person':'people'}</p>}
+      <div><h3 className="font-semibold mb-2">About this event</h3><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{event.description}</p></div>
+      {occurrences.length>1 && <details className="rounded-xl bg-base-200 p-3"><summary className="cursor-pointer font-medium">More dates</summary><ul className="mt-3 space-y-2 text-sm">{occurrences.map(item=><li key={item.starts_at}>{eventTime(item.starts_at)}</li>)}</ul><p className="mt-3 text-xs text-base-content/75">Check the organizer’s website for the complete schedule.</p></details>}
+      {event.data?.website && /^https?:\/\//.test(event.data.website) && <a className="btn btn-outline w-full" href={event.data.website} target="_blank" rel="noopener noreferrer">Organizer’s website ↗</a>}
+      {manage && <><div className="flex flex-wrap gap-2"><button className="btn btn-outline flex-1" onClick={()=>onEdit(event)}>Edit event</button>
+        <button className="btn btn-ghost text-error" onClick={()=>{if(confirm(event.source==='external'?'Cancel this event? Its saved history will be retained.':'Delete this event?')) onDelete(event.id);}}>{event.source==='external'?'Cancel event':'Delete'}</button></div>
+        {!ended && <EventImageEditor key={`${event.id}:${event.version}`} event={event} onSaved={onSaved}/>}</>}
+      {event.source==='external' && <p className="text-xs text-base-content/75">Listed by Toronto Festivals & Events. Details may change; confirm with the organizer. <a href="https://open.toronto.ca/open-data-licence/" target="_blank" rel="noopener noreferrer" className="link">Data licence</a></p>}
+      <hr className="border-base-300"/><EventComments key={event.id} eventId={event.id}/>
     </div>
-  );
+  </article>;
 }

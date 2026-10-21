@@ -8,7 +8,7 @@ import { importEvents } from '../database.js';
 test('PostgreSQL: idempotence, manual edits, user ownership and rollback', { skip: process.env.INGEST_DB_TEST !== '1' }, async () => {
   // Explicitly enabled local integration test; never touches the public schema.
   assert.equal(process.env.PGHOST, '127.0.0.1');
-  assert.equal(process.env.PGPORT, '55432');
+  assert.equal(process.env.PGPORT,process.env.INGEST_PG16_TEST==='1'?'55433':'55432');
   const client = new pg.Client();
   await client.connect();
   const schema = `ingest_test_${process.pid}`;
@@ -23,6 +23,7 @@ test('PostgreSQL: idempotence, manual edits, user ownership and rollback', { ski
     assert.deepEqual(await importEvents(client, snapshot()), { inserted: 0, updated: 0, unchanged: 1 });
     const { rows: [original] } = await client.query("SELECT * FROM events WHERE ref_id='toronto:s1'");
     await client.query("UPDATE events SET title='Curated title' WHERE id=$1", [original.id]);
+    await client.query("UPDATE events SET data=data||$2::jsonb WHERE id=$1",[original.id,JSON.stringify({image:{url:'https://images.unsplash.com/curated',credit:'Editor'},image_hidden:true,editor_overrides:['title']})]);
     await client.query("INSERT INTO events(user_id,title,source) VALUES (1,'User event','internal')");
     const changed = snapshot({ ...source, event_name: 'Upstream title', event_description: 'Changed description' });
     assert.deepEqual(await importEvents(client, changed), { inserted: 0, updated: 1, unchanged: 0 });
@@ -30,6 +31,10 @@ test('PostgreSQL: idempotence, manual edits, user ownership and rollback', { ski
     assert.equal(updated.id, original.id);
     assert.equal(updated.title, 'Curated title');
     assert.equal(updated.description, 'Changed description');
+    assert.equal(updated.user_id,original.user_id);
+    assert.equal(updated.data.image.url,'https://images.unsplash.com/curated');
+    assert.equal(updated.data.image_hidden,true);
+    assert.deepEqual(updated.data.editor_overrides,['title']);
     assert.equal((await client.query("SELECT title FROM events WHERE source='internal'")).rows[0].title, 'User event');
     const broken = { events: [{ ...changed.events[0], ref_id: 'toronto:rollback-1' }, { ...changed.events[0], ref_id: 'toronto:rollback-2', title: 'x'.repeat(256) }] };
     await assert.rejects(() => importEvents(client, broken), /too long/);

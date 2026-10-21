@@ -1,18 +1,20 @@
 import React from "react";
+import {eventImage} from "../utils/event";
 import EventArtwork from "./EventArtwork.jsx";
 
 export default function EventImage({ event, className }) {
   if (!event) return null;
 
+  const image = eventImage(event);
   const startsAt = event.startsAt || event._row?.starts_at;
   const endsAt = event.endsAt || event._row?.ends_at;
 
   const imageWrapperClass = className || "aspect-[4/3] w-40 flex-none md:w-56";
 
   return (
-    <div>
+    <div className="w-full min-w-0 md:w-auto">
       <div className={imageWrapperClass}>
-        <EventArtwork src={event.img} title={event.title} className="h-full w-full rounded" />
+        <EventArtwork src={image?.url} alt={image?.alt} category={event.category || event._row?.category} title={event.title} className="h-full w-full rounded" />
       </div>
 
       {startsAt && (

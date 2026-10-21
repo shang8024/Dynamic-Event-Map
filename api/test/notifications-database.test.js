@@ -21,6 +21,7 @@ test('notification PostgreSQL lifecycle and concurrency',{skip:process.env.NOTIF
     await db.query(await fs.readFile(path.resolve(__dirname,'../../db/init.sql'),'utf8'));
     await db.query('DROP INDEX ux_events_natural_all');
     await db.query(await fs.readFile(path.resolve(__dirname,'../../db/migrations/002_notifications.sql'),'utf8'));
+    await db.query(await fs.readFile(path.resolve(__dirname,'../../db/migrations/003_event_management.sql'),'utf8'));
     async function reset() {
       await db.query('TRUNCATE profiles RESTART IDENTITY CASCADE');
       const {rows:[user]}=await db.query("INSERT INTO profiles(username,email,google_id) VALUES('tester','tester@example.test','test-uid') RETURNING *");

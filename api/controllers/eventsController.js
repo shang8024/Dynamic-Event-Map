@@ -1,162 +1,51 @@
-const Event = require("../models/eventModel");
-const socket = require("../socket");
-const { bumpEventCount } = require("./statsController");
-
-const getEvents = async (req, res) => {
+const Event=require('../models/eventModel');
+const socket=require('../socket');
+const {bumpEventCount}=require('./statsController');
+const {canManageEvent,validateEvent}=require('../services/eventPermissions');
+function broadcast(name,payload) { try {socket.getIO().emit(name,payload);} catch {/* HTTP data remains authoritative. */} }
+function fail(res,error) {
+  console.error('Event operation failed',error.code || error.name);
+  return res.status(error.status||500).json({error:error.status?error.message:'Unable to save the event. Please try again.'});
+}
+async function getEvents(_req,res) {
+  try {res.json((await Event.getAll()).rows);} catch(error) {fail(res,error);}
+}
+async function createEvent(req,res) {
+  if(!req.user) return res.status(401).json({error:'Authentication required'});
+  if(req.body.source && req.body.source!=='internal') return res.status(403).json({error:'External events can only be created by the import job'});
+  const error=validateEvent(req.body);
+  if(error) return res.status(400).json({error});
   try {
-    const result = await Event.getAll();
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch events" });
-  }
-};
-
-const createEvent = async (req, res) => {
-  const {
-    title,
-    description,
-    source = "internal",
-    latitude: lat,
-    longitude: lng,
-    location_address,
-    starts_at: rawStarts,
-    ends_at: rawEnds,
-    category = 'Other',
-  } = req.body;
-
-  // require minimal fields
-  if (
-    !title ||
-    lat === undefined ||
-    lng === undefined ||
-    !location_address ||
-    !rawStarts ||
-    !description ||
-    !rawEnds
-  ) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-
-  if (!req.user)
-    return res.status(401).json({ error: "Authentication required" });
-  if (source !== "internal") {
-    return res.status(403).json({ error: "External events can only be created by the import job" });
-  }
-  const user_id = req.user.id;
-
-  const starts_at =
-    typeof rawStarts === "string" ? new Date(rawStarts) : rawStarts;
-  const ends_at = typeof rawEnds === "string" ? new Date(rawEnds) : rawEnds;
-
+    const row=(await Event.create({...req.body,lat:Number(req.body.latitude),lng:Number(req.body.longitude),user_id:req.user.id,source:'internal'})).rows[0];
+    await bumpEventCount(1); broadcast('event:created',row); res.json(row);
+  } catch(error) {fail(res,error);}
+}
+async function updateEvent(req,res) {
+  if(!req.user) return res.status(401).json({error:'Authentication required'});
   try {
-    const result = await Event.create({
-      user_id,
-      title,
-      description,
-      category,
-      lat,
-      lng,
-      location_address,
-      starts_at,
-      ends_at,
-      source,
-    });
-    await bumpEventCount(1);
-    const ev = result.rows[0];
-    // Emit realtime event
-    try {
-      socket.getIO().emit("event:created", ev);
-    } catch (e) {
-      /* ignore if not init */
+    const before=(await Event.getById(req.params.id)).rows[0];
+    if(!before) return res.status(404).json({error:'Event not found'});
+    if(!canManageEvent(req.user,before)) return res.status(403).json({error:'You cannot edit this event'});
+    const error=validateEvent(req.body,before);
+    if(error) return res.status(400).json({error});
+    const input=Object.fromEntries(['title','description','category','starts_at','ends_at','latitude','longitude','location_address','status','place_id','version']
+      .filter(field=>Object.hasOwn(req.body,field)).map(field=>[field,req.body[field]]));
+    const row=(await Event.update({...input,id:before.id,actor_id:req.user.id})).rows[0];
+    await bumpEventCount(0); broadcast('event:updated',row); res.json(row);
+  } catch(error) {fail(res,error);}
+}
+async function deleteEvent(req,res) {
+  if(!req.user) return res.status(401).json({error:'Authentication required'});
+  try {
+    const row=(await Event.getById(req.params.id)).rows[0];
+    if(!row) return res.status(404).json({error:'Event not found'});
+    if(!canManageEvent(req.user,row)) return res.status(403).json({error:'You cannot delete this event'});
+    if(row.source==='external') {
+      const cancelled=(await Event.update({id:row.id,status:'cancelled',actor_id:req.user.id})).rows[0];
+      broadcast('event:updated',cancelled); return res.json({message:'Event cancelled',event:cancelled});
     }
-    res.json(ev);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to create event" });
-  }
-};
-
-const deleteEvent = async (req, res) => {
-  const { id } = req.params;
-  if (!req.user)
-    return res.status(401).json({ error: "Authentication required" });
-  try {
-    const found = await Event.getById(id);
-    if (!found || found.rows.length === 0)
-      return res.status(404).json({ error: "Event not found" });
-    const row = found.rows[0];
-    if (Number(row.user_id) !== Number(req.user.id))
-      return res.status(403).json({ error: "Forbidden" });
-    const result = await Event.delete(id);
-    if (result.rowCount === 0)
-      return res.status(404).json({ error: "Event not found" });
-    await bumpEventCount(-1);
-    try {
-      socket.getIO().emit("event:deleted", { id: Number(id) });
-    } catch (e) {}
-    res.json({ message: "Event deleted" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to delete event" });
-  }
-};
-
-const updateEvent = async (req, res) => {
-  const { id } = req.params;
-  const { title, description, category = 'Other' } = req.body;
-  const rawStarts = req.body.starts_at;
-  const rawEnds = req.body.ends_at;
-  if (!req.user)
-    return res.status(401).json({ error: "Authentication required" });
-  if (!title || !description)
-    return res.status(400).json({ error: "Missing required fields" });
-  try {
-    const found = await Event.getById(id);
-    if (!found || found.rows.length === 0)
-      return res.status(404).json({ error: "Event not found" });
-    const row = found.rows[0];
-    if (Number(row.user_id) !== Number(req.user.id))
-      return res.status(403).json({ error: "Forbidden" });
-
-    const starts_at = rawStarts
-      ? typeof rawStarts === "string"
-        ? new Date(rawStarts)
-        : rawStarts
-      : null;
-    const ends_at = rawEnds
-      ? typeof rawEnds === "string"
-        ? new Date(rawEnds)
-        : rawEnds
-      : null;
-
-    const result = await Event.update({
-      id,
-      title,
-      description,
-      starts_at,
-      ends_at,
-      category,
-    });
-    if (result.rowCount === 0)
-      return res.status(404).json({ error: "Event not found" });
-    const ev = result.rows[0];
-    if ((starts_at && found.rows[0].starts_at !== starts_at) || (ends_at && found.rows[0].ends_at !== ends_at)){
-      await bumpEventCount(0);
-    }
-    try {
-      socket.getIO().emit("event:updated", ev);
-    } catch (e) {}
-    res.json(ev);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update event" });
-  }
-};
-
-module.exports = {
-  getEvents,
-  createEvent,
-  deleteEvent,
-  updateEvent,
-};
+    await Event.delete(row.id); await bumpEventCount(-1); broadcast('event:deleted',{id:row.id});
+    res.json({message:'Event deleted'});
+  } catch(error) {fail(res,error);}
+}
+module.exports={getEvents,createEvent,updateEvent,deleteEvent};
