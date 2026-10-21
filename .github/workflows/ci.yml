@@ -59,6 +59,9 @@ jobs:
           NOTIFICATION_DB_TEST: '1'
           NOTIFICATION_PG16_TEST: '1'
           RATE_LIMIT_REDIS_TEST: '1'
+          ACCOUNT_ACCESS_DB_TEST: '1'
+          COMMENT_PREVIEW_TEST: '1'
+          SOCKET_ABUSE_REDIS_TEST: '1'
           REDIS_HOST: 127.0.0.1
           REDIS_PORT: '56379'
         run: |
@@ -88,6 +91,8 @@ jobs:
         run: |
           docker build -t eventmap-backup-check:local infra/backup
           python3 infra/backup/tests/integration.py
+      - name: Test production HTTP security headers
+        run: python3 infra/scripts/tests/security_headers.py
       - name: Test isolated image processing
         run: |
           docker build -t eventmap-api-check:local api

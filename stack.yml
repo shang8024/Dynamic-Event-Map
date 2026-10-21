@@ -54,6 +54,7 @@ services:
 
       # Use Swarm provider
       - --providers.swarm=true
+      - --providers.swarm.exposedbydefault=false
       - --providers.swarm.endpoint=unix:///var/run/docker.sock
       - --providers.swarm.network=eventmap_proxy
 
@@ -82,7 +83,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - proxy
-      - internal
     deploy:
       placement:
         constraints:
@@ -202,6 +202,16 @@ services:
         - "traefik.http.routers.api.entrypoints=websecure"
         - "traefik.http.routers.api.tls.certresolver=le"
         - "traefik.http.routers.api.priority=10"
+        - "traefik.http.routers.api.middlewares=eventmap-api-inflight,eventmap-response-security,eventmap-api-compress"
+        # Aggregate HTTP work is capped before Node/DB work starts. WebSocket
+        # connection limits are enforced separately by the application.
+        - "traefik.http.middlewares.eventmap-api-inflight.inflightreq.amount=64"
+        # Only JSON responses are compressed, leaving images and streaming /
+        # Socket.IO transports unchanged. Negotiate gzip for bodies >= 1 KiB.
+        - "traefik.http.middlewares.eventmap-api-compress.compress=true"
+        - "traefik.http.middlewares.eventmap-api-compress.compress.encodings=gzip"
+        - "traefik.http.middlewares.eventmap-api-compress.compress.includedcontenttypes=application/json"
+        - "traefik.http.middlewares.eventmap-api-compress.compress.minresponsebodybytes=1024"
         - "traefik.http.services.api.loadbalancer.server.port=5000"
         - "traefik.http.services.api.loadbalancer.sticky.cookie=true"
         - "traefik.http.services.api.loadbalancer.sticky.cookie.name=sio_sticky"
@@ -253,12 +263,20 @@ services:
         - "traefik.http.routers.client.entrypoints=websecure"
         - "traefik.http.routers.client.tls.certresolver=le"
         - "traefik.http.routers.client.priority=5"
+        - "traefik.http.routers.client.middlewares=eventmap-static-inflight,eventmap-response-security"
+        - "traefik.http.middlewares.eventmap-static-inflight.inflightreq.amount=96"
+        - "traefik.http.middlewares.eventmap-response-security.headers.contenttypenosniff=true"
+        - "traefik.http.middlewares.eventmap-response-security.headers.framedeny=true"
+        - "traefik.http.middlewares.eventmap-response-security.headers.referrerpolicy=strict-origin-when-cross-origin"
+        - "traefik.http.middlewares.eventmap-response-security.headers.stsseconds=31536000"
+        - "traefik.http.middlewares.eventmap-response-security.headers.customresponseheaders.Cross-Origin-Opener-Policy=same-origin-allow-popups"
+        - "traefik.http.middlewares.eventmap-response-security.headers.customresponseheaders.Permissions-Policy=camera=(), microphone=(), payment=(), usb=(), geolocation=(self)"
         
         # Router for bare domain that redirects to www
         - "traefik.http.routers.client-redirect.rule=Host(`${DOMAIN}`)"
         - "traefik.http.routers.client-redirect.entrypoints=websecure"
         - "traefik.http.routers.client-redirect.tls.certresolver=le"
-        - "traefik.http.routers.client-redirect.middlewares=redirect-to-www"
+        - "traefik.http.routers.client-redirect.middlewares=eventmap-response-security,redirect-to-www"
         - "traefik.http.routers.client-redirect.priority=4"
         
         # Middleware to redirect to www
