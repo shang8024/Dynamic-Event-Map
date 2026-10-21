@@ -16,7 +16,7 @@ function validateEvent(input, existing) {
   }
   for (const field of ['starts_at','ends_at']) {
     const raw = value[field];
-    if (!raw && field === 'ends_at' && existing?.source === 'external') continue;
+    if (!raw && field === 'ends_at') continue;
     if (!(raw instanceof Date) && (typeof raw !== 'string' || !/(Z|[+-]\d\d:\d\d)$/.test(raw))) return 'Dates must include a timezone';
     if (!Number.isFinite(new Date(raw).getTime())) return 'Valid start and end times are required';
   }

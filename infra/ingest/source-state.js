@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { PROVIDER } from './normalize.js';
 
-export const IMPORT_FORMAT_VERSION = 3;
+export const IMPORT_FORMAT_VERSION = 4;
 export function sourceRevision(metadata) {
   if (!metadata.resource_id || !metadata.source_last_modified || !metadata.source_url) return null;
   return createHash('sha256').update(JSON.stringify({

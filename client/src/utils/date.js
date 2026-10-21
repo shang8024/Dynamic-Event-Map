@@ -1,8 +1,15 @@
+import {eventOccurrences,isEnded,nextOccurrence} from './event.js';
 export function getEventStatus(item) {
   const event = item?.event || item?.eventData || item;
   if (!event) return null;
 
   if ((event.status || event._row?.status) === 'cancelled') return 'Cancelled';
+  if(isEnded(event)) return 'Expired';
+  if(eventOccurrences(event).length) {
+    const next=nextOccurrence(event);
+    if(next && Date.parse(next.starts_at)<=Date.now() && next.ends_at && Date.parse(next.ends_at)>Date.now()) return 'In progress';
+    return next?null:'Time to confirm';
+  }
   const now = new Date();
   const starts = event.startsAt
     ? new Date(event.startsAt)

@@ -9,6 +9,10 @@ export function eventImage(event, size="detail") {
   return {...source,url:`/api/events/${event.id}/image?size=${size==='thumb'?'thumb':'detail'}&v=${encodeURIComponent(`${tag}-${event.version||event._row?.version||1}`)}`};
 }
 export function isEnded(event,now=Date.now()) {
+  if(event?.archived_at || event?._row?.archived_at) return true;
+  const slots=eventOccurrences(event);
+  if(slots.some(item=>new Date(item.starts_at).getTime()>=now || item.ends_at && new Date(item.ends_at).getTime()>now)) return false;
+  if(slots.length && slots.every(item=>item.ends_at && new Date(item.ends_at).getTime()<=now)) return true;
   const end=event?.ends_at||event?.endsAt||event?._row?.ends_at;
   return Boolean(end && new Date(end).getTime()<now);
 }
@@ -19,9 +23,24 @@ export function eventView(row) {
   return {...value,img:eventImage(value)?.url||null};
 }
 export function nextStart(event,now=Date.now()) {
+  const slot=nextOccurrence(event,now);if(slot) return slot.starts_at;
+  if(event?.data?.schedule_format===2 || event?.occurrences?.length>0) return null;
   if(event?.data?.editor_overrides?.includes('starts_at')) return event.starts_at;
   if(event?.next_start && new Date(event.next_start).getTime()>=now) return event.next_start;
   return event?.data?.occurrences?.map(item=>item.starts_at).filter(value=>new Date(value).getTime()>=now).sort()[0]||event?.starts_at;
+}
+export function eventOccurrences(event) {
+  const row=event?._row||event||{};
+  const values=row.occurrences ?? row.data?.occurrences;
+  return Array.isArray(values)?values.filter(item=>item.starts_at && Number.isFinite(Date.parse(item.starts_at))).slice().sort((a,b)=>Date.parse(a.starts_at)-Date.parse(b.starts_at)):[];
+}
+export function nextOccurrence(event,now=Date.now()) {
+  const slots=eventOccurrences(event);
+  return slots.find(item=>Date.parse(item.starts_at)<=now && item.ends_at && Date.parse(item.ends_at)>now)
+    ||slots.find(item=>Date.parse(item.starts_at)>=now)||null;
+}
+export function occurrenceTime(item) {
+  return `${eventTime(item?.starts_at)} — ${item?.ends_at?eventTime(item.ends_at):'End time not provided'}`;
 }
 export function eventTime(value) {
   if(!value || !Number.isFinite(new Date(value).getTime())) return 'Check the organizer’s schedule';

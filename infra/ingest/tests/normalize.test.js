@@ -35,9 +35,9 @@ test('preserves ongoing series, rejects ended series, keeps far-future official 
   assert.equal(result.report.ended_series, 1);
   assert.equal(result.report.beyond_one_year, 1);
 });
-test('does not guess an end time or retain already-started events without a known end', () => {
+test('does not guess an end time or discard future occurrences of a series that started earlier', () => {
   const result = normalize([row(), row({ submission_id: 'unknown-past', event_expirydate: null }), row({ submission_id: 'unknown-future', event_startdate: '2026-11-01T09:00:00-05:00', event_expirydate: null })]);
-  assert.equal(result.events.length, 2);
+  assert.equal(result.events.length, 3);
   assert.equal(result.events.find(e => e.ref_id === 'toronto:unknown-future').ends_at, null);
   assert.equal(result.report.missing_end_series, 2);
 });

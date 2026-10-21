@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import {projectSchedule,officialOccurrences} from './official-schedule.js';
 
 export const PROVIDER = 'toronto-open-data';
 export const CATALOGUE_URL = 'https://open.toronto.ca/dataset/festivals-events/';
@@ -55,7 +56,15 @@ function projectRow(raw) {
     'featured_event', 'free_event', 'event_website', '__ModifiedOn'];
   const projected = Object.fromEntries(fields.map(field => [field, raw[field]]));
   projected.locations = (Array.isArray(raw.event_locations) ? raw.event_locations : []).map(location);
-  const photo=(Array.isArray(raw.event_image)?raw.event_image:[]).find(image=>/^[A-Za-z0-9_-]{10,100}$/.test(image.bin_id||'') && ['image/jpeg','image/png','image/webp','image/avif'].includes(image.type) && (!image.size || Number(image.size)<=8*1024*1024));
+  projected.schedule=projectSchedule(raw);
+  projected.source_fields={description:Boolean((raw.event_description||raw.short_description||'').trim()),
+    website:/^https?:\/\//i.test(raw.event_website||''),categories:Array.isArray(raw.event_category)&&raw.event_category.length>0,
+    locations:projected.locations.length>0};
+  const photo=(Array.isArray(raw.event_image)?raw.event_image:[]).find(image=>image && /^[A-Za-z0-9_-]{10,100}$/.test(image.bin_id||'') && ['image/jpeg','image/png','image/webp','image/avif'].includes(image.type) && (!image.size || Number(image.size)<=8*1024*1024));
+  projected.known_exclusions=[];
+  if(Array.isArray(raw.event_image) && raw.event_image.length && !photo) projected.known_exclusions.push('imported_image');
+  if(raw.event_website && !/^https?:\/\//i.test(raw.event_website)) projected.known_exclusions.push('website');
+  projected.source_issues=['event_image','event_locations','event_category'].filter(field=>raw[field]!=null && !Array.isArray(raw[field]));
   if(photo) projected.image={url:`https://secure.toronto.ca/c3api_upload/retrieve/festivals_events/${photo.bin_id}`,
     alt:String(photo.fields?.alt||raw.event_name||'Event photo').slice(0,500),credit:String(photo.fields?.credit||'').slice(0,300),source:'toronto',source_url:CATALOGUE_URL};
   return projected;
@@ -107,28 +116,39 @@ export function createFeedNormalizer({ asOf, limits = {} }) {
   if (finished) throw new Error('Source snapshot has already been completed');
   finished = true;
   if (!report.raw_rows) throw new Error('Expected non-empty official {value: [...]} feed; refusing an empty import');
-  const events = [];
+  const events = [],candidates=[];
   report.series = groups.size;
   for (const [identity, group] of groups) {
     const raw = group.raw;
-    const startsAt = instant(raw.event_startdate);
+    const occurrences=officialOccurrences(raw.schedule,[...group.occurrences.values()]);
+    const startsAt = instant(raw.event_startdate)||occurrences[0]?.starts_at;
     // event_enddate is often the START of the final recurrence, not its end.
     // event_expirydate is the final end; do not fabricate missing ends.
-    const endsAt = instant(raw.event_expirydate);
+    const officialEnd=instant(raw.event_expirydate);
+    const knownEnds=occurrences.map(item=>item.ends_at).filter(Boolean).sort();
+    const endsAt=officialEnd? [officialEnd,...knownEnds].sort().at(-1)
+      :occurrences.length && knownEnds.length===occurrences.length?knownEnds.at(-1):null;
     const title = raw.event_name || raw.short_name;
-    if (raw.event_status !== 'Approved' || !startsAt || typeof title !== 'string' || !title.trim() || title.length > 255 || (endsAt && endsAt < startsAt)) {
+    if(raw.event_status!=='Approved') continue;
+    if(endsAt && endsAt<cutoff && (!startsAt || startsAt<cutoff)
+      && !occurrences.some(item=>item.starts_at>=cutoff || item.ends_at && item.ends_at>=cutoff)) {
+      report.ended_series++;continue;
+    }
+    if (!startsAt || typeof title !== 'string' || !title.trim() || title.length > 255 || (endsAt && endsAt < startsAt)) {
       report.rejected_series++;
       report.rejected.push({ source_id: identity, reason: 'status, title, or date validation failed' });
+      candidates.push({ref_id:`toronto:${identity}`,issue:true});
       continue;
     }
     if (!endsAt) report.missing_end_series++;
-    if ((endsAt && endsAt < cutoff) || (!endsAt && startsAt < cutoff)) {
+    if (endsAt && endsAt < cutoff) {
       report.ended_series++;
       continue;
     }
+    const candidate={ref_id:`toronto:${identity}`,issue:raw.schedule.issues.length>0 || raw.source_issues.length>0 || occurrences.some(item=>item.schedule_issue),known_exclusions:raw.known_exclusions};
+    candidates.push(candidate);
     const locations = raw.locations;
     const primary = locations.find(l => l.latitude !== null && l.longitude !== null) || locations[0] || {};
-    const occurrences = [...group.occurrences.values()].sort((a,b) => a.starts_at.localeCompare(b.starts_at));
     const fields = {
       title,
       description: raw.event_description || raw.short_description || null,
@@ -144,7 +164,7 @@ export function createFeedNormalizer({ asOf, limits = {} }) {
       featured: raw.featured_event === 'Yes', free: raw.free_event === 'Yes',
       source_url: CATALOGUE_URL,
       website: /^https?:\/\//i.test(raw.event_website || '') ? raw.event_website : null,
-      locations, occurrences,
+      locations, occurrences, schedule_format:2,
       source_categories: raw.event_category || [],
       attribution: ATTRIBUTION,
       licence_url: LICENCE_URL,
@@ -153,6 +173,10 @@ export function createFeedNormalizer({ asOf, limits = {} }) {
       // Organizer contacts and raw rows are deliberately omitted.
       import_metadata: { provider: PROVIDER, source_id: identity, source_modified_at: instant(raw.__ModifiedOn), ...provenance },
     };
+    const retained={description:Boolean(fields.description?.trim()),website:Boolean(data.website),
+      categories:Array.isArray(data.source_categories)&&data.source_categories.length>0,locations:data.locations.length>0};
+    candidate.missing_fields=Object.keys(raw.source_fields).filter(field=>raw.source_fields[field] && !retained[field]);
+    if(candidate.missing_fields.length) candidate.issue=true;
     const contentHash = createHash('sha256').update(JSON.stringify({ fields, data: { ...data, import_metadata: { provider: PROVIDER, source_id: identity, source_modified_at: instant(raw.__ModifiedOn) } } })).digest('hex');
     events.push({ source: 'external', ref_id: `toronto:${identity}`, ...fields, data: { ...data, import_snapshot: { ...fields, content_hash: contentHash } } });
     if (locations.length > 1) report.multi_location_series++;
@@ -162,9 +186,11 @@ export function createFeedNormalizer({ asOf, limits = {} }) {
   report.active_series = events.length;
   report.occurrence_starts = events.reduce((sum, event) => sum + event.data.occurrences.length, 0);
   report.future_occurrence_starts = events.reduce((sum, event) => sum + event.data.occurrences.filter(occurrence => occurrence.starts_at >= cutoff).length, 0);
-  if (!events.length) throw new Error('No valid non-ended events; refusing an empty import');
+  report.schedule_anomalies=candidates.filter(item=>item.issue).length;
+  report.unknown_occurrence_ends=events.reduce((sum,event)=>sum+event.data.occurrences.filter(item=>!item.ends_at).length,0);
+  if (!events.length) throw Object.assign(new Error('No valid non-ended events; refusing an empty import'),{provenance,report});
   groups.clear();
-  return { version: 1, as_of: cutoff, provenance, report, events: events.sort((a,b) => a.ref_id.localeCompare(b.ref_id)) };
+  return { version: 1, as_of: cutoff, provenance, report, review:{candidates},events: events.sort((a,b) => a.ref_id.localeCompare(b.ref_id)) };
   }
 
   return { addRow, finish };

@@ -1,12 +1,16 @@
 import { FIELDS, PROVIDER } from './normalize.js';
 import { recordSuccessfulImport } from './source-state.js';
+import {enforceImportQuality} from './quality.js';
+import {verifyImportedRows,verifyOccurrenceRows} from './verify-import.js';
 
 const types = { starts_at: 'timestamptz', ends_at: 'timestamptz', latitude: 'double precision', longitude: 'double precision' };
 const assignments = FIELDS.map(field => `${field} = CASE WHEN NOT (COALESCE(e.data->'editor_overrides','[]'::jsonb) ? '${field}') AND (e.archived_at IS NOT NULL OR e.${field} IS NOT DISTINCT FROM (e.data->'import_snapshot'->>'${field}')::${types[field] || 'text'}) THEN EXCLUDED.${field} ELSE e.${field} END`).join(',\n');
 const upsert = `INSERT INTO events AS e (user_id, source, ref_id, ${FIELDS.join(', ')}, data)
   VALUES ($1, 'external', $2, ${FIELDS.map((_, i) => `$${i+3}`).join(', ')}, $${FIELDS.length+3}::jsonb)
   ON CONFLICT (source, ref_id) DO UPDATE SET ${assignments},
-    data = e.data || EXCLUDED.data, archived_at=NULL, updated_at = now()
+    data = e.data || EXCLUDED.data || CASE WHEN e.data->>'schedule_origin'='manual'
+      THEN jsonb_build_object('occurrences',e.data->'occurrences','schedule_origin','manual','schedule_format',2) ELSE '{}'::jsonb END,
+    archived_at=NULL, updated_at = now()
   WHERE e.data->'import_metadata'->>'provider' = '${PROVIDER}'
     AND (e.archived_at IS NOT NULL OR e.data->'import_snapshot'->>'content_hash' IS DISTINCT FROM EXCLUDED.data->'import_snapshot'->>'content_hash')
   RETURNING (xmax = 0) AS inserted`;
@@ -16,6 +20,9 @@ export async function importEvents(client, snapshot) {
   await client.query('BEGIN');
   try {
     await client.query("SELECT pg_advisory_xact_lock(hashtext('eventmap:toronto-ingest'))");
+    await enforceImportQuality(client,snapshot);
+    const refs=snapshot.events.map(event=>event.ref_id);
+    const before=await client.query("SELECT * FROM events WHERE source='external' AND ref_id=ANY($1::text[])",[refs]);
     const index = await client.query("SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'ux_events_natural_all'");
     if (index.rowCount) throw new Error('Apply db/migrations/001_ingestion_identity.sql before importing');
     await client.query("INSERT INTO profiles (username, password_hash) VALUES ('toronto-open-data', NULL) ON CONFLICT (username) DO NOTHING");
@@ -31,6 +38,8 @@ export async function importEvents(client, snapshot) {
       else if (response.rows[0].inserted) result.inserted++;
       else result.updated++;
     }
+    const after=await client.query("SELECT * FROM events WHERE source='external' AND ref_id=ANY($1::text[])",[refs]);
+    verifyImportedRows(snapshot,before.rows,after.rows);
     // Additive notification migration is optional for the core deployment.
     // Refresh occurrences even when event content is unchanged, so a successful
     // full snapshot renews its source-observation time and suppresses missing
@@ -41,6 +50,9 @@ export async function importEvents(client, snapshot) {
       if (!timestamp) throw new Error('Occurrence refresh requires the validated source timestamp');
       const observed = /(Z|[+-]\d\d:\d\d)$/.test(timestamp) ? timestamp : `${timestamp}Z`;
       await client.query('SELECT refresh_toronto_occurrences($1::text[],$2::timestamptz)', [snapshot.events.map(event => event.ref_id), observed]);
+      const stored=await client.query(`SELECT e.ref_id,o.starts_at,o.ends_at FROM event_occurrences o JOIN events e ON e.id=o.event_id
+        WHERE e.ref_id=ANY($1::text[]) AND o.status<>'source_missing'`,[refs]);
+      verifyOccurrenceRows(after.rows,stored.rows,snapshot.provenance);
     }
     await recordSuccessfulImport(client, snapshot);
     await client.query('COMMIT');

@@ -25,7 +25,7 @@ async function scheduleNotifications(pool) {
       JOIN event_occurrences o ON o.event_id=b.event_id JOIN events e ON e.id=o.event_id
       WHERE p.reminders_enabled AND p.delivery_email IS NOT NULL AND p.verified_uid IS NOT NULL
         AND e.status='scheduled' AND o.status='scheduled' AND o.starts_at>now() AND (e.ends_at IS NULL OR e.ends_at>now())
-        AND (e.source='internal' OR o.source_observed_at>=now()-interval '72 hours')
+        AND (e.source='internal' OR e.data->>'schedule_origin'='manual' OR o.source_observed_at>=now()-interval '72 hours')
         AND o.starts_at-make_interval(hours=>p.reminder_lead_hours)>now()-interval '15 minutes'
         AND o.starts_at-make_interval(hours=>p.reminder_lead_hours)<=now()+interval '24 hours'
       ON CONFLICT(delivery_key) DO UPDATE SET scheduled_for=EXCLUDED.scheduled_for,expires_at=EXCLUDED.expires_at,updated_at=now()
@@ -46,7 +46,7 @@ async function scheduleNotifications(pool) {
           JOIN bookmarks b ON b.event_id=e.id AND b.user_id=q.user_id
           WHERE o.id=q.occurrence_id AND e.status='scheduled' AND o.status='scheduled' AND o.starts_at=q.scheduled_start
             AND o.starts_at>now() AND (e.ends_at IS NULL OR e.ends_at>now())
-            AND (e.source='internal' OR o.source_observed_at>=now()-interval '72 hours'))))`);
+            AND (e.source='internal' OR e.data->>'schedule_origin'='manual' OR o.source_observed_at>=now()-interval '72 hours'))))`);
     await client.query('COMMIT');
     return {reminders:reminders.rowCount,marketing:marketing.rowCount,cancelled:cancelled.rowCount,expired:expired.rowCount,uncertain:uncertain.rowCount};
   } catch(error) { await client.query('ROLLBACK'); throw error; }
@@ -68,7 +68,7 @@ async function inspectJob(client,job) {
   const {rows:[row]}=await client.query(`SELECT q.*,p.reminders_enabled,p.marketing_enabled,p.delivery_email,p.verified_uid,
       p.reminder_lead_hours,o.status occurrence_status,o.starts_at occurrence_start,o.source_observed_at,
       e.id event_id,e.title,e.source,e.status event_status,e.starts_at event_start,e.ends_at event_end,e.location_name,e.location_address,
-      e.data->'import_snapshot'->>'starts_at' imported_start,e.data->'import_snapshot'->>'ends_at' imported_end,
+      e.data->'import_snapshot'->>'starts_at' imported_start,e.data->'import_snapshot'->>'ends_at' imported_end,e.data->>'schedule_origin' schedule_origin,
       EXISTS(SELECT 1 FROM bookmarks b WHERE b.user_id=q.user_id AND b.event_id=e.id) bookmarked
     FROM notification_outbox q JOIN notification_preferences p ON p.user_id=q.user_id
     LEFT JOIN event_occurrences o ON o.id=q.occurrence_id LEFT JOIN events e ON e.id=o.event_id WHERE q.id=$1`,[job.id]);
@@ -83,11 +83,11 @@ function eligibility(row,now=Date.now()) {
   if (row.occurrence_status!=='scheduled' || +new Date(row.occurrence_start)!==+new Date(row.scheduled_start)) return 'occurrence_changed';
   if (+new Date(row.occurrence_start)<=now || (row.event_end && +new Date(row.event_end)<=now)) return 'event_ended';
   if (+new Date(row.scheduled_for)!==+new Date(row.occurrence_start)-row.reminder_lead_hours*3600000) return 'lead_time_changed';
-  if (row.source==='external') {
+  if (row.source==='external' && row.schedule_origin!=='manual') {
     if (!row.source_observed_at || +new Date(row.source_observed_at)<now-72*3600000) return 'stale_source';
     if (+new Date(row.event_start)!==+new Date(row.imported_start) ||
         (row.event_end ? +new Date(row.event_end) : null)!==(row.imported_end ? +new Date(row.imported_end) : null)) return 'schedule_needs_review';
-  } else if (+new Date(row.event_start)!==+new Date(row.occurrence_start)) return 'occurrence_changed';
+  } else if (row.schedule_origin!=='manual' && +new Date(row.event_start)!==+new Date(row.occurrence_start)) return 'occurrence_changed';
   return null;
 }
 

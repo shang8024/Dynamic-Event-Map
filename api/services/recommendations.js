@@ -11,7 +11,7 @@ async function recommendations(pool,userId,limit=12) {
     FROM events e LEFT JOIN interests i ON i.category=e.category
     LEFT JOIN LATERAL (SELECT min(starts_at) starts_at FROM event_occurrences o
       WHERE o.event_id=e.id AND o.status='scheduled' AND o.starts_at>now()
-        AND (e.source='internal' OR o.source_observed_at>=now()-interval '72 hours')) o ON true
+        AND (e.source='internal' OR e.data->>'schedule_origin'='manual' OR o.source_observed_at>=now()-interval '72 hours')) o ON true
     WHERE e.status='scheduled' AND NOT EXISTS (SELECT 1 FROM bookmarks b WHERE b.user_id=$1 AND b.event_id=e.id)
       AND (e.ends_at IS NULL OR e.ends_at>now()) AND e.latitude IS NOT NULL AND e.longitude IS NOT NULL
   ) SELECT * FROM candidates WHERE starts_at>now() ORDER BY score DESC,starts_at,id LIMIT $3`,[userId,personalized,limit]);

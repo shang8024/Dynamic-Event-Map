@@ -10,6 +10,7 @@ import { readSourceStream, SOURCE_LIMITS } from './stream-source.js';
 import { resourceDownloadURL, shouldRetryRevision } from './resource-url.js';
 import { withSpooledDownload } from './spool-download.js';
 import { canSkipDownload, readSourceState, confirmSourceCheck, cleanupExpiredEvents } from './source-state.js';
+import {recordIngestAlert} from './quality.js';
 
 const { values } = parseArgs({ options: {
   input: { type: 'string' }, manifest: { type: 'string' }, output: { type: 'string' },
@@ -71,6 +72,7 @@ async function sourceSnapshot(state) {
   let lastError;
   let retryRevision = false;
   let originalResourceURL;
+  let currentMetadata;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const catalogue = await fetchCatalogue();
@@ -79,6 +81,7 @@ async function sourceSnapshot(state) {
       if (!resource) throw new Error('Official JSON resource changed; review schema before proceeding');
       const metadata = { source_url: resource.url, resource_id: resource.id, source_last_modified: resource.last_modified,
         source_size: resource.size ?? null, source_hash: resource.hash || null };
+      currentMetadata=metadata;
       const unchanged = canSkipDownload(state, metadata);
       // The same verified publication may legitimately be older than 72 hours.
       // Changed/unknown stale publications cannot establish a new baseline.
@@ -102,6 +105,7 @@ async function sourceSnapshot(state) {
         maxBytes: SOURCE_LIMITS.maxBytes, expectedBytes: Number.isSafeInteger(resource.size) ? resource.size : undefined,
       });
     } catch (error) {
+      if(!error.provenance && currentMetadata) error.provenance=currentMetadata;
       lastError = error;
       // A stale CDN error was observed from AWS while the same official revision
       // succeeded locally. Retry only 502/503/504 on the identical trusted path
@@ -152,8 +156,9 @@ async function main() {
     // pg also honors PGSSLMODE and PGSSLROOTCERT; use verify-full for managed DBs.
   });
   await client.connect();
+  let state;
   try {
-    const state = await readSourceState(client);
+    state = await readSourceState(client);
     // Expiry is independent of remote availability and runs even when the
     // catalogue cannot be reached. Never use a user-supplied future cutoff.
     console.log(JSON.stringify({ cleanup: await cleanupExpiredEvents(client, new Date().toISOString()) }));
@@ -168,6 +173,10 @@ async function main() {
       console.log(JSON.stringify({ mode:'write', as_of:snapshot.as_of, provenance:snapshot.provenance, report:snapshot.report, max_rss_kib:process.resourceUsage().maxRSS }, null, 2));
       console.log(JSON.stringify({ database: await importEvents(client, snapshot) }));
     }
+  } catch(error) {
+    try {console.log(JSON.stringify({administrator_alert:await recordIngestAlert(client,error,state?.revision)}));}
+    catch {console.error('[ingest] administrator alert could not be stored; inspect migrations and database availability');}
+    throw error;
   } finally {
     await client.end();
     console.log(JSON.stringify({ cache: await invalidateCache() }));

@@ -224,6 +224,7 @@ function events(create) {
   return load('controllers/eventsController.js', {
     '../models/eventModel': { create },
     '../services/eventPermissions': require('../services/eventPermissions'),
+    '../services/eventSchedule': require('../services/eventSchedule'),
     '../config/redis': {},
     '../socket': { getIO: () => ({ emit() {} }) },
     '../config/db': { query() { assert.fail('system identity lookup attempted'); } },
