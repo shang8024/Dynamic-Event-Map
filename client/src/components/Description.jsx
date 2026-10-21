@@ -1,5 +1,5 @@
 import React, { useRef, useState, useLayoutEffect } from "react";
-function Description({ text, valid = true }) {
+function Description({ text }) {
   const pRef = useRef(null);
   const [expanded, setExpanded] = useState(false);
   const [collapsedMax, setCollapsedMax] = useState(40);
@@ -20,7 +20,7 @@ function Description({ text, valid = true }) {
     return () => ro.disconnect();
   }, [text]);
   return (
-    <div className="text-base-content/60 mt-1 text-sm">
+    <div className="muted mt-2 text-sm">
       <div
         className="relative"
         style={{ maxHeight: expanded ? "none" : `${collapsedMax}px`, overflow: "hidden" }}
@@ -32,13 +32,13 @@ function Description({ text, valid = true }) {
       </div>
       {hasOverflow && (
         <button
-          className="text-primary mt-2 text-xs underline opacity-80 hover:opacity-100"
-          disabled={!valid}
+          className="link text-primary inline-flex min-h-11 items-center text-sm"
           onClick={(e) => {
             e.stopPropagation();
             setExpanded((v) => !v);
           }}
           aria-label={expanded ? "Show less" : "Show more"}
+          aria-expanded={expanded}
         >
           {expanded ? "Show less" : "Show more"}
         </button>

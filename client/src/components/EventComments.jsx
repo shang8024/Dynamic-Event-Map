@@ -46,17 +46,17 @@ export default function EventComments({eventId}) {
   }
   return <section aria-label="Event comments" className="event-comments">
     <div className="flex items-center justify-between gap-3"><h3 className="text-lg font-semibold">Comments</h3>
-      <span role="status" className="text-sm text-base-content/75">{connected?'Live':'Restoring live updates…'}</span></div>
+      <span role="status" className="text-xs muted">{connected?'Live updates':'Reconnecting…'}</span></div>
     {error && <p role="alert" className="text-error text-sm">{error}</p>}
     {loading && <p role="status" className="text-sm">Loading comments…</p>}
     <ul className="space-y-3" aria-live="polite" aria-relevant="additions removals">
-      {!loading && comments.length===0 && <li className="text-base-content/75 text-sm">Start the conversation.</li>}
+      {!loading && comments.length===0 && <li className="muted text-sm">No comments yet. Start the conversation.</li>}
       {comments.map(comment=><li key={comment.id} className="rounded-xl bg-base-100 p-3">
         <div className="flex items-start justify-between gap-2"><span className="font-medium text-sm">{comment.user?.name||'Community member'}</span>
           {user && (String(user.id)===String(comment.user?.id)||user.role==='admin') &&
             <button type="button" className="btn btn-ghost btn-sm" aria-label={`Delete comment by ${comment.user?.name||'community member'}`} disabled={busy} onClick={()=>remove(comment.id)}>Delete</button>}</div>
         <p className="my-2 whitespace-pre-wrap break-words text-sm">{comment.text}</p>
-        <time dateTime={comment.createdAt} className="text-xs text-base-content/75">{new Date(comment.createdAt).toLocaleString()}</time>
+        <time dateTime={comment.createdAt} className="text-xs muted">{new Date(comment.createdAt).toLocaleString()}</time>
       </li>)}
     </ul>
     {user?<form onSubmit={submit} className="comment-composer">

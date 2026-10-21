@@ -42,6 +42,14 @@ export function nextOccurrence(event,now=Date.now()) {
 export function occurrenceTime(item) {
   return `${eventTime(item?.starts_at)} — ${item?.ends_at?eventTime(item.ends_at):'End time not provided'}`;
 }
+export function scheduleSummary(event,now=Date.now()) {
+  if(isEnded(event,now)) return {label:'Event dates',text:eventTime(event?.ends_at||event?._row?.ends_at||eventOccurrences(event).at(-1)?.ends_at)};
+  const slot=nextOccurrence(event,now);
+  if(slot) return {label:Date.parse(slot.starts_at)<=now?'Happening now':'Next occurrence',text:occurrenceTime(slot)};
+  const start=nextStart(event,now);
+  if(start && Date.parse(start)>=now) return {label:'Next occurrence',text:eventTime(start)};
+  return {label:'Dates to be confirmed',text:'Check the organizer’s schedule for the next date.'};
+}
 export function eventTime(value) {
   if(!value || !Number.isFinite(new Date(value).getTime())) return 'Check the organizer’s schedule';
   return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Toronto',dateStyle:'medium',timeStyle:'short'}).format(new Date(value));

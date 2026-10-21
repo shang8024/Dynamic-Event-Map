@@ -1,7 +1,7 @@
 import {useEffect,useId,useRef,useState} from 'react';
 import {createPlacesSearch} from '../services/placesSearch';
 import {GTA_BOUNDS} from '../utils/event';
-export default function LocationSearch({onSelected,label='Search a location',placeholder='City, neighbourhood or venue'}) {
+export default function LocationSearch({onSelected,label='Search a location',placeholder='City, neighbourhood or venue',showLabel=false}) {
   const id=useId(),version=useRef(0);
   const [service]=useState(()=>createPlacesSearch(()=>window.google?.maps?.places,GTA_BOUNDS));
   const [query,setQuery]=useState(''),[items,setItems]=useState([]),[index,setIndex]=useState(-1),[error,setError]=useState(''),[busy,setBusy]=useState(false);
@@ -28,7 +28,7 @@ export default function LocationSearch({onSelected,label='Search a location',pla
     else if(event.key==='Escape') {event.stopPropagation();setItems([]);}
   }
   return <div className="location-search">
-    <label htmlFor={id} className="sr-only">{label}</label>
+    <label htmlFor={id} className={showLabel?'mb-2 block text-sm font-medium':'sr-only'}>{label}</label>
     <input id={id} role="combobox" type="search" value={query} placeholder={placeholder} className="input input-bordered w-full" onChange={event=>{selected.current='';setQuery(event.target.value);}}
       onKeyDown={key} disabled={busy} autoComplete="off" aria-autocomplete="list" aria-expanded={items.length>0} aria-controls={`${id}-results`} aria-activedescendant={index>=0&&items[index]?`${id}-${index}`:undefined}/>
     {items.length>0 && <ul role="listbox" id={`${id}-results`} className="location-results">{items.map((item,i)=><li role="option" aria-selected={i===index} id={`${id}-${i}`} key={item.place_id} className={i===index?'is-active':''} onMouseDown={event=>event.preventDefault()}>
