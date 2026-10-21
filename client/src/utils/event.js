@@ -43,7 +43,11 @@ export function occurrenceTime(item) {
   return `${eventTime(item?.starts_at)} — ${item?.ends_at?eventTime(item.ends_at):'End time not provided'}`;
 }
 export function scheduleSummary(event,now=Date.now()) {
-  if(isEnded(event,now)) return {label:'Event dates',text:eventTime(event?.ends_at||event?.endsAt||event?._row?.ends_at||eventOccurrences(event).at(-1)?.ends_at)};
+  if(isEnded(event,now)) {
+    const start=event?.starts_at||event?.startsAt||event?._row?.starts_at;
+    const end=event?.ends_at||event?.endsAt||event?._row?.ends_at||eventOccurrences(event).at(-1)?.ends_at;
+    return {label:'Event dates',text:start?`Started ${eventTime(start)}${end?` · Last ended ${eventTime(end)}`:''}`:eventTime(end)};
+  }
   const slot=nextOccurrence(event,now);
   if(slot) return {label:Date.parse(slot.starts_at)<=now?'Happening now':'Next occurrence',text:occurrenceTime(slot)};
   const start=nextStart(event,now);

@@ -58,7 +58,7 @@ function Banner({ n, dismiss, autoCloseMs = 0 }) {
           {n.action && (
             <div className="flex flex-col gap-2">
               <a
-                className="rounded-md bg-slate-700 px-3 py-1 text-sm text-white hover:bg-slate-800"
+                className="inline-flex min-h-11 items-center rounded-md bg-slate-700 px-3 py-1 text-sm text-white hover:bg-slate-800"
                 href={n.action.href}
                 role={!n.action.href ? "button" : undefined}
                 aria-label={n.action.ariaLabel || undefined}

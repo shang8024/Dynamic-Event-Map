@@ -15,6 +15,7 @@ import UnsubscribePage from "./components/UnsubscribePage.jsx";
 import NotificationInbox from "./components/NotificationInbox";
 import {AuthFlowProvider,useAuthFlow} from './contexts/AuthFlowContext';
 import {Link,useLocation} from 'react-router-dom';
+import AuthPage from './components/AuthPage';
 
 const MAP_LIBRARIES=["places","marker"];
 function MapPage() {
@@ -25,7 +26,13 @@ function MapPage() {
 
 function PageWrapper({ children }) {
   const content=useRef(null),location=useLocation();
-  useEffect(()=>{content.current?.scrollTo({top:0});},[location.pathname]);
+  useEffect(()=>{
+    content.current?.scrollTo({top:0});
+    if(!['/signin','/register','/reset-password'].includes(location.pathname)) {
+      const title={'/bookmarks':'Saved events','/recommendations':'For you','/notifications':'Notifications','/comments':'My comments','/settings':'Email & privacy'}[location.pathname];
+      document.title=title?`${title} · Dynamic Event Map`:'Dynamic Event Map';
+    }
+  },[location.pathname]);
   return (
     <div className="app-shell">
       <Navbar />
@@ -60,6 +67,9 @@ export default function App() {
         <Router>
           <AuthFlowProvider>
           <Routes>
+            <Route path="/signin" element={<PageWrapper><AuthPage key="signin"/></PageWrapper>}/>
+            <Route path="/register" element={<PageWrapper><AuthPage key="register" initialMode="register"/></PageWrapper>}/>
+            <Route path="/reset-password" element={<PageWrapper><AuthPage key="reset-password" initialMode="reset"/></PageWrapper>}/>
             <Route path="/notifications" element={<AuthorizedRoute><NotificationInbox /></AuthorizedRoute>} />
             <Route
               path="/settings"

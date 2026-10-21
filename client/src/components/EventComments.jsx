@@ -2,14 +2,15 @@ import {useEffect,useRef,useState} from 'react';
 import {fetchComments,addComment,removeComment} from '../services/commentsService';
 import socket,{subscribeEvent} from '../services/socket';
 import {useAuth} from '../contexts/AuthContext';
-import {useAuthAction} from '../contexts/AuthFlowContext';
+import {useAuthFlow} from '../contexts/AuthFlowContext';
 export default function EventComments({eventId}) {
   const {user}=useAuth();
   const [comments,setComments]=useState([]),[text,setText]=useState(''),[error,setError]=useState('');
   const [busy,setBusy]=useState(false),[connected,setConnected]=useState(socket.connected),[loading,setLoading]=useState(true);
   const refresh=useRef(()=>{}),activeEvent=useRef(eventId);
   const composer=useRef(null);
-  const signIn=useAuthAction(()=>composer.current?.focus(),'join this conversation');
+  const requestAuth=useAuthFlow();
+  const signIn=()=>requestAuth('join this conversation',`/?event=${eventId}`,{kind:'comment',eventId});
   useEffect(()=>{
     let active=true,generation=0,controller,revision=-1;
     activeEvent.current=eventId;setComments([]);setText('');setError('');setLoading(true);

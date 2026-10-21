@@ -27,7 +27,7 @@ function Description({ text }) {
       >
         <p ref={pRef}>{text}</p>
         {!expanded && hasOverflow && (
-          <div className="from-base-200 pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t to-transparent" />
+            <div className="from-base-100 pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t to-transparent" />
         )}
       </div>
       {hasOverflow && (

@@ -1,17 +1,18 @@
 import {useEffect,useRef,useState} from 'react';
-import {Link,NavLink,useLocation,useNavigate} from 'react-router-dom';
+import {Link,NavLink,useLocation} from 'react-router-dom';
 import {useAuth} from '../contexts/AuthContext';
-import {useAuthAction,useAuthFlow} from '../contexts/AuthFlowContext';
+import {useAuthFlow} from '../contexts/AuthFlowContext';
 import GuestAvatar from '../assets/guest.png';
 import {NotificationBell} from './NotificationInbox';
 import {authErrorMessage} from '../services/authSession';
 
 export default function Navbar() {
   const {user,account,loading,logout}=useAuth();
-  const requestAuth=useAuthFlow(),navigate=useNavigate(),location=useLocation();
+  const requestAuth=useAuthFlow(),location=useLocation();
   const menu=useRef(null);
+  const authPage=['/signin','/register','/reset-password'].includes(location.pathname);
   const [logoutError,setLogoutError]=useState('');
-  const create=useAuthAction(()=>navigate('/?create=1'),'create an event');
+  const create=()=>requestAuth('create an event','/',{kind:'create'});
   useEffect(()=>{if(menu.current) menu.current.open=false;},[location]);
   useEffect(()=>{
     const outside=event=>{if(menu.current && !menu.current.contains(event.target)) menu.current.open=false;};
@@ -38,13 +39,13 @@ export default function Navbar() {
       <button className="btn btn-primary create-event-button" onClick={create} disabled={loading}><span aria-hidden="true">＋</span> Create event</button>
       {user && <NotificationBell/>}
       {user?<details ref={menu} className="account-menu">
-        <summary aria-label="Account menu"><img src={user.photoURL||GuestAvatar} alt="" width="30" height="30"/><span className="account-name">{user.displayName||user.email}</span><span aria-hidden="true">⌄</span></summary>
+        <summary aria-label="Account menu"><img src={user.photoURL||GuestAvatar} alt="" width="32" height="32"/></summary>
         <div className="account-menu-panel">
           <div className="account-menu-heading"><strong>{user.displayName||'Your account'}</strong><span>{user.email}</span>{user.role==='admin' && <span className="admin-badge">Administrator</span>}</div>
           <Link to="/bookmarks">Saved events</Link><Link to="/recommendations">For you</Link><Link to="/comments">My comments</Link><Link to="/notifications">Notifications</Link><Link to="/settings">Email & privacy</Link>
           <button onClick={handleLogout}>Sign out</button>
         </div>
-      </details>:<button className="btn btn-ghost sign-in-button" disabled={loading} onClick={()=>requestAuth()}>{loading?'Loading…':account?account.emailVerified?'Finish sign-in':'Verify email':'Sign in'}</button>}
+      </details>:!authPage&&<button className="btn btn-ghost sign-in-button" disabled={loading} onClick={()=>requestAuth()}>{loading?'Loading…':account?account.emailVerified?'Finish sign-in':'Verify email':'Sign in'}</button>}
     </div>
     {logoutError && <p role="alert" className="header-error">{logoutError}</p>}
   </header>;

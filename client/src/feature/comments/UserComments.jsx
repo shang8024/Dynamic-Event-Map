@@ -2,6 +2,7 @@ import {useState,useEffect,useMemo,useCallback} from 'react';
 import {Link} from 'react-router-dom';
 import {fetchUserComments,removeComment} from '../../services/commentsService';
 import {getEventStatus,normalize} from '../../utils/date';
+import {scheduleSummary} from '../../utils/event';
 import EventStatusBadge from '../../components/EventStatusBadge';
 import EventImage from '../../components/EventImage';
 import SearchInput from '../../components/SearchInput';
@@ -11,13 +12,14 @@ import PageLayout from '../../components/PageLayout';
 import {useNotifications} from '../../contexts/NotificationContext';
 
 const CommentListItem=({item,onDelete,pending})=>{
-  const ended=getEventStatus(item.event)==='Expired';
+  const ended=getEventStatus(item.event)==='Expired',when=scheduleSummary(item.event);
   return <article className="content-card saved-card">
     <div className="saved-artwork"><EventImage event={item.event} showDates={false} className="aspect-[4/3] w-full"/></div>
     <div className="saved-card-body"><div className="card-heading"><div className="min-w-0">
       <EventStatusBadge event={item.event} position="inline-block mb-2"/>
       <h2>{!ended&&item.event?.id?<Link to={`/?event=${item.event.id}`}>{item.event.title}</Link>:item.event?.title||'Event no longer available'}</h2>
     </div><button className="btn btn-ghost text-error" disabled={pending} aria-label={`Delete your comment on ${item.event?.title||'this event'}`} onClick={()=>{if(confirm('Delete this comment?')) void onDelete(item.event.id,item.comment.id);}}>{pending?'…':'✕'}</button></div>
+      <p className="saved-event-time"><strong>{when.label}</strong><span>{when.text}</span></p>
       {item.comment?.text&&<blockquote className="comment-quote"><Description text={item.comment.text}/></blockquote>}
       {item.event?.locationAddress&&<p className="text-sm muted mt-3">{item.event.locationAddress}</p>}
       <p className="saved-date">Commented {new Date(item.comment.createdAt).toLocaleDateString()}</p>

@@ -1,7 +1,7 @@
-import {useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {useBookmarks,useCountBookmarks} from '../hooks';
 import {useAuth} from '../contexts/AuthContext';
-import {useAuthAction} from '../contexts/AuthFlowContext';
+import {useAuthFlow} from '../contexts/AuthFlowContext';
 import EventArtwork from './EventArtwork';
 import EventComments from './EventComments';
 import EventImageEditor from './EventImageEditor';
@@ -9,11 +9,25 @@ import VenuePhoto from './VenuePhoto';
 import Icon from './Icon';
 import {eventImage,isEnded,eventOccurrences,occurrenceTime,scheduleSummary} from '../utils/event';
 
-export default function EventInfo({event,onClose,onEdit,onDelete,onSaved}) {
+export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pendingAction,onActionHandled}) {
   const {user}=useAuth(),{isBookmarked,isPending,toggle,loading:bookmarksLoading,error:bookmarkError,refetchBookmarks}=useBookmarks();
   const count=useCountBookmarks(event?.id);
   const [failedURL,setFailedURL]=useState(null);
-  const save=useAuthAction(next=>toggle(event.id,next,event),'save this event');
+  const requestAuth=useAuthFlow(),handled=useRef(null),saveButton=useRef(null);
+  const save=()=>user?toggle(event.id,undefined,event):requestAuth('save this event',`/?event=${event.id}`,{kind:'save',eventId:event.id});
+  useEffect(()=>{
+    if(!event||!user||!pendingAction||String(pendingAction.eventId)!==String(event.id)||pendingAction.kind==='save'&&bookmarksLoading) return;
+    const key=`${event.id}:${pendingAction.kind}`;
+    if(handled.current===key) return;
+    handled.current=key;onActionHandled?.();
+    if(pendingAction.kind==='save') {
+      const target=saveButton.current;
+      Promise.resolve(isBookmarked(event.id)?null:toggle(event.id,true,event)).finally(()=>requestAnimationFrame(()=>{
+        if(target?.isConnected&&target.dataset.eventId===String(event.id)) target.focus({preventScroll:true});
+      }));
+    }
+    if(pendingAction.kind==='comment') requestAnimationFrame(()=>document.getElementById(`comment-${event.id}`)?.focus());
+  },[event,user,pendingAction,bookmarksLoading,isBookmarked,toggle,onActionHandled]);
   if(!event) return null;
   const candidate=eventImage(event),image=candidate?.url===failedURL?null:candidate;
   const ended=isEnded(event),cancelled=event.status==='cancelled',manage=user&&(user.role==='admin'||String(user.id)===String(event.user_id));
@@ -38,7 +52,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved}) {
         <div><Icon name="pin"/><div><dt>Location</dt><dd>{event.location_name&&<>{event.location_name}<br/></>}{event.location_address||'Location to be confirmed'}</dd></div></div>
       </dl>
       <div className="event-save">
-        <button className={`btn w-full ${isBookmarked(event.id)?'btn-outline':'btn-primary'}`} aria-pressed={isBookmarked(event.id)} disabled={isPending(event.id)||!!user&&bookmarksLoading} onClick={()=>save(user?undefined:true)}><Icon name="bookmark"/>{isPending(event.id)?'Updating…':user&&bookmarksLoading?'Checking saved events…':isBookmarked(event.id)?'Saved · remove bookmark':'Save event'}</button>
+        <button ref={saveButton} data-event-id={event.id} className={`btn w-full ${isBookmarked(event.id)?'btn-outline':'btn-primary'}`} aria-pressed={isBookmarked(event.id)} disabled={isPending(event.id)||!!user&&bookmarksLoading} onClick={save}><Icon name="bookmark"/>{isPending(event.id)?'Updating…':user&&bookmarksLoading?'Checking saved events…':isBookmarked(event.id)?'Saved · remove bookmark':'Save event'}</button>
         {bookmarkError&&<p role="alert" className="text-sm text-error">{bookmarkError} <button className="link min-h-11" onClick={refetchBookmarks}>Retry</button></p>}
         {count>0&&<p className="text-sm muted">Saved by {count} {count===1?'person':'people'}</p>}
       </div>

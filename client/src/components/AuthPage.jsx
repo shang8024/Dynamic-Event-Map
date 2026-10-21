@@ -1,16 +1,20 @@
-import { useEffect, useState } from 'react';
+import {useEffect,useRef,useState} from 'react';
+import {Link,useLocation,useNavigate,useSearchParams} from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authErrorMessage } from '../services/authSession';
-import Modal from './Modal';
+import Icon from './Icon';
+import {authPath,safeReturnTo,returnWithoutAction,authIntent} from '../services/authNavigation';
 
-export default function AuthDialog({initialMode='signin',reason='',onClose,onAuthenticated}) {
+export default function AuthPage({initialMode='signin'}) {
+  const [search]=useSearchParams(),location=useLocation(),navigate=useNavigate(),heading=useRef(null),warning=useRef(null);
+  const returnTo=safeReturnTo(search.get('returnTo')||'/'),reason=(search.get('reason')||'').slice(0,200);
   const {
     user, account, loading, sessionError, verificationSentAt,
     loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword,
     sendVerification, refreshAccount, logout,
   } = useAuth();
-  const [mode, setMode] = useState(initialMode);
-  const [email, setEmail] = useState('');
+  const mode=initialMode;
+  const [email,setEmail]=useState(()=>typeof location.state?.email==='string'?location.state.email.slice(0,320):'');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -18,10 +22,11 @@ export default function AuthDialog({initialMode='signin',reason='',onClose,onAut
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [now, setNow] = useState(Date.now());
+  useEffect(()=>{if(error||sessionError) warning.current?.focus();},[error,sessionError]);
 
   useEffect(() => {
-    if(user) onAuthenticated();
-  },[user,onAuthenticated]);
+    if(user) navigate(returnTo,{replace:true,state:{authIntent:authIntent(location.state?.intent,returnTo)}});
+  },[user,navigate,returnTo,location.state]);
 
   useEffect(() => {
     if (!verificationSentAt) return;
@@ -31,7 +36,7 @@ export default function AuthDialog({initialMode='signin',reason='',onClose,onAut
   }, [verificationSentAt]);
 
   const switchMode = (nextMode) => {
-    setMode(nextMode); setError(''); setNotice('');
+    navigate(authPath(nextMode==='reset'?'reset-password':nextMode,reason,returnTo),{state:{intent:location.state?.intent,email}});
     setPassword(''); setConfirmPassword('');
   };
   const pending = Boolean(busy) || loading;
@@ -39,7 +44,8 @@ export default function AuthDialog({initialMode='signin',reason='',onClose,onAut
   const needsVerification = Boolean(account && !account.emailVerified);
   const title = account
     ? (needsVerification ? 'Verify your email' : 'Finish signing in')
-    : mode === 'register' ? 'Create your account' : mode === 'reset' ? 'Reset your password' : 'Welcome back';
+    : mode === 'register' ? 'Create account' : mode === 'reset' ? 'Reset your password' : 'Sign in';
+  useEffect(()=>{heading.current?.focus({preventScroll:true});document.title=title+' · Dynamic Event Map';},[title]);
 
   async function run(action, callback) {
     setBusy(action); setError(''); setNotice('');
@@ -73,17 +79,23 @@ export default function AuthDialog({initialMode='signin',reason='',onClose,onAut
   }
 
   return (
-    <Modal title={title} onClose={onClose} closeLabel="Close sign-in window" className="auth-dialog">
+    <main className="auth-page">
+      <div className="auth-intro"><Link className="auth-back" to={returnWithoutAction(returnTo)}>← Go back</Link>
+        <p className="eyebrow">Explore the GTA</p><p className="auth-intro-title">Keep your plans together.</p>
+        <p>Find local events, follow the conversations and share something worth going to.</p>
+        <ul><li><Icon name="bookmark"/>Save events for later</li><li><Icon name="calendar"/>Keep up with the events you follow</li><li><Icon name="pin"/>Discover more around you</li></ul>
+      </div>
+      <section className="auth-card" aria-labelledby="auth-page-title"><Link className="auth-mobile-back" to={returnWithoutAction(returnTo)}>← Go back</Link><h1 id="auth-page-title" ref={heading} tabIndex={-1}>{title}</h1>
         <div className="mb-6">
-          {reason && <p className="auth-purpose">Sign in to {reason}. We’ll bring you right back.</p>}
-          {!account && <p className="text-base-content/70 mt-2 text-sm">
+          {reason && <p className="auth-purpose">{mode==='register'?'Create an account':'Sign in'} to {reason}. We’ll bring you right back.</p>}
+          {!account && <p className="muted mt-2 text-sm">
             {mode === 'register' ? 'Save events and keep your plans in one place.'
               : mode === 'reset' ? 'Enter your email and we will help you get back in.'
                 : 'Sign in to save events, join the conversation and share your own.'}
           </p>}
         </div>
 
-        {(error || sessionError) && <div role="alert" className="alert alert-error mb-4 text-sm">{error || sessionError}</div>}
+        {(error || sessionError) && <div ref={warning} tabIndex={-1} role="alert" className="form-error mb-4">{error || sessionError}</div>}
         {notice && <div role="status" className="alert alert-info mb-4 text-sm">{notice}</div>}
 
         {account ? (
@@ -91,7 +103,7 @@ export default function AuthDialog({initialMode='signin',reason='',onClose,onAut
             {needsVerification ? (
               <>
                 <p className="text-sm leading-relaxed">Check the inbox for <strong className="break-all">{account.email}</strong> and open the verification link. Your email needs to be verified before you can save, comment on or create events.</p>
-                <p className="text-base-content/70 text-sm">You can keep browsing while you wait. Check your spam folder if the email has not arrived.</p>
+                <p className="muted text-sm">You can keep browsing while you wait. Check your spam folder if the email has not arrived.</p>
                 <button type="button" className="btn btn-primary w-full" disabled={pending} onClick={() => run('verify', async () => {
                   const verified = await refreshAccount();
                   if (!verified) setNotice('Your email is not verified yet. Open the link in your email, then check again.');
@@ -127,23 +139,23 @@ export default function AuthDialog({initialMode='signin',reason='',onClose,onAut
                 <span className="mb-1 block text-sm font-medium">Confirm password</span>
                 <input className="input input-bordered w-full" name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} disabled={pending} />
               </label>}
-              {mode === 'signin' && <div className="text-right"><button type="button" className="link link-primary text-sm" disabled={pending} onClick={() => switchMode('reset')}>Forgot password?</button></div>}
+              {mode === 'signin' && <div className="text-right"><Link className="link link-primary text-sm" to={authPath('reset-password',reason,returnTo)} state={{intent:location.state?.intent,email}}>Forgot password?</Link></div>}
               <button type="submit" className="btn btn-primary w-full" disabled={pending}>
                 {pending ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'reset' ? 'Send reset link' : 'Sign in'}
               </button>
             </form>
             {mode !== 'reset' && <>
-              <div className="divider text-base-content/50 text-xs">or</div>
+              <div className="divider muted text-xs">or</div>
               <button type="button" className="btn btn-outline w-full" disabled={pending} onClick={() => run('google', loginWithGoogle)}>
                 {busy === 'google' ? 'Opening Google…' : 'Continue with Google'}
               </button>
             </>}
             <div className="mt-6 text-center text-sm">
-              {mode === 'signin' ? <>New here? <button type="button" className="link link-primary" disabled={pending} onClick={() => switchMode('register')}>Create an account</button></>
-                : <button type="button" className="link link-primary" disabled={pending} onClick={() => switchMode('signin')}>{mode === 'register' ? 'Already have an account? Sign in' : 'Back to sign in'}</button>}
+              {mode === 'signin' ? <>New here? <Link className="link link-primary" to={authPath('register',reason,returnTo)} state={{intent:location.state?.intent,email}}>Create an account</Link></>
+                : <Link className="link link-primary" to={authPath('signin',reason,returnTo)} state={{intent:location.state?.intent,email}}>{mode === 'register' ? 'Already have an account? Sign in' : 'Back to sign in'}</Link>}
             </div>
           </>
         )}
-    </Modal>
+    </section></main>
   );
 }
