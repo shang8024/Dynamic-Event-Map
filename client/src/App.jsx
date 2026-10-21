@@ -17,6 +17,7 @@ import {AuthFlowProvider,useAuthFlow} from './contexts/AuthFlowContext';
 import {Link,useLocation} from 'react-router-dom';
 import AuthPage from './components/AuthPage';
 import EventPage from './feature/events/EventPage';
+import './CompactLayout.css';
 
 function MapPage() {
   const {isLoaded,loadError}=useGoogleMaps();
