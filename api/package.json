@@ -12,6 +12,7 @@
     "firebase-admin": "^13.5.0",
     "pg": "^8.16.3",
     "pg-hstore": "^2.3.4",
+    "proxy-addr": "2.0.8",
     "redis": "^4.7.0",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.0"
@@ -20,7 +21,7 @@
     "test": "node --test test/*.test.js",
     "notifications:once": "node workers/notifications.js",
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "node --watch index.js"
   },
   "keywords": [
     "nodejs",
@@ -31,8 +32,5 @@
     "api"
   ],
   "author": "",
-  "license": "MIT",
-  "devDependencies": {
-    "nodemon": "^3.1.10"
-  }
+  "license": "MIT"
 }

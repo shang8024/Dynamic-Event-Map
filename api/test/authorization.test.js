@@ -36,6 +36,7 @@ function middleware(claims, users) {
     '../config/firebaseAdmin': { auth: () => ({ verifyIdToken: async () => claims }) },
     '../models/user': users,
     'node:crypto': require('node:crypto'),
+    './rateLimit': { authenticated: async () => true },
   });
 }
 

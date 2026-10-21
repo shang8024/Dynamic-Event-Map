@@ -1,6 +1,7 @@
 const admin = require('../config/firebaseAdmin');
 const User = require('../models/user');
 const { createHash } = require('node:crypto');
+const requestLimits = require('./rateLimit');
 
 function usernameFor(decoded, attempt) {
   const name = typeof decoded.name === 'string' && decoded.name.trim();
@@ -78,6 +79,8 @@ const firebaseAuth = async (req, res, next) => {
     console.error('firebaseAuth error', err && err.message);
     return res.status(401).json({ message: 'Invalid token' });
   }
+
+  if (!await requestLimits.authenticated(req, res, decoded.uid)) return;
 
   try {
     // Preserve existing profile names and ownership on every subsequent login.

@@ -13,7 +13,7 @@ require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
 const host = process.env.HOST || "0.0.0.0";
-app.set('trust proxy', 1);
+app.set('trust proxy', require('./services/proxyTrust').createProxyTrust(process.env.TRUSTED_PROXY_CIDRS));
 
 app.use(express.json());
 
@@ -62,6 +62,10 @@ app.use(cors(corsOptions));
 
 // Routes
 app.get('/api/healthz', (req, res) => res.json({ status: 'ok' }));
+app.get('/api/readyz', require('./services/readiness').createReadiness({
+  db:require('./config/db'),redis:require('./config/redis'),
+}));
+app.use('/api',require('./middleware/rateLimit').anonymous);
 app.use("/api/events", eventsRoutes);
 // Nested comments route: /api/events/:eventId/comments
 app.use("/api/events/:eventId/comments", commentsRoutes);

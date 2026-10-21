@@ -15,6 +15,7 @@ const redisClient = createClient({
     port,
   },
   database: 0,
+  commandsQueueMaxLength: 1000,
   ...(password ? { password } : {}),
 });
 
