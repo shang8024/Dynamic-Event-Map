@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
 const proxyAddress=require('proxy-addr');
 const {createProxyTrust}=require('../services/proxyTrust');
-const {createRequestLimits}=require('../services/requestLimits');
+const {createRequestLimits,requestPolicy}=require('../services/requestLimits');
 const {createReadiness}=require('../services/readiness');
 function response(){return {code:200,headers:{},set(key,value){this.headers[key]=value;return this;},status(code){this.code=code;return this;},json(body){this.body=body;return this;}};}
 
@@ -28,6 +28,13 @@ test('verified UID limits cannot be bypassed by changing IP or supplied body ide
   }
   assert.equal(counts.size,1);
   assert.ok(![...counts.keys()][0].includes('verified-user'));
+});
+test('case and trailing-slash route equivalents select the same abuse policy',()=>{
+  for(const [canonical,equivalent] of [['/api/auth/me','/API/AUTH/ME/?refresh=1'],
+    ['/api/profiles','/api/PROFILES/'],['/api/notifications/unsubscribe','/API/notifications/UNSUBSCRIBE/']]) {
+    assert.deepEqual(requestPolicy({originalUrl:equivalent,method:'POST'},false),requestPolicy({originalUrl:canonical,method:'POST'},false));
+  }
+  assert.equal(requestPolicy({originalUrl:'/API/NOTIFICATIONS/FEEDBACK/SES/',method:'POST'},false),null);
 });
 test('Redis failure blocks protected writes promptly but not liveness, browse reads or signed feedback',async()=>{
   const limits=createRequestLimits({isReady:false,eval(){assert.fail('queued unavailable store command');}});

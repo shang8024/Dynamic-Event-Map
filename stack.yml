@@ -167,10 +167,14 @@ services:
       DB_PASSWORD_FILE: /run/secrets/pg_password
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
       ALLOWED_ORIGINS: "https://${DOMAIN},https://www.${DOMAIN}"
+      TRUSTED_PROXY_CIDRS: "${TRUSTED_PROXY_CIDRS:-}"
       FIREBASE_PROJECT_ID: "${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID}"
       UNSUBSCRIBE_SIGNING_SECRET_FILE: /run/secrets/unsubscribe_signing_secret
       SES_FEEDBACK_TOPIC_ARN: "${SES_FEEDBACK_TOPIC_ARN:-}"
       SES_AUTO_CONFIRM_SUBSCRIPTION: "${SES_AUTO_CONFIRM_SUBSCRIPTION:-false}"
+      EMAIL_PROVIDER: "${EMAIL_PROVIDER:-disabled}"
+      EMAIL_DELIVERY_ENABLED: "${EMAIL_DELIVERY_ENABLED:-false}"
+      EMAIL_FEEDBACK_READY: "${EMAIL_FEEDBACK_READY:-false}"
       FRONTEND_PORT: 443
     secrets:
       - pg_password

@@ -7,6 +7,8 @@ import { createClient } from 'redis';
 import { METADATA_URL } from './normalize.js';
 import { importEvents } from './database.js';
 import { readSourceStream, SOURCE_LIMITS } from './stream-source.js';
+import { resourceDownloadURL, shouldRetryRevision } from './resource-url.js';
+import { withSpooledDownload } from './spool-download.js';
 
 const { values } = parseArgs({ options: {
   input: { type: 'string' }, manifest: { type: 'string' }, output: { type: 'string' },
@@ -15,11 +17,14 @@ const { values } = parseArgs({ options: {
 } });
 const TRUSTED_HOST = 'ckan0.cf.opendata.inter.prod-toronto.ca';
 
-async function fetchOfficial(url, maxBytes) {
+async function fetchOfficial(url, maxBytes, timeoutMs = 30000) {
   const parsed = new URL(url);
   if (parsed.protocol !== 'https:' || parsed.hostname !== TRUSTED_HOST) throw new Error('Unexpected official source URL');
-  const response = await fetch(url, { signal: AbortSignal.timeout(90000), redirect: 'error', headers: { 'User-Agent': 'Dynamic-Event-Map/3 (Toronto Open Data importer)' } });
-  if (!response.ok) { await response.body?.cancel(); throw new Error(`Official source HTTP ${response.status}`); }
+  const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), redirect: 'error', headers: { 'User-Agent': 'Dynamic-Event-Map/3 (Toronto Open Data importer)' } });
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw Object.assign(new Error(`Official source HTTP ${response.status}`), { status: response.status, sourceURL: parsed.href });
+  }
   if (Number(response.headers.get('content-length')) > maxBytes) { await response.body?.cancel(); throw new Error('Official source exceeds size limit'); }
   return response;
 }
@@ -60,6 +65,8 @@ async function sourceSnapshot() {
   }
 
   let lastError;
+  let retryRevision = false;
+  let originalResourceURL;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const catalogue = await fetchCatalogue();
@@ -68,13 +75,27 @@ async function sourceSnapshot() {
       if (!resource) throw new Error('Official JSON resource changed; review schema before proceeding');
       const metadata = { source_url: resource.url, resource_id: resource.id, source_last_modified: resource.last_modified };
       validateMetadata(metadata);
-      const response = await fetchOfficial(resource.url, SOURCE_LIMITS.maxBytes);
-      const streamed = await readSourceStream(Readable.fromWeb(response.body), {
-        asOf: values['as-of'], expectedBytes: Number.isSafeInteger(resource.size) ? resource.size : undefined,
+      originalResourceURL = resourceDownloadURL(resource);
+      const fetchURL = resourceDownloadURL(resource, retryRevision);
+      // Drain to bounded disk first; parsing on a shared .75-CPU VM must not
+      // backpressure the official CDN into closing its network connection.
+      const response = await fetchOfficial(fetchURL, SOURCE_LIMITS.maxBytes, 300000);
+      return await withSpooledDownload(Readable.fromWeb(response.body), async (file, downloaded) => {
+        const downloadedAt = new Date().toISOString();
+        const streamed = await readSourceStream(createReadStream(file), {
+          asOf: values['as-of'], expectedBytes: downloaded.bytes, expectedSha256: downloaded.sha256,
+        });
+        return streamed.finish({ ...metadata, ...(fetchURL !== originalResourceURL ? { fetch_url: fetchURL } : {}),
+          downloaded_at: downloadedAt, bytes: streamed.bytes, sha256: streamed.sha256 });
+      }, {
+        maxBytes: SOURCE_LIMITS.maxBytes, expectedBytes: Number.isSafeInteger(resource.size) ? resource.size : undefined,
       });
-      return streamed.finish({ ...metadata, downloaded_at: new Date().toISOString(), bytes: streamed.bytes, sha256: streamed.sha256 });
     } catch (error) {
       lastError = error;
+      // A stale CDN error was observed from AWS while the same official revision
+      // succeeded locally. Retry only 502/503/504 on the identical trusted path
+      // with a metadata-revision query; no third-party mirror or host fallback.
+      if (shouldRetryRevision(error, originalResourceURL)) retryRevision = true;
       if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000 * (2 ** attempt)));
     }
   }
@@ -121,4 +142,8 @@ async function main() {
   console.log(JSON.stringify({ cache: await invalidateCache() }));
 }
 
-main().catch(error => { console.error('[ingest] failed:', error.message); process.exitCode = 1; });
+main().catch(error => {
+  const causeCode = /^[A-Z0-9_]{1,64}$/.test(error.cause?.code || '') ? ` (${error.cause.code})` : '';
+  console.error('[ingest] failed:', error.message + causeCode);
+  process.exitCode = 1;
+});

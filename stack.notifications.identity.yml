@@ -1,0 +1,13 @@
+version: "3.9"
+
+# Enable only after the dedicated read-only Firebase identity is provisioned.
+# This secret is deliberately absent from the verification-only web API.
+secrets:
+  firebase_notifications:
+    external: true
+services:
+  notifications:
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_notifications
+    secrets:
+      - firebase_notifications

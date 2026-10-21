@@ -10,7 +10,8 @@ function bounded(promise,milliseconds=1500) {
     .finally(()=>clearTimeout(timer));
 }
 function requestPolicy(req,authenticated) {
-  const pathname=(req.originalUrl || req.url || '').split('?')[0];
+  // Match Express's default case-insensitive, non-strict routing semantics.
+  const pathname=(req.originalUrl || req.url || '').split('?')[0].toLowerCase().replace(/\/+$/,'');
   if(pathname==='/api/notifications/feedback/ses' || /^\/api\/(healthz|readyz)$/.test(pathname)) return null;
   if(pathname==='/api/notifications/unsubscribe') return authenticated?null:{bucket:'unsubscribe',limit:30,window:300000};
   if(/^\/api\/(auth|profiles)(\/|$)/.test(pathname)) return {bucket:'auth',limit:authenticated?120:600,window:300000};
