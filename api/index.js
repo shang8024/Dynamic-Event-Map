@@ -14,8 +14,7 @@ const app = express();
 const port = process.env.PORT || 5000;
 const host = process.env.HOST || "0.0.0.0";
 app.set('trust proxy', require('./services/proxyTrust').createProxyTrust(process.env.TRUSTED_PROXY_CIDRS));
-
-app.use(express.json());
+app.disable('x-powered-by');
 
 // Simple CORS configuration
 const corsOptions = {
@@ -36,8 +35,7 @@ const corsOptions = {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        console.warn(`CORS blocked cross-origin request from: ${origin}`);
-        callback(new Error("Cross-origin requests not allowed"));
+        callback(Object.assign(new Error("Cross-origin requests not allowed"),{status:403}));
       }
     } else {
       // In development, allow localhost
@@ -49,8 +47,7 @@ const corsOptions = {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        console.warn(`CORS blocked request from origin: ${origin}`);
-        callback(new Error("Not allowed by CORS"));
+        callback(Object.assign(new Error("Cross-origin requests not allowed"),{status:403}));
       }
     }
   },
@@ -62,10 +59,12 @@ app.use(cors(corsOptions));
 
 // Routes
 app.get('/api/healthz', (req, res) => res.json({ status: 'ok' }));
+// Reject excess traffic before JSON parsing or dependency-backed readiness.
+app.use('/api',require('./middleware/rateLimit').anonymous);
+app.use(express.json({limit:'100kb'}));
 app.get('/api/readyz', require('./services/readiness').createReadiness({
   db:require('./config/db'),redis:require('./config/redis'),realtime:require('./socket'),imageProxyURL:process.env.IMAGE_PROXY_URL,
 }));
-app.use('/api',require('./middleware/rateLimit').anonymous);
 app.use("/api/events/external", externalEventsRoutes);
 app.use("/api/events", eventsRoutes);
 // Nested comments route: /api/events/:eventId/comments
@@ -83,6 +82,8 @@ app.use('/api', require('./routes/emailFeedback'));
 const { getUserComments } = require("./controllers/commentsController");
 const firebaseAuth = require("./middleware/auth");
 app.get("/api/comments/me", firebaseAuth, getUserComments);
+app.use('/api',(_req,res)=>res.status(404).json({message:'API route not found'}));
+app.use(require('./middleware/errors'));
 
 // Start server with socket.io
 const http = require("http");

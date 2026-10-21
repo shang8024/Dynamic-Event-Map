@@ -3,7 +3,8 @@ const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
 const proxyAddress=require('proxy-addr');
 const {createProxyTrust}=require('../services/proxyTrust');
-const {createRequestLimits,requestPolicy}=require('../services/requestLimits');
+const {createRequestLimits,requestPolicy,requestPolicies,createAdmissionGuard}=require('../services/requestLimits');
+const {EventEmitter}=require('node:events');
 const {createReadiness}=require('../services/readiness');
 function response(){return {code:200,headers:{},set(key,value){this.headers[key]=value;return this;},status(code){this.code=code;return this;},json(body){this.body=body;return this;}};}
 
@@ -26,7 +27,7 @@ test('verified UID limits cannot be bypassed by changing IP or supplied body ide
     const res=response();const allowed=await limits.authenticated({method:'POST',originalUrl:'/api/bookmarks/1',ip:`192.0.2.${i}`,body:{userId:i}},res,'verified-user');
     assert.equal(allowed,i<30);if(i===30){assert.equal(res.code,429);assert.equal(res.headers['Retry-After'],'60');}
   }
-  assert.equal(counts.size,1);
+  assert.equal(counts.size,2,'minute and day limits share the verified identity');
   assert.ok(![...counts.keys()][0].includes('verified-user'));
 });
 test('case and trailing-slash route equivalents select the same abuse policy',()=>{
@@ -34,16 +35,44 @@ test('case and trailing-slash route equivalents select the same abuse policy',()
     ['/api/profiles','/api/PROFILES/'],['/api/notifications/unsubscribe','/API/notifications/UNSUBSCRIBE/']]) {
     assert.deepEqual(requestPolicy({originalUrl:equivalent,method:'POST'},false),requestPolicy({originalUrl:canonical,method:'POST'},false));
   }
-  assert.equal(requestPolicy({originalUrl:'/API/NOTIFICATIONS/FEEDBACK/SES/',method:'POST'},false),null);
+  assert.equal(requestPolicy({originalUrl:'/API/NOTIFICATIONS/FEEDBACK/SES/',method:'POST'},false).bucket,'feedback');
 });
-test('Redis failure blocks protected writes promptly but not liveness, browse reads or signed feedback',async()=>{
+test('Redis failure blocks guarded API reads and writes promptly while cheap liveness stays available',async()=>{
   const limits=createRequestLimits({isReady:false,eval(){assert.fail('queued unavailable store command');}});
   const blocked=response();let called=false;
   await limits.anonymous({method:'POST',originalUrl:'/api/auth/sync',ip:'192.0.2.1'},blocked,()=>{called=true;});
   assert.equal(called,false);assert.equal(blocked.code,503);
-  for(const url of ['/api/events','/api/healthz','/api/readyz','/api/notifications/feedback/ses']){
-    let allowed=false;await limits.anonymous({method:url.includes('feedback')?'POST':'GET',originalUrl:url},response(),()=>{allowed=true;});assert.equal(allowed,true);
+  for(const url of ['/api/events','/api/readyz','/api/notifications/feedback/ses']){
+    const res=response();let allowed=false;await limits.anonymous({method:url.includes('feedback')?'POST':'GET',originalUrl:url},res,()=>{allowed=true;});assert.equal(allowed,false);assert.equal(res.code,503);
   }
+  let live=false;await limits.anonymous({method:'GET',originalUrl:'/api/healthz'},response(),()=>{live=true;});assert.equal(live,true);
+  assert.equal(requestPolicy({method:'POST',originalUrl:'/api/healthz'},false).bucket,'write');
+});
+test('HEAD and encoded event IDs cannot bypass expensive public read policies',()=>{
+  const expected=requestPolicy({originalUrl:'/api/events/1/image',method:'GET'},false);
+  for(const originalUrl of ['/api/events/%31/image','/API/EVENTS/1/IMAGE/?v=2']) for(const method of ['GET','HEAD']) {
+    assert.deepEqual(requestPolicy({originalUrl,method},false),expected);
+  }
+  assert.equal(requestPolicy({originalUrl:'/api/events',method:'HEAD'},false).bucket,'catalogue');
+  assert.equal(requestPolicy({originalUrl:'/api/events/%31/comments/snapshot',method:'HEAD'},false).bucket,'discussion');
+  assert.equal(requestPolicy({originalUrl:'/api/notifications',method:'GET'},true).limit,180);
+});
+test('storage-producing actions also have daily verified-user budgets',()=>{
+  const comment=requestPolicies({originalUrl:'/api/events/%31/comments',method:'POST'},true);
+  assert.equal(comment.find(row=>row.bucket==='comment-day').limit,100);
+  const event=requestPolicies({originalUrl:'/API/EVENTS/',method:'POST'},true);
+  assert.equal(event.find(row=>row.bucket==='event-create-day').limit,10);
+  assert.equal(event.find(row=>row.bucket==='write-day').limit,500);
+});
+test('concurrent expensive reads are bounded and slots release once on response or disconnect',()=>{
+  const guard=createAdmissionGuard({maximum:3,catalogue:1});
+  const responseEvent=()=>Object.assign(new EventEmitter(),response());
+  const a=responseEvent(),b=responseEvent(),c=responseEvent();
+  assert.equal(guard({originalUrl:'/api/events',method:'GET'},a),true);
+  assert.equal(guard({originalUrl:'/api/events',method:'HEAD'},b),false);assert.equal(b.code,503);
+  a.emit('finish');a.emit('close');
+  assert.equal(guard({originalUrl:'/api/events',method:'GET'},c),true);c.emit('close');
+  const d=responseEvent();assert.equal(guard({originalUrl:'/api/events',method:'GET'},d),true);d.emit('finish');
 });
 test('readiness coalesces concurrent probes and bounds a hanging dependency',async()=>{
   let queries=0,pings=0;
@@ -69,5 +98,5 @@ test('real local Redis atomically enforces concurrent limits and expires counter
     const results=await Promise.all(Array.from({length:40},()=>limits.authenticated({method:'PUT',originalUrl:'/api/me/preferences'},response(),uid)));
     assert.equal(results.filter(Boolean).length,30);assert.equal(await client.get(key),'40');
     assert.ok(await client.pTTL(key)>0);assert.ok(await client.pTTL(key)<=60000);
-  }finally{await client.del(key);await client.quit();}
+  }finally{await client.del([key,key.replace(/:write$/,':write-day')]);await client.quit();}
 });
