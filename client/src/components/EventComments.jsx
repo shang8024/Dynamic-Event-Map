@@ -8,6 +8,7 @@ export default function EventComments({eventId,preview=false,returnTo=`/?event=$
   const {user}=useAuth();
   const [comments,setComments]=useState([]),[text,setText]=useState(''),[error,setError]=useState('');
   const [total,setTotal]=useState(0);
+  const [lastUpdated,setLastUpdated]=useState(null);
   const [busy,setBusy]=useState(false),[connected,setConnected]=useState(socket.connected),[loading,setLoading]=useState(true);
   const refresh=useRef(()=>{}),activeEvent=useRef(eventId);
   const composer=useRef(null);
@@ -15,13 +16,13 @@ export default function EventComments({eventId,preview=false,returnTo=`/?event=$
   const signIn=()=>requestAuth('join this conversation',returnTo,{kind:'comment',eventId});
   useEffect(()=>{
     let active=true,generation=0,controller,revision=-1,failed=false;
-    activeEvent.current=eventId;setComments([]);setTotal(0);setText('');setError('');setLoading(true);setBusy(false);
+    activeEvent.current=eventId;setComments([]);setTotal(0);setText('');setError('');setLoading(true);setBusy(false);setLastUpdated(null);setConnected(socket.connected);
     async function load() {
       const request=++generation;controller?.abort();controller=new AbortController();
       try {
         const snapshot=await fetchComments(eventId,controller.signal,preview);
         if(!active || request!==generation || Number(snapshot.revision)<revision) return;
-        revision=Number(snapshot.revision);failed=false;setComments(snapshot.comments);setTotal(snapshot.total??snapshot.comments.length);setError('');
+        revision=Number(snapshot.revision);failed=false;setComments(snapshot.comments);setTotal(snapshot.total??snapshot.comments.length);setError('');setLastUpdated(new Date());
       } catch(failure) {if(active && request===generation && failure.name!=='AbortError') {failed=true;setError('Unable to refresh comments. Retrying automatically.');}}
       finally {if(active && request===generation) setLoading(false);}
     }
@@ -50,8 +51,11 @@ export default function EventComments({eventId,preview=false,returnTo=`/?event=$
   }
   const Heading=preview?'h3':'h2';
   return <section id="comments" aria-labelledby="comments-title" className={`event-comments ${preview?'comments-preview':''}`}>
-    <div className="flex items-center justify-between gap-3"><Heading id="comments-title" tabIndex={-1} className="text-lg font-semibold">{preview?'Recent comments':'Comments'}{!loading&&<span className="comment-total">{total}</span>}</Heading>
-      <span role="status" className="text-xs muted">{connected?'Live updates':'Reconnecting…'}</span></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><Heading id="comments-title" tabIndex={-1} className="text-lg font-semibold">{preview?'Recent comments':'Comments'}{!loading&&<span className="comment-total">{total}</span>}</Heading>
+      <span role="status" className="text-xs muted ml-auto text-right flex flex-col gap-1">
+        <span>{connected?'Live updates':'Reconnecting…'}</span>
+        {!connected&&(lastUpdated?<span>Last updated <time dateTime={lastUpdated.toISOString()}>{lastUpdated.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'medium'})}</time></span>:!loading&&<span>No successful refresh yet.</span>)}
+      </span></div>
     {preview&&total>comments.length&&<p className="text-sm muted">Showing the latest {comments.length} comments.</p>}
     {error && <p role="alert" className="text-error text-sm">{error}</p>}
     {loading && <p role="status" className="text-sm">Loading comments…</p>}
