@@ -205,7 +205,7 @@ export default function EventMap() {
         </div>
       </aside>}
     </div>
-    <p className="map-source-note">Explore the GTA · Official listings currently come from Toronto. Times are shown in Toronto time.</p>
+    <p className="map-source-note">Explore the GTA · Times are shown in EDT.</p>
     {form && <Modal dirty={formDirty} busy={formBusy} title={form.id?'Edit event':'Create event'} onClose={discardForm} description="Share something worth going to. Dates and times use Toronto time.">{({requestClose})=><EventForm initialData={form} onDirtyChange={setFormDirty} onBusyChange={setFormBusy} onDiscard={discardForm} onCancel={requestClose} onSaved={saved}/>}</Modal>}
   </main>;
 }
