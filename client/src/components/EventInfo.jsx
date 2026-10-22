@@ -12,7 +12,7 @@ import Modal from './Modal';
 import {updateEvent} from '../services/eventsService';
 import {eventImage,isEnded,eventOccurrences,occurrenceTime,scheduleSummary} from '../utils/event';
 
-export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pendingAction,onActionHandled,standalone=false,mapsReady=true,promptForPhoto=false}) {
+export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pendingAction,onActionHandled,bodyRef,onBodyScroll,standalone=false,mapsReady=true,promptForPhoto=false}) {
   const {user}=useAuth(),{isBookmarked,isPending,toggle,loading:bookmarksLoading,error:bookmarkError,refetchBookmarks}=useBookmarks();
   const count=useCountBookmarks(event?.id);
   const [failedURL,setFailedURL]=useState(null);
@@ -63,11 +63,13 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
     <div className="event-detail-hero">{mapsReady&&!image&&!ended&&!cancelled&&!event.data?.image_hidden
       ?<VenuePhoto key={[event.id,event.data?.place_id,event.location_address,event.latitude,event.longitude].join(':')} event={event}/>
       :<EventArtwork src={image?.url} alt={image?.alt} title={event.title} category={event.category} className="h-full w-full" loading="eager" onUnavailable={()=>setFailedURL(candidate?.url)}/>}
+      {!standalone&&<button className="btn btn-circle event-detail-close" aria-label="Close event details" onClick={onClose}>✕</button>}
     </div>
+    <div ref={bodyRef} className="event-detail-scroll" onScroll={onBodyScroll}>
     <div className="event-detail-body">
       {image&&<p className="photo-credit">{image.credit||(image.source==='toronto'?'Photo supplied with the Toronto event listing':'Event photo')}
         {image.source==='toronto'&&<> · <a href="https://open.toronto.ca/dataset/festivals-events/" target="_blank" rel="noopener noreferrer" className="link">Source</a></>}</p>}
-      <header className="event-heading"><div className="event-heading-topline"><span className="category-label">{event.category||'Other'}</span>{!standalone&&<div className="event-heading-links"><Link className="event-full-link" to={`/events/${event.id}`} target="_blank" rel="noopener noreferrer">Full details <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></Link><button className="btn btn-circle btn-ghost" aria-label="Close event details" onClick={onClose}>✕</button></div>}</div><Heading id="event-detail-title" tabIndex={-1}>{event.title}</Heading></header>
+      <header className="event-heading"><div className="event-heading-topline"><span className="category-label">{event.category||'Other'}</span>{!standalone&&<div className="event-heading-links"><Link className="event-full-link" to={`/events/${event.id}`} target="_blank" rel="noopener noreferrer">Full details <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></Link></div>}</div><Heading id="event-detail-title" tabIndex={-1}>{event.title}</Heading></header>
       {(ended||cancelled)&&<p role="status" className="event-status-note">{cancelled?'This event has been cancelled.':'This event has ended. It stays in your saved events.'}</p>}
       {promptForPhoto&&manage&&!ended&&!cancelled&&<div className="rounded-xl border border-base-300 p-3 flex flex-wrap items-center justify-between gap-3" role="status"><p className="text-sm">Your event is published. Add a photo to help people recognize it.</p><button className="btn btn-outline btn-sm" onClick={()=>setPhotoOpen(value=>Number(value)+1)}>Add photo link</button></div>}
       <dl className="event-facts">
@@ -104,6 +106,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
           {management==='delete'&&!cancelled&&!ended&&<button className="btn btn-outline" disabled={managementBusy} onClick={()=>askManagement('cancel')}>Cancel event instead</button>}
           <button className={`btn ${management==='delete'?'btn-error':'btn-primary'}`} disabled={managementBusy||photoLocked} onClick={applyManagement}>{managementBusy?(management==='cancel'?'Cancelling…':'Deleting…'):management==='cancel'?'Confirm cancellation':'Permanently delete'}</button></div>
       </Modal>}
+    </div>
     </div>
   </article>;
 }

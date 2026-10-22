@@ -135,8 +135,14 @@ h1,h2,h3 { text-wrap:pretty; overflow-wrap:anywhere; }
 .map-caption { position:absolute; bottom:32px; left:16px; border-radius:9px; padding:8px 12px; font-size:13px; font-weight:600; color:var(--color-base-content); background:var(--color-base-100); border:1px solid var(--color-base-300); box-shadow:0 2px 8px #0002; pointer-events:none; }
 .map-source-note { flex:none; margin:0; font-size:11px; line-height:1.5; color:var(--muted); }
 .event-panel { min-height:0; overflow-y:auto; overscroll-behavior:contain; border-left:1px solid var(--color-base-300); background:var(--color-base-100); }
-.event-detail-hero { height:220px; width:100%; overflow:hidden; }
+.event-detail-hero { position:relative; height:220px; width:100%; overflow:hidden; }
 .event-panel .event-detail-hero { height:160px; }
+.event-panel.event-detail-panel { display:flex; overflow:hidden; }
+.event-detail-panel > .event-detail-content { display:flex; flex-direction:column; flex:1; min-width:0; min-height:0; overflow:hidden; }
+.event-detail-panel .event-detail-hero { flex:none; }
+.event-detail-panel .event-detail-scroll { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+.event-detail-hero .event-detail-close { position:absolute; top:12px; right:12px; z-index:2; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:1px solid #ffffff80; border-radius:50%; background:#14232ee6; color:#fff; box-shadow:0 2px 8px #0004; }
+.event-detail-close:hover { background:#14232e; color:#fff; }
 .event-heading-topline { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .event-heading-links { display:flex; align-items:center; gap:4px; flex:none; }
 .event-full-link { display:inline-flex; align-items:center; gap:4px; min-height:44px; font-size:13px; color:var(--color-primary); white-space:nowrap; }
