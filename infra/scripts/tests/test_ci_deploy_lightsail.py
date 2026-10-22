@@ -83,6 +83,9 @@ class FakeCommands:
             return "{}"
         if args[0] == self.fail:
             raise deploy.DeployError("Mocked transport failure")
+        if args[:2] == ["ssh-keygen", "-L"]:
+            now = dt.datetime.now(dt.timezone.utc)
+            return f"    Valid: from {(now - dt.timedelta(minutes=1)):%Y-%m-%dT%H:%M:%S} to {(now + dt.timedelta(hours=1)):%Y-%m-%dT%H:%M:%S}\n"
         return ""
 
     def operations(self):
@@ -149,6 +152,21 @@ class ArchiveTests(unittest.TestCase):
 
 
 class TrustTests(unittest.TestCase):
+    def test_missing_aws_expiry_uses_the_actual_certificate_gate(self):
+        value = access();value.pop("expiresAt")
+        deploy.validate_access(value, "eventmap-production", "8.8.8.8", "ubuntu", NOW)
+        deploy.validate_certificate_lifetime("    Valid: from 2026-10-20T23:59:00 to 2026-10-21T01:00:00\n", NOW)
+
+    def test_certificate_must_have_one_bounded_current_validity(self):
+        for description in ("", "Valid: forever", "Valid: after 2026-10-20T00:00:00",
+                            "Valid: from 2026-10-20T00:00:00 to 2026-10-20T23:59:00",
+                            "Valid: from 2026-10-21T01:00:00 to 2026-10-21T02:00:00",
+                            "Valid: from 2026-10-20T00:00:00 to 2026-10-21T00:01:00",
+                            "Valid: from 2026-10-20T00:00:00 to 2026-10-23T00:00:00",
+                            "Valid: from 2026-10-20T23:59:00 to 2026-10-21T01:00:00\n" * 2):
+            with self.subTest(description=description), self.assertRaises(deploy.DeployError):
+                deploy.validate_certificate_lifetime(description, NOW)
+
     def test_host_public_key_and_fingerprint_must_match_aws(self):
         self.assertIn("8.8.8.8 ssh-ed25519", deploy.host_key_lines([public_key()], "8.8.8.8"))
         bad = public_key();bad["fingerprintSHA256"] = "SHA256:wrong"
@@ -186,6 +204,31 @@ class LifecycleTests(unittest.TestCase):
 
     def prepare(self, session):
         return session.prepare(region="ca-central-1", instance="eventmap-production", sha=SHA, prefix=PREFIX, bundle=self.bundle)
+
+    def test_aws_can_omit_expiry_when_the_actual_certificate_is_valid(self):
+        value = access();value.pop("expiresAt")
+        session, fake = self.session()
+        try:
+            with patch(__name__ + ".access", return_value=value):
+                self.prepare(session)
+            self.assertIn("open-instance-public-ports", fake.operations())
+            self.assertTrue(any(args[:2] == ["ssh-keygen", "-L"] for args, _ in fake.calls))
+        finally:
+            session.cleanup()
+
+    def test_missing_expiry_never_bypasses_certificate_check_before_opening_ssh(self):
+        value = access();value.pop("expiresAt")
+        session, fake = self.session()
+        def invalid_certificate(args, **options):
+            return "Valid: forever" if args[:2] == ["ssh-keygen", "-L"] else fake(args, **options)
+        session.command = invalid_certificate
+        try:
+            with patch(__name__ + ".access", return_value=value), self.assertRaises(deploy.DeployError):
+                self.prepare(session)
+            self.assertNotIn("open-instance-public-ports", fake.operations())
+            self.assertFalse(any(args[0] in ("ssh", "scp") for args, _ in fake.calls))
+        finally:
+            session.cleanup()
 
     def test_scp_failure_cleans_only_own_rule_and_keys_with_strict_host_checking(self):
         session, fake = self.session(fail="scp")

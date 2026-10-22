@@ -231,14 +231,17 @@ def validate_access(details, instance, expected_ip, username, now=None):
             details.get("username") != username or ipv4(details.get("ipAddress")) != expected_ip):
         raise DeployError("Temporary SSH details do not match the intended instance, IP and username.")
     expiry = details.get("expiresAt")
-    try:
-        expires = (dt.datetime.fromtimestamp(expiry, dt.timezone.utc) if isinstance(expiry, (int, float))
-                   else dt.datetime.fromisoformat(expiry.replace("Z", "+00:00")))
-        remaining = (expires - now).total_seconds()
+    # AWS can omit expiresAt. The actual OpenSSH certificate is always checked
+    # below before any firewall change or SSH connection, even when metadata exists.
+    if expiry is not None:
+        try:
+            expires = (dt.datetime.fromtimestamp(expiry, dt.timezone.utc) if isinstance(expiry, (int, float))
+                       else dt.datetime.fromisoformat(expiry.replace("Z", "+00:00")))
+            remaining = (expires - now).total_seconds()
+        except (ValueError, TypeError, AttributeError, OverflowError):
+            raise DeployError("The temporary SSH expiry metadata is invalid.") from None
         if not 120 < remaining <= 86400:
-            raise ValueError()
-    except (ValueError, TypeError, AttributeError, OverflowError):
-        raise DeployError("The temporary SSH certificate expiry is absent, too close or invalid.") from None
+            raise DeployError(f"The temporary SSH expiry metadata is outside the allowed lifetime ({remaining:.0f}s remaining).")
     private, certificate = details.get("privateKey"), details.get("certKey")
     if (not isinstance(private, str) or len(private) > 65536 or
             not re.fullmatch(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----\n[\sA-Za-z0-9+/=]+\n-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----\s*", private)):
@@ -247,6 +250,21 @@ def validate_access(details, instance, expected_ip, username, now=None):
             not re.fullmatch(r"(?:ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp(?:256|384|521))-cert-v01@openssh\.com [A-Za-z0-9+/=]+(?: [^\r\n]+)?\s*", certificate)):
         raise DeployError("Lightsail did not return a temporary OpenSSH certificate.")
     return private, certificate.strip() + "\n", host_key_lines(details.get("hostKeys"), expected_ip)
+
+
+def validate_certificate_lifetime(description, now=None):
+    """Read OpenSSH's parsed validity in UTC, without logging certificate data."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    matches = re.findall(r"^\s*Valid: from (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d) to (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)\s*$", description, re.MULTILINE)
+    try:
+        if len(matches) != 1:
+            raise ValueError()
+        starts, expires = [dt.datetime.fromisoformat(value).replace(tzinfo=dt.timezone.utc) for value in matches[0]]
+        remaining = (expires - now).total_seconds()
+    except (ValueError, TypeError):
+        raise DeployError("The actual SSH certificate has no valid bounded expiry.") from None
+    if starts > now or not 120 < remaining <= 86400:
+        raise DeployError(f"The actual SSH certificate is outside the allowed lifetime ({remaining:.0f}s remaining).")
 
 
 def port_covers(rules, address):
@@ -283,7 +301,7 @@ def runner_address():
 def run_command(arguments, *, text_input=None, timeout=45):
     try:
         result = subprocess.run(arguments, input=text_input, text=True, capture_output=True, timeout=timeout,
-                                env={**os.environ, "AWS_PAGER": ""}, check=False)
+                                env={**os.environ, "AWS_PAGER": "", "TZ": "UTC", "LC_ALL": "C"}, check=False)
     except (OSError, subprocess.TimeoutExpired):
         raise DeployError(f"The {Path(arguments[0]).name} command could not complete; inspect connectivity and tool availability.") from None
     if result.returncode:
@@ -368,7 +386,8 @@ class LightsailDeployment:
                 handle.write(content)
         self.save_state()
         self.command(["ssh-keygen", "-y", "-f", str(work / "key")], timeout=10)
-        self.command(["ssh-keygen", "-L", "-f", str(work / "key-cert.pub")], timeout=10)
+        certificate_info = self.command(["ssh-keygen", "-L", "-f", str(work / "key-cert.pub")], timeout=10)
+        validate_certificate_lifetime(certificate_info)
         runner_ip = self.address_lookup()
         self.state["cidr"] = ipv4(runner_ip) + "/32"
         rules = self.aws("get-instance-port-states", instance_name=instance).get("portStates")
