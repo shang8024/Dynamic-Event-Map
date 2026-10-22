@@ -5,6 +5,7 @@ import { interestApi } from "../services/interestApi";
 import PageLayout from "./PageLayout";
 import {preferencePayload} from '../services/interestClient';
 import useUnsavedChanges from '../hooks/useUnsavedChanges';
+import NotificationPreferences from './NotificationPreferences';
 
 export default function PreferencesPage() {
   const { user } = useAuth();
@@ -66,7 +67,10 @@ export default function PreferencesPage() {
   };
 
   return (
-    <PageLayout title="Email & privacy" narrow intro="Choose what you receive and how we suggest events. Saving an event does not subscribe you to marketing.">
+    <PageLayout title="Settings" narrow intro="Choose how notifications appear, what you receive and how we suggest events.">
+      <NotificationPreferences/>
+      <h2 className="text-lg font-semibold">Email & privacy</h2>
+      <p className="text-sm muted">Saving an event does not subscribe you to marketing.</p>
       {error && (
         <div role="alert" className="alert alert-error mt-5">
           <span>{error}</span>

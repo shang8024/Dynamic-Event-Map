@@ -1,99 +1,57 @@
-import React from "react";
-import { useNotifications } from "../contexts/NotificationContext.jsx";
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {useNotifications} from '../contexts/NotificationContext.jsx';
+import useNotificationAutoDismiss from '../hooks/useNotificationAutoDismiss';
 
-const toneCls = {
-  info: "bg-slate-50 border-slate-200",
-  success: "bg-emerald-50 border-emerald-200",
-  warning: "bg-amber-50 border-amber-200",
-  error: "bg-rose-50 border-rose-200",
-};
+const titles = {info: 'Update', success: 'Done', warning: 'Please check', error: 'Something went wrong'};
 
 export default function NotificationBanner() {
-  const { items, dismiss } = useNotifications();
-  return (
-    <div className="notification-tray" aria-label={items.length?'Status messages':undefined}>
-      {items.map((n) => (
-        <Banner
-          key={n.id}
-          n={n}
-          dismiss={dismiss}
-          autoCloseMs={n.autoCloseMs}
-        />
-      ))}
-    </div>
-  );
+  const {items, dismiss, autoDismissEnabled} = useNotifications();
+  const closeButton = useRef(null), returnFocus = useRef(false);
+  const current = items[0];
+  useEffect(() => {
+    if (returnFocus.current) {
+      returnFocus.current = false;
+      closeButton.current?.focus({preventScroll: true});
+    }
+  }, [current?.id]);
+  const close = useCallback((id, stickyKey) => {
+    returnFocus.current = document.activeElement === closeButton.current;
+    dismiss(id, stickyKey);
+  }, [dismiss]);
+  if (!current) return null;
+
+  return <div className="notification-tray" aria-label="Status messages">
+    {items.length > 2 && <div className="notification-stack-layer notification-stack-back" aria-hidden="true"/>}
+    {items.length > 1 && <div className="notification-stack-layer notification-stack-middle" aria-hidden="true"/>}
+    <Banner key={current.id} n={current} count={items.length} dismiss={close} closeButton={closeButton} autoDismissEnabled={autoDismissEnabled}/>
+  </div>;
 }
 
-function Banner({ n, dismiss, autoCloseMs = 0 }) {
-  const handleClose=React.useCallback(()=>dismiss(n.id,n.stickyKey),[dismiss,n.id,n.stickyKey]);
+function Banner({n, count, dismiss, closeButton, autoDismissEnabled}) {
+  const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false);
+  const close = useCallback(() => dismiss(n.id, n.stickyKey), [dismiss, n.id, n.stickyKey]);
+  useNotificationAutoDismiss(n, autoDismissEnabled, close, hovered || focused);
+  const tone = Object.hasOwn(titles, n.type) ? n.type : 'info';
 
-  // optional auto-close
-  React.useEffect(() => {
-    if (!autoCloseMs || n.type==='error') return;
-    const t = setTimeout(() => handleClose(), autoCloseMs);
-    return () => clearTimeout(t);
-  }, [autoCloseMs, handleClose,n.type]);
-
-  return (
-    <div
-      role={n.type==='warning'||n.type==='error'?'alert':'status'}
-      className={[
-        "pointer-events-auto rounded-xl border px-4 py-3 shadow",
-        toneCls[n.type] || toneCls.info,
-      ].join(" ")}
-    >
-      <div className="flex items-center gap-3">
-        {/* Dot wrapper ensures perfect vertical centering */}
-        <div className="flex h-5 w-5 flex-none items-center justify-center">
-          <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          {n.title && (
-            <p className="leading-tight font-medium text-slate-900">{n.title}</p>
-          )}
-          {n.message && <p className="mt-0.5 text-sm leading-snug text-slate-800">{n.message}</p>}
-        </div>
-        <div className="flex flex-shrink-0 flex-row items-center">
-          {n.action && (
-            <div className="flex flex-col gap-2">
-              <a
-                className="inline-flex min-h-11 items-center rounded-md bg-slate-700 px-3 py-1 text-sm text-white hover:bg-slate-800"
-                href={n.action.href}
-                role={!n.action.href ? "button" : undefined}
-                aria-label={n.action.ariaLabel || undefined}
-                tabIndex={0}
-                onClick={(e) => {
-                  if (typeof n.action.onClick === "function") {
-                    n.action.onClick(e);
-                  }
-                  // If no href, prevent default to act as a button
-                  if (!n.action.href) {
-                    e.preventDefault();
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (!n.action.href && (e.key === "Enter" || e.key === " ")) {
-                    e.preventDefault();
-                    if (typeof n.action.onClick === "function") {
-                      n.action.onClick(e);
-                    }
-                  }
-                }}
-              >
-                {n.action.label}
-              </a>
-            </div>
-          )}
-          <button
-            className="ml-2 min-h-11 min-w-11 rounded-md px-2 py-1 text-sm text-slate-700 hover:bg-white/60"
-            onClick={handleClose}
-            aria-label="Dismiss"
-          >
-            ✕
-          </button>
-        </div>
+  return <div className={`notification-card notification-tone-${tone}`}
+    onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+    onFocusCapture={() => setFocused(true)}
+    onBlurCapture={event => {if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);}}>
+    <div className="notification-card-body" role={tone === 'warning' || tone === 'error' ? 'alert' : 'status'} aria-atomic="true">
+      <svg className="notification-status-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {tone === 'success' ? <><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></> : <><circle cx="12" cy="12" r="9"/>{tone === 'info' ? <path d="M12 11v6m0-10h.01"/> : <path d="M12 7v6m0 4h.01"/>}</>}
+      </svg>
+      <div className="notification-copy">
+        {count > 1 && <p className="notification-stack-count">{count} notifications</p>}
+        <p className="notification-title">{n.title || titles[tone]}</p>
+        {n.message && <p className="notification-description">{n.message}</p>}
       </div>
     </div>
-  );
+    <button ref={closeButton} type="button" className="notification-dismiss" onClick={close} aria-label="Dismiss notification" title="Dismiss notification">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg>
+    </button>
+    {n.action && <div className="notification-action">
+      {n.action.href ? <a href={n.action.href} aria-label={n.action.ariaLabel} onClick={n.action.onClick}>{n.action.label}</a> : <button type="button" aria-label={n.action.ariaLabel} onClick={n.action.onClick}>{n.action.label}</button>}
+    </div>}
+  </div>;
 }

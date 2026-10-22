@@ -1,6 +1,6 @@
 import {NavLink} from 'react-router-dom';
 import {useEffect,useRef} from 'react';
-const links=[['/bookmarks','Saved events'],['/recommendations','For you'],['/comments','My comments'],['/notifications','Notifications'],['/settings','Email & privacy']];
+const links=[['/bookmarks','Saved events'],['/recommendations','For you'],['/comments','My comments'],['/notifications','Notifications'],['/settings','Settings']];
 export default function PageLayout({title,intro,actions,narrow=false,children}) {
   const heading=useRef(null);
   useEffect(()=>{heading.current?.focus({preventScroll:true});},[title]);

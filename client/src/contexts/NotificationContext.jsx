@@ -1,9 +1,15 @@
 // src/notifications/NotificationContext.jsx
-import React, { createContext, useContext, useMemo, useReducer, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useMemo, useReducer, useEffect, useCallback, useState } from "react";
 import socket from "../services/socket";
 
 let idSeq = 1;
 const NotificationCtx = createContext(null);
+const AUTO_DISMISS_KEY = 'eventmap-notification-auto-dismiss';
+
+function storedAutoDismiss() {
+  try {return localStorage.getItem(AUTO_DISMISS_KEY) === 'true';}
+  catch {return false;}
+}
 
 const initialState = {
   // { id, type, title, message, stickyKey, autoCloseMs }
@@ -55,6 +61,20 @@ function markDismissedToday(key) {
 
 export function NotificationProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [autoDismissEnabled, setAutoDismiss] = useState(storedAutoDismiss);
+
+  useEffect(() => {
+    const changed = event => {
+      if (event.key === AUTO_DISMISS_KEY || event.key === null) setAutoDismiss(storedAutoDismiss());
+    };
+    window.addEventListener('storage', changed);
+    return () => window.removeEventListener('storage', changed);
+  }, []);
+  const setAutoDismissEnabled = useCallback(enabled => {
+    setAutoDismiss(Boolean(enabled));
+    try {localStorage.setItem(AUTO_DISMISS_KEY, String(Boolean(enabled)));}
+    catch { /* Still works for this visit when browser storage is unavailable. */ }
+  }, []);
 
   // Wire Socket.IO broadcast -> push
   useEffect(() => {
@@ -69,7 +89,7 @@ export function NotificationProvider({ children }) {
   const push=useCallback(payload=>dispatch({type:'PUSH',payload}),[]);
   const dismiss=useCallback((id,stickyKey)=>dispatch({type:'DISMISS',id,stickyKey}),[]);
   const clear=useCallback(()=>dispatch({type:'CLEAR'}),[]);
-  const api=useMemo(()=>({push,dismiss,clear,items:state.items}),[push,dismiss,clear,state.items]);
+  const api=useMemo(()=>({push,dismiss,clear,items:state.items,autoDismissEnabled,setAutoDismissEnabled}),[push,dismiss,clear,state.items,autoDismissEnabled,setAutoDismissEnabled]);
 
   return <NotificationCtx.Provider value={api}>{children}</NotificationCtx.Provider>;
 }

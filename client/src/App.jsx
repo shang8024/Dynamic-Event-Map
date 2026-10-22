@@ -32,7 +32,7 @@ function PageWrapper({ children,map=false }) {
   useEffect(()=>{
     page.current?.scrollTo({top:0});
     if(!['/signin','/register','/reset-password'].includes(location.pathname)&&!location.pathname.startsWith('/events/')) {
-      const title={'/bookmarks':'Saved events','/recommendations':'For you','/notifications':'Notifications','/comments':'My comments','/settings':'Email & privacy'}[location.pathname];
+      const title={'/bookmarks':'Saved events','/recommendations':'For you','/notifications':'Notifications','/comments':'My comments','/settings':'Settings'}[location.pathname];
       document.title=title?`${title} · Dynamic Event Map`:'Dynamic Event Map';
     }
   },[location.pathname]);
