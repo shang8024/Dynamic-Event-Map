@@ -7,6 +7,7 @@ import useGoogleMaps from './hooks/useGoogleMaps';
 import EventMap from "./feature/events/EventMap.jsx";
 import { useAuth, AuthProvider } from "./contexts/AuthContext.jsx";
 import Navbar from "./components/Navbar.jsx";
+import SiteFooter from './components/SiteFooter';
 import { NotificationProvider } from "./contexts/NotificationContext.jsx";
 import NotificationBanner from "./components/NotificationBanner.jsx";
 import PreferencesPage from "./components/PreferencesPage.jsx";
@@ -26,7 +27,7 @@ function MapPage() {
   return isLoaded?<EventMap/>:<p role="status" className="p-4">Loading map…</p>;
 }
 
-function PageWrapper({ children }) {
+function PageWrapper({ children,map=false }) {
   const page=useRef(null),location=useLocation();
   useEffect(()=>{
     page.current?.scrollTo({top:0});
@@ -36,10 +37,11 @@ function PageWrapper({ children }) {
     }
   },[location.pathname]);
   return (
-    <div ref={page} className="app-shell" data-page-scroll>
+    <div ref={page} className="app-shell" data-page-scroll data-map-page={map||undefined}>
       <Navbar />
       <NotificationBanner />
       <div id="main-content" className="app-content" tabIndex={-1}>{children}</div>
+      <SiteFooter map={map}/>
     </div>
   );
 }
@@ -74,7 +76,7 @@ function AppRoutes() {
     <Route path="/unsubscribe" element={<PageWrapper><UnsubscribePage/></PageWrapper>}/>
     <Route path="/bookmarks" element={<AuthorizedRoute><BookmarksPage/></AuthorizedRoute>}/>
     <Route path="/comments" element={<AuthorizedRoute><UserComments/></AuthorizedRoute>}/>
-    <Route path="*" element={<PageWrapper><MapPage/></PageWrapper>}/>
+    <Route path="*" element={<PageWrapper map><MapPage/></PageWrapper>}/>
   </Routes></AuthFlowProvider></UnsavedChangesProvider>;
 }
 

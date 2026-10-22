@@ -5,6 +5,7 @@
   .textarea { font-size:14px; }
   .btn-circle,.notification-bell { width:36px; padding:0; }
   .app-content { padding-inline:16px; }
+  .site-footer { padding-inline:16px; }
   .site-header { padding:6px 16px; column-gap:24px; }
   .brand { gap:8px; font-size:16px; }
   .brand img { width:24px; height:28px; }

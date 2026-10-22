@@ -78,6 +78,11 @@ h1,h2,h3 { text-wrap:pretty; overflow-wrap:anywhere; }
 .app-shell { display:flex; flex-direction:column; height:100dvh; overflow:auto; }
 .app-content { flex:1 0 0; min-height:0; overflow:visible; padding:0 24px; }
 .app-content:focus { outline:none; }
+.app-shell:not([data-map-page]) > .app-content { flex-basis:auto; }
+.site-footer { flex:none; display:flex; align-items:center; justify-content:flex-end; gap:12px; min-height:32px; padding:0 24px 4px; }
+.site-footer > .map-source-note { margin-right:auto; }
+.footer-repo-link { flex:none; display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:6px; color:var(--muted); transition:color .15s,background-color .15s; }
+.footer-repo-link:hover { color:var(--color-base-content); background:var(--color-base-200); }
 .site-header { flex:none; display:grid; grid-template-columns:auto 1fr auto; align-items:center; column-gap:32px; padding:12px 24px; background:var(--color-base-100); border-bottom:1px solid var(--color-base-300); position:relative; z-index:40; }
 .brand { display:flex; align-items:center; gap:10px; text-decoration:none; font-size:18px; font-weight:650; letter-spacing:-.025em; white-space:nowrap; }
 .brand img { object-fit:contain; flex:none; }
@@ -342,6 +347,7 @@ h1,h2,h3 { text-wrap:pretty; overflow-wrap:anywhere; }
   .primary-nav a { flex:1; }
   .header-actions { grid-column:2; grid-row:1; }
   .app-content { padding:0 16px; }
+  .site-footer { padding-inline:16px; }
   .map-stage.has-panel { grid-template-columns:minmax(0,1fr); }
   .map-stage .event-panel { position:absolute; left:0; right:0; bottom:0; max-height:80%; border-left:0; border-top:1px solid var(--color-base-300); border-radius:18px 18px 0 0; box-shadow:0 -8px 30px #0003; z-index:10; }
   .event-detail-hero { height:180px; }
@@ -354,6 +360,7 @@ h1,h2,h3 { text-wrap:pretty; overflow-wrap:anywhere; }
   .auth-card { padding:24px 20px; border-radius:16px; }
   .auth-card h1 { font-size:26px; }
   .app-content { padding:0 12px; }
+  .site-footer { padding-inline:12px; }
   .brand-name { display:none; }
   .brand img { width:30px; height:36px; }
   .site-header { padding-left:12px; padding-right:12px; }
