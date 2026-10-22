@@ -4,6 +4,7 @@
 }
 
 :root, [data-theme="caramellatte"] {
+  color-scheme:light;
   font-family: "Inter", "Segoe UI", system-ui, sans-serif;
   font-synthesis: none;
   --color-base-100: #ffffff;
@@ -26,6 +27,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
+    color-scheme:dark;
     --color-base-100: #19252d;
     --color-base-200: #22333d;
     --color-base-300: #42545e;
@@ -44,6 +46,7 @@
   }
 }
 [data-theme="sunset"] {
+  color-scheme:dark;
   --color-base-100: #19252d; --color-base-200: #22333d; --color-base-300: #42545e;
   --color-base-content: #edf2f5; --color-primary: #ff9b75; --color-primary-content: #30180f;
   --color-neutral: #dce5ea; --color-neutral-content: #19252d;

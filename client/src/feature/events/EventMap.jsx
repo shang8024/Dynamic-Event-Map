@@ -10,6 +10,7 @@ import EventArtwork from '../../components/EventArtwork';
 import PhotoMarkers from './PhotoMarkers';
 import {useAuthFlow} from '../../contexts/AuthFlowContext';
 import {useAuth} from '../../contexts/AuthContext';
+import {useTheme} from '../../contexts/ThemeContext';
 import {authIntent} from '../../services/authNavigation';
 import {useNotifications} from '../../contexts/NotificationContext';
 import {fetchEvents,deleteEvent} from '../../services/eventsService';
@@ -22,7 +23,7 @@ import './MapFocusLayout.css';
 const DEFAULT_CENTER={lat:43.8,lng:-79.25};
 const DEFAULT_ZOOM=10;
 const OPTIONS={mapId:import.meta.env.VITE_GOOGLE_MAPS_MAP_ID||'DEMO_MAP_ID',disableDefaultUI:true,zoomControl:false,fullscreenControl:false,
-  colorScheme:'FOLLOW_SYSTEM',isFractionalZoomEnabled:true,gestureHandling:'greedy',
+  isFractionalZoomEnabled:true,gestureHandling:'greedy',
   restriction:{latLngBounds:GTA_BOUNDS,strictBounds:true},maxZoom:20,minZoom:3,clickableIcons:false,mapTypeControl:false};
 function viewGTA(instance) {
   if(!instance) return;
@@ -31,6 +32,7 @@ function viewGTA(instance) {
 }
 export default function EventMap() {
   const {push}=useNotifications();
+  const {colorMode}=useTheme();
   const {user}=useAuth(),requestAuth=useAuthFlow(),location=useLocation();
   const [initialBrowse]=useState(()=>readMapBrowsing(location.key));
   const [params,setParams]=useSearchParams(),[events,setEvents]=useState([]),[map,setMap]=useState(null),[viewport,setViewport]=useState(null);
@@ -43,7 +45,15 @@ export default function EventMap() {
   const [form,setForm]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[locationBusy,setLocationBusy]=useState(false);
   const [formDirty,setFormDirty]=useState(false),[formBusy,setFormBusy]=useState(false),[photoPrompt,setPhotoPrompt]=useState(null);
   const request=useRef(0),active=useRef(true),mapRef=useRef(null),panelRef=useRef(null),opened=useRef(null),selectionTrigger=useRef(null);
-  const initialView=useRef({center:initialBrowse?.center??DEFAULT_CENTER,zoom:initialBrowse?.zoom??DEFAULT_ZOOM});
+  const [mapAppearance,setMapAppearance]=useState(()=>({colorMode,center:initialBrowse?.center??DEFAULT_CENTER,zoom:initialBrowse?.zoom??DEFAULT_ZOOM}));
+  const mapOptions=useMemo(()=>({...OPTIONS,colorScheme:mapAppearance.colorMode==='dark'?'DARK':'LIGHT'}),[mapAppearance.colorMode]);
+  useEffect(()=>{
+    if(mapAppearance.colorMode===colorMode) return;
+    // Maps fixes its color scheme at construction. Keep the camera when recreating it.
+    camera.cancel();
+    const instance=mapRef.current,point=instance?.getCenter();
+    setMapAppearance({colorMode,center:point?{lat:point.lat(),lng:point.lng()}:center,zoom:instance?.getZoom()??zoom});
+  },[colorMode,mapAppearance.colorMode,camera,center,zoom]);
   const previousEntry=useRef(location.key),skipRemember=useRef(false),restoreList=useRef(initialBrowse?.listOpen&&!params.has('event')?initialBrowse:null);
   const restoringCamera=useRef(Boolean(initialBrowse)),[restoreTick,setRestoreTick]=useState(0);
   const selectedId=params.get('event'),selected=events.find(event=>String(event.id)===selectedId)||null;
@@ -143,7 +153,7 @@ export default function EventMap() {
   const visible=useMemo(()=>filtered.filter(event=>!event.position || !viewport || (event.position.lat>=viewport.south && event.position.lat<=viewport.north && event.position.lng>=viewport.west && event.position.lng<=viewport.east)),[filtered,viewport]);
   const listed=useMemo(()=>[...(clusterIds.length?filtered.filter(event=>clusterIds.includes(event.id)):visible)].sort((a,b)=>new Date(nextStart(a))-new Date(nextStart(b))),[clusterIds,filtered,visible]);
   const cluster=useCallback((ids,position)=>{setToolsOpen(false);setClusterIds(ids);setListLimit(30);setListOpen(true);setParams({},{replace:true});camera.flyTo({center:position});},[setParams,camera]);
-  const loadMap=useCallback(instance=>{mapRef.current=instance;opened.current=null;setMap(instance);},[]);
+  const loadMap=useCallback(instance=>{if(!mapRef.current) opened.current=null;mapRef.current=instance;setMap(instance);},[]);
   function idle() {
     if(camera.isMoving()) return;
     const instance=mapRef.current;if(!instance?.getBounds()) return;
@@ -189,7 +199,7 @@ export default function EventMap() {
     </Modal>}
     {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-base-200 p-3 text-sm">{error}<button className="btn btn-sm" onClick={refresh}>Retry</button></div>}
     <div className={`map-stage ${selected||listOpen?'has-panel':''}`}>
-      <div className="map-canvas" onPointerDownCapture={camera.cancel} onWheelCapture={camera.cancel} onKeyDownCapture={camera.cancel}><GoogleMap onLoad={loadMap} onIdle={idle} mapContainerStyle={{height:'100%',width:'100%'}} center={initialView.current.center} zoom={initialView.current.zoom} options={OPTIONS}>
+      <div className="map-canvas" onPointerDownCapture={camera.cancel} onWheelCapture={camera.cancel} onKeyDownCapture={camera.cancel}><GoogleMap key={mapAppearance.colorMode} onLoad={loadMap} onIdle={idle} mapContainerStyle={{height:'100%',width:'100%'}} center={mapAppearance.center} zoom={mapAppearance.zoom} options={mapOptions}>
         <PhotoMarkers map={map} events={filtered} zoom={zoom} viewport={viewport} onSelect={select} onCluster={cluster} selectedId={selectedId}/>
       </GoogleMap>
         {panelOpen&&<button type="button" className="btn map-tools-toggle" aria-controls={toolsOpen?'map-tools':undefined} aria-haspopup="dialog" aria-expanded={toolsOpen} onClick={toggleTools}>{activeFilters?`Map tools (${activeFilters})`:'Map tools'}</button>}

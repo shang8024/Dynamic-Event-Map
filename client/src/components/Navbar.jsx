@@ -5,10 +5,13 @@ import {useAuthFlow} from '../contexts/AuthFlowContext';
 import GuestAvatar from '../assets/guest.png';
 import {NotificationBell} from './NotificationInbox';
 import {authErrorMessage} from '../services/authSession';
+import {useTheme} from '../contexts/ThemeContext';
 import './Navbar.css';
 
 export default function Navbar() {
   const {user,account,loading,logout}=useAuth();
+  const {colorMode,toggleColorMode}=useTheme();
+  const themeAction=colorMode==='dark'?'Switch to day mode':'Switch to night mode';
   const requestAuth=useAuthFlow(),location=useLocation();
   const menu=useRef(null);
   const authPage=['/signin','/register','/reset-password'].includes(location.pathname);
@@ -38,6 +41,11 @@ export default function Navbar() {
       <NavLink to="/recommendations">For you</NavLink>
     </nav>
     <div className="header-actions">
+      <button type="button" className="btn btn-ghost btn-circle theme-toggle" aria-label={themeAction} title={themeAction} onClick={toggleColorMode}>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          {colorMode==='dark'?<><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></>:<path d="M20.9 13a9 9 0 0 1-9.9-9.9A9 9 0 1 0 20.9 13Z"/>}
+        </svg>
+      </button>
       <button className="btn btn-primary create-event-button" onClick={create} disabled={loading}><span aria-hidden="true">＋</span> Create event</button>
       {user && <NotificationBell/>}
       {user?<details ref={menu} className="account-menu">
