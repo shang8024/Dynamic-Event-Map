@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {GoogleMap} from '@react-google-maps/api';
-import {useLocation,useNavigate,useSearchParams} from 'react-router-dom';
+import {useLocation,useSearchParams} from 'react-router-dom';
 import EventInfo from '../../components/EventInfo';
 import EventForm from '../../components/EventForm';
 import Modal from '../../components/Modal';
@@ -30,7 +30,7 @@ function viewGTA(instance) {
 }
 export default function EventMap() {
   const {push}=useNotifications();
-  const {user}=useAuth(),requestAuth=useAuthFlow(),location=useLocation(),navigate=useNavigate();
+  const {user}=useAuth(),requestAuth=useAuthFlow(),location=useLocation();
   const [initialBrowse]=useState(()=>readMapBrowsing(location.key));
   const [params,setParams]=useSearchParams(),[events,setEvents]=useState([]),[map,setMap]=useState(null),[viewport,setViewport]=useState(null);
   const [zoom,setZoom]=useState(initialBrowse?.zoom??DEFAULT_ZOOM),[center,setCenter]=useState(initialBrowse?.center??DEFAULT_CENTER),[category,setCategory]=useState(initialBrowse?.category??''),[time,setTime]=useState(initialBrowse?.time??'all'),[distance,setDistance]=useState(initialBrowse?.distance??'0');
@@ -70,14 +70,13 @@ export default function EventMap() {
   const handledIntent=useCallback(()=>setParams(params,{replace:true,state:{...location.state,authIntent:null}}),[params,setParams,location.state]);
   const select=useCallback(id=>{
     rememberMapBrowsing(location.key,{...browsing(),focusId:String(id)});selectionTrigger.current=document.activeElement;
-    setToolsOpen(false);
-    setParams({event:String(id)},{state:{mapReturn:true}});
+    setToolsOpen(false);setListOpen(false);setClusterIds([]);restoreList.current=null;
+    setParams({event:String(id)});
   },[setParams,location.key,browsing]);
   function openForm(value) {setFormDirty(false);setFormBusy(false);setForm(value);}
   const discardForm=useCallback(()=>{setForm(null);setFormDirty(false);setFormBusy(false);},[]);
   const close=()=>{
-    setToolsOpen(false);opened.current=null;
-    if(selectedId&&location.state?.mapReturn) {navigate(-1);return;}
+    setToolsOpen(false);setListOpen(false);setClusterIds([]);restoreList.current=null;opened.current=null;
     setParams({},{replace:true});requestAnimationFrame(()=>{
     const target=selectionTrigger.current; if(target?.isConnected) target.focus({preventScroll:true});else document.getElementById('map-mode')?.focus({preventScroll:true});
   });};

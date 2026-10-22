@@ -75,7 +75,6 @@
   .map-page[data-panel-open="true"] .event-detail-body { padding:16px; gap:16px; }
   .map-page[data-panel-open="true"] .event-heading h2 { font-size:22px; margin-top:6px; }
   .map-page[data-panel-open="true"] .event-list-header { padding:8px 12px; }
-  .map-page[data-panel-open="true"] .event-list-header .btn { min-height:44px; height:44px; min-width:44px; }
   .map-page[data-panel-open="true"] .event-list-item { padding:10px 12px; gap:12px; }
   .map-page[data-panel-open="true"] .event-list-item > img,
   .map-page[data-panel-open="true"] .event-list-item > .event-template { width:56px; height:56px; }
