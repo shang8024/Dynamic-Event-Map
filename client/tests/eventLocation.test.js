@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {eventLocationError,locationPoint,sameLocation,withinGTA} from '../src/utils/eventLocation.js';
+import {eventDraftSignature,eventLocationError,locationPoint,sameLocation,withinGTA} from '../src/utils/eventLocation.js';
 
 const venue={location_address:'100 Queen St W, Toronto',latitude:43.6534,longitude:-79.3841,place_id:'toronto-city-hall'};
 
@@ -32,4 +32,11 @@ test('changing an existing address or pin requires renewed location confirmation
   assert.equal(eventLocationError(edited,{existing:venue,confirmed:true}),'');
   assert.equal(sameLocation({...venue,latitude:String(venue.latitude)},venue),true);
   assert.equal(sameLocation({...venue,longitude:-79.4},venue),false);
+});
+
+test('choosing a publishing connection or confirming an organizer marks the draft as unsaved',()=>{
+  const draft={...venue,submission_role:'',organizer_confirmed:false};
+  const selected={...draft,submission_role:'organizer'};
+  assert.notEqual(eventDraftSignature(draft,[]),eventDraftSignature(selected,[]));
+  assert.notEqual(eventDraftSignature(selected,[]),eventDraftSignature({...selected,organizer_confirmed:true},[]));
 });

@@ -2,6 +2,13 @@ function canManageEvent(user, event) {
   return Boolean(user && event && (user.role === 'admin' || String(user.id) === String(event.user_id)));
 }
 
+function validateEventSubmission(input) {
+  if (!['organizer','reporter'].includes(input.submission_role)) return 'Choose whether you are an organizer or are sharing an event.';
+  if (Object.hasOwn(input,'organizer_confirmed') && typeof input.organizer_confirmed !== 'boolean') return 'Organizer confirmation must be a checkbox value.';
+  if (input.submission_role === 'organizer' && input.organizer_confirmed !== true) return 'Confirm that you are the organizer or are authorized to publish on their behalf.';
+  return null;
+}
+
 function validateEvent(input, existing) {
   const value = { ...existing, ...input };
   for (const field of ['title','description','location_address']) {
@@ -25,4 +32,4 @@ function validateEvent(input, existing) {
   if (value.place_id && (typeof value.place_id !== 'string' || value.place_id.length > 255)) return 'Invalid place';
   return null;
 }
-module.exports = { canManageEvent, validateEvent };
+module.exports = { canManageEvent, validateEvent, validateEventSubmission };

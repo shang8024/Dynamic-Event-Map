@@ -263,6 +263,7 @@ function events(create) {
 const eventBody = {
   title: 'Community event', description: 'Description', latitude: 43.65, longitude: -79.38,
   location_address: 'Toronto', starts_at: '2026-11-01T14:00:00Z', ends_at: '2026-11-01T15:00:00Z',
+  submission_role: 'reporter',
 };
 
 test('a logged-in user cannot impersonate the external-event importer', async () => {
@@ -280,4 +281,47 @@ test('an ordinary event is owned by the authenticated user, ignoring body.user_i
   assert.equal(res.statusCode, 200);
   assert.equal(inserted.user_id, 7);
   assert.equal(inserted.source, 'internal');
+});
+
+test('new events require a valid connection and organizers must explicitly confirm it', async () => {
+  const controllers = events(() => assert.fail('unconfirmed event inserted'));
+  const invalid = [
+    {submission_role: undefined}, {submission_role: 'admin'}, {submission_role: '<script>'},
+    {submission_role: 'organizer'}, {submission_role: 'organizer', organizer_confirmed: false},
+    {submission_role: 'organizer', organizer_confirmed: 'true'}, {submission_role: 'organizer', organizer_confirmed: 1},
+  ];
+  for (const fields of invalid) {
+    const res = response();
+    await controllers.createEvent({user: {id: 7}, body: {...eventBody, ...fields}}, res);
+    assert.equal(res.statusCode, 400);
+  }
+});
+
+test('organizer declarations use server time and authenticated ownership, never body claims', async () => {
+  let inserted;
+  const controllers = events(async data => {inserted = data;return {rows: [{id: 42}]};});
+  const before = Date.now(),res = response();
+  await controllers.createEvent({user: {id: 7, role: 'member'}, body: {...eventBody,
+    submission_role: 'organizer', organizer_confirmed: true, user_id: 1, role: 'admin',
+    submission: {role: 'admin', organizer_confirmed_at: '2000-01-01T00:00:00Z', verified: true},
+  }}, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(inserted.user_id, 7);
+  assert.equal(inserted.submission.role, 'organizer');
+  assert.deepEqual(Object.keys(inserted.submission).sort(), ['organizer_confirmed_at', 'role']);
+  assert.ok(Date.parse(inserted.submission.organizer_confirmed_at) >= before);
+  assert.ok(Date.parse(inserted.submission.organizer_confirmed_at) <= Date.now());
+  assert.equal(require('../services/eventPermissions').canManageEvent({id: 7, role: 'member'}, {user_id: 8}), false);
+});
+
+test('sharing an event does not store an organizer declaration from extra request fields', async () => {
+  let inserted;
+  const controllers = events(async data => {inserted = data;return {rows: [{id: 42}]};});
+  const res = response();
+  await controllers.createEvent({user: {id: 7}, body: {...eventBody, organizer_confirmed: true,
+    submission: {role: 'organizer', organizer_confirmed_at: '2000-01-01T00:00:00Z'},
+  }}, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(Object.keys(inserted.submission), ['role']);
+  assert.equal(inserted.submission.role, 'reporter');
 });

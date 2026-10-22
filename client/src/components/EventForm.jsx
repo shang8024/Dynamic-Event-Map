@@ -12,6 +12,7 @@ export default function EventForm({initialData={},onSaved,onCancel,onDirtyChange
     location_address:initialData.location_address||'',category:initialData.category||'Other',status:initialData.status||'scheduled',
     latitude:initialData.latitude??initialData.position?.lat??'',longitude:initialData.longitude??initialData.position?.lng??'',
     place_id:initialData.place_id??initialData.data?.place_id??null,
+    submission_role:'',organizer_confirmed:false,
   }));
   const [dates,setDates]=useState(()=>editableOccurrences(initialData));
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
@@ -25,10 +26,11 @@ export default function EventForm({initialData={},onSaved,onCancel,onDirtyChange
   const warning=useRef(null);
   useEffect(()=>{if(error) warning.current?.focus();},[error]);
   const update=event=>{
-    const {name,value}=event.target;
+    const {name,value,type,checked}=event.target;
     const changesLocation=['location_address','latitude','longitude'].includes(name);
     if(changesLocation) {setLocationConfirmed(false);setLocationError('');}
-    setForm(old=>({...old,[name]:value,...(changesLocation?{place_id:null}:{})}));
+    setForm(old=>({...old,[name]:type==='checkbox'?checked:value,...(changesLocation?{place_id:null}:{}),
+      ...(name==='submission_role'?{organizer_confirmed:false}:{})}));
   };
   function selectPlace(place) {
     setForm(old=>({...old,place_id:place.place_id,location_address:place.formatted_address,latitude:place.geometry.location.lat(),longitude:place.geometry.location.lng()}));
@@ -55,7 +57,8 @@ export default function EventForm({initialData={},onSaved,onCancel,onDirtyChange
     try {
       const payload={title:form.title.trim(),description:form.description.trim(),category:form.category,
         location_address:form.location_address.trim(),latitude:form.latitude===''?null:Number(form.latitude),longitude:form.longitude===''?null:Number(form.longitude),
-        status:form.status,version:initialData.version,place_id:form.place_id||null};
+        status:form.status,version:initialData.version,place_id:form.place_id||null,
+        ...(!initialData.id?{submission_role:form.submission_role,organizer_confirmed:form.organizer_confirmed}:{})};
       if(!initialData.id||!sameOccurrences(occurrences,serializeOccurrences(editableOccurrences(initialData)))) payload.occurrences=occurrences;
       const saved=initialData.id?await updateEvent(initialData.id,payload):await createEvent(payload);allowNavigation(()=>onSaved(saved));
     } catch(failure) {setError(failure.message||'Unable to save this event.');}
@@ -66,6 +69,22 @@ export default function EventForm({initialData={},onSaved,onCancel,onDirtyChange
   const point=locationPoint(form),locationChanged=!initialData.id||!sameLocation(form,initial.current.form);
   return <form onSubmit={submit} className="event-form">
     {error&&<p ref={warning} tabIndex={-1} role="alert" className="form-error">{error}</p>}
+    {!initialData.id&&<fieldset className="form-section" disabled={busy}><legend>Your connection to this event</legend>
+      <div className="event-publisher-options">
+        {[
+          ['organizer',"I'm an organizer",'I organize this event or represent the organizer.'],
+          ['reporter',"I'm sharing an event",'I am a reporter or visitor sharing an event I found.'],
+        ].map(([value,title,description])=><label key={value} className="event-publisher-option" data-selected={form.submission_role===value}>
+          <input type="radio" className="radio radio-primary radio-sm" name="submission_role" value={value} checked={form.submission_role===value} onChange={update} required/>
+          <span><strong>{title}</strong><span>{description}</span></span>
+        </label>)}
+      </div>
+      {form.submission_role==='organizer'&&<div className="event-organizer-confirmation">
+        <label><input type="checkbox" className="checkbox checkbox-primary checkbox-sm" name="organizer_confirmed" checked={form.organizer_confirmed} onChange={update} required aria-describedby="event-organizer-help"/>
+          <span>I confirm that I am the organizer or am authorized to publish this event on the organizer’s behalf.</span></label>
+        <p id="event-organizer-help" className="form-help">This is your declaration. It does not mean the platform has verified your identity.</p>
+      </div>}
+    </fieldset>}
     <fieldset className="form-section" disabled={busy}><legend>About the event</legend>
       {field('title','Event title','text',{required:true,maxLength:255})}
       <label className="form-field" htmlFor="event-category"><span>Category</span><select id="event-category" name="category" value={form.category} onChange={update} className="select select-bordered w-full">{CATEGORIES.map(value=><option key={value}>{value}</option>)}</select></label>

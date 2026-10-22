@@ -25,6 +25,11 @@ test('public event data retains display and schedule fields without internal imp
   assert.equal(row.data.occurrences,ranges);
 });
 
+test('private publisher declarations are kept out of public event data',()=>{
+  const row={id:1,data:{submission:{role:'organizer',organizer_confirmed_at:'2026-10-22T12:00:00Z'}}};
+  assert.deepEqual(publicEvent(row),{id:1,data:{}});
+});
+
 test('legacy data-only schedules remain visible and empty hydrated schedules take precedence',()=>{
   const slot={key:'legacy',starts_at:'2027-01-01T14:00:00Z',ends_at:null};
   assert.deepEqual(publicEvent({data:{occurrences:[slot]}}).occurrences,[slot]);

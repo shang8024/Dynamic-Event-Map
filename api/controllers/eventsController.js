@@ -1,7 +1,7 @@
 const Event=require('../models/eventModel');
 const socket=require('../socket');
 const {bumpEventCount}=require('./statsController');
-const {canManageEvent,validateEvent}=require('../services/eventPermissions');
+const {canManageEvent,validateEvent,validateEventSubmission}=require('../services/eventPermissions');
 const {prepareEventInput}=require('../services/eventSchedule');
 const {publicEvent}=require('../services/publicEvents');
 function broadcast(name,payload) { try {socket.getIO().emit(name,payload);} catch {/* HTTP data remains authoritative. */} }
@@ -26,9 +26,11 @@ async function createEvent(req,res) {
   if(!req.user) return res.status(401).json({error:'Authentication required'});
   if(req.body.source && req.body.source!=='internal') return res.status(403).json({error:'External events can only be created by the import job'});
   try {
-    const input=prepareEventInput(req.body),error=validateEvent(input);
+    const input=prepareEventInput(req.body),error=validateEventSubmission(input)||validateEvent(input);
     if(error) return res.status(400).json({error});
-    const row=(await Event.create({...input,lat:Number(input.latitude),lng:Number(input.longitude),user_id:req.user.id,source:'internal'})).rows[0];
+    const submission={role:input.submission_role,
+      ...(input.submission_role==='organizer'?{organizer_confirmed_at:new Date().toISOString()}:{})};
+    const row=(await Event.create({...input,lat:Number(input.latitude),lng:Number(input.longitude),user_id:req.user.id,source:'internal',submission})).rows[0];
     const output=publicEvent(row);
     await bumpEventCount(1); broadcast('event:created',output); res.json(output);
   } catch(error) {fail(res,error);}

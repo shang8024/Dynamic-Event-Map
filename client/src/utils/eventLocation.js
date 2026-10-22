@@ -31,7 +31,7 @@ export function eventLocationError(form,{existing=null,confirmed=false}={}) {
 
 export function eventDraftSignature(form,dates) {
   return JSON.stringify({
-    fields:['title','description','category','status','location_address','latitude','longitude','place_id'].map(key=>form[key]??''),
+    fields:['title','description','category','status','location_address','latitude','longitude','place_id','submission_role','organizer_confirmed'].map(key=>form[key]??''),
     dates:dates.map(({starts_at,ends_at})=>({starts_at,ends_at})),
   });
 }

@@ -2,6 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {Pool}=require('pg');
 const {createEventModel}=require('../models/eventModel');
 const {scheduleNotifications}=require('../services/notificationOutbox');
+const {publicEvent}=require('../services/publicEvents');
 test('multi-occurrence writes, reminder identities and final expiry are atomic',{skip:process.env.NOTIFICATION_DB_TEST!=='1'},async()=>{
   assert.equal(process.env.PGHOST,'127.0.0.1');
   const schema=`occurrences_test_${process.pid}`,admin=new Pool({max:1}),db=new Pool({options:`-c search_path=${schema}`});
@@ -37,5 +38,30 @@ test('multi-occurrence writes, reminder identities and final expiry are atomic',
     assert.equal((await db.query("SELECT count(*)::int n FROM notification_outbox WHERE status IN ('pending','leased')")).rows[0].n,0);
     assert.deepEqual((await db.query('SELECT * FROM cleanup_expired_events(now())')).rows[0],{deleted:0,archived:1});
     assert.equal((await db.query('SELECT count(*)::int n FROM bookmarks')).rows[0].n,1);
+  } finally {await db.end();await admin.query(`DROP SCHEMA ${schema} CASCADE`);await admin.end();}
+});
+
+test('publisher declarations persist with the listing and survive later edits without altering legacy events',
+  {skip:process.env.NOTIFICATION_DB_TEST!=='1'},async()=>{
+  assert.equal(process.env.PGHOST,'127.0.0.1');
+  const schema=`event_submission_test_${process.pid}`,admin=new Pool({max:1}),db=new Pool({options:`-c search_path=${schema}`});
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  try {
+    await db.query(await fs.readFile(path.resolve(__dirname,'../../db/init.sql'),'utf8'));
+    for(const file of (await fs.readdir(path.resolve(__dirname,'../../db/migrations'))).filter(file=>/^\d.*\.sql$/.test(file)).sort()) {
+      await db.query(await fs.readFile(path.resolve(__dirname,'../../db/migrations',file),'utf8'));
+    }
+    const owner=(await db.query("INSERT INTO profiles(username) VALUES('publisher') RETURNING id")).rows[0];
+    const model=createEventModel(db),input={user_id:owner.id,title:'A local event',description:'Community gathering',
+      category:'Other',lat:43.7,lng:-79.4,location_address:'Toronto',
+      starts_at:'2027-01-01T15:00:00Z',ends_at:'2027-01-01T17:00:00Z'};
+    for(const submission of [{role:'reporter'},{role:'organizer',organizer_confirmed_at:new Date().toISOString()},undefined]) {
+      const {rows:[created]}=await model.create({...input,submission});
+      assert.deepEqual(created.data.submission,submission);
+      const {rows:[updated]}=await model.update({id:created.id,actor_id:owner.id,title:'Updated local event',
+        submission:{role:'forged'},data:{submission:{role:'forged'}}});
+      assert.deepEqual(updated.data.submission,submission);
+      assert.equal(Object.hasOwn(publicEvent((await model.getById(created.id)).rows[0]).data,'submission'),false);
+    }
   } finally {await db.end();await admin.query(`DROP SCHEMA ${schema} CASCADE`);await admin.end();}
 });
