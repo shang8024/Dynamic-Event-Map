@@ -217,21 +217,33 @@ Wait until both data-service containers report healthy, then apply and record ev
 
 ### GitHub Actions and releases
 
-CI tests and builds changes without cloud credentials. Image publication is a separate manual workflow from `main`; changes developed on another branch must be reviewed and merged there first. Create a protected GitHub environment named `production`, restricted to `main`, for production browser configuration.
+CI tests and builds changes without cloud credentials. Releases and deployments are opt-in jobs in **CI and Release Images**, available only through **Run workflow** on `main`. Changes developed on another branch must be reviewed and merged there first. Create a protected GitHub environment named `production`, restricted to `main`, for production browser configuration and the optional deployment role.
 
 | Location | Names |
 | --- | --- |
 | Environment secrets | `GOOGLE_MAPS_KEY`, `FIREBASE_API_KEY` |
 | Environment variables | `GOOGLE_MAPS_MAP_ID`, `FIREBASE_PROJECT_ID`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_APP_ID`, `FIREBASE_MESSAGING_SENDER_ID` |
+| Optional CD environment variables | `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION` (default `ca-central-1`), `LIGHTSAIL_INSTANCE_NAME` |
 | Built-in workflow token | `GITHUB_TOKEN` with package write permission for image publication |
 
 Copy Firebase browser fields from the registered web app; do not derive its storage bucket or authorized auth domain by guesswork. Browser values appear in the delivered JavaScript even when stored as GitHub secrets. Apply production website/API restrictions to the keys.
 
-GitHub does not need SSH, AWS federation, database, S3, SES or Firebase Admin credentials. Host deployment, recovery and cleanup are operator-run commands. Enable GitHub Actions for a fork if necessary and allow the repository's workflow token to publish its GHCR packages.
+GitHub does not need long-lived SSH/AWS keys, database, S3, SES or Firebase Admin credentials. Optional CD uses GitHub OIDC and Lightsail's temporary SSH certificates. Recovery and cleanup remain operator-run commands. Enable GitHub Actions for a fork if necessary and allow the repository's workflow token to publish its GHCR packages.
 
 Run **CI and Release Images** manually from `main` with `publish_images` checked. After tests pass, it builds four x86-64 images (`api`, `client`, `events-ingest`, `db-backup`) under `ghcr.io/<owner>/<repository>-production-<component>`, tagged with the same full commit SHA using the short-lived `GITHUB_TOKEN`. Download the `eventmap-release-<sha>` artifact; it contains release configuration and image digests. Make only these newly published production packages public for anonymous host pulls, or configure a protected host credential with only package read access. Keep any legacy packages private until separately reviewed. Do not put a registry password in application configuration.
 
-Upload the release bundle over SSH and verify its commit and image digests. Extract it into a new root-owned, mode-0700 `/root/eventmap-releases/<full-commit-sha>` directory; never overwrite an accepted release directory. The bundle excludes the host's `.env` and credentials. Connect using the operator's SSH key and verified host fingerprint, then deploy manually:
+For one manually triggered build-and-deploy, check `deploy_production` instead. This also publishes images; `publish_images` need not be checked separately. Ordinary pushes and pull requests only run verification, and never deploy. The deployment job takes the bundle from that same workflow run, backs up the database, and invokes the existing deployment helper. It does not run migrations or enable email delivery. Missing or changed migration records stop deployment for operator review.
+
+One-time CD setup:
+
+1. Add the IAM OpenID Connect provider `https://token.actions.githubusercontent.com` with audience `sts.amazonaws.com`.
+2. Create a dedicated deployment role using the examples in `infra/iam/`. Match the exact repository subject from `gh api repos/OWNER/REPOSITORY/actions/oidc/customization/sub`; newer repositories use an immutable owner/repository ID prefix. Append `:environment:production`, and keep the GitHub environment restricted to `main`. Never use a wildcard repository or environment subject.
+3. Tag only the intended Lightsail instance with `GitHubDeployTarget=OWNER/REPOSITORY:INSTANCE_NAME`, preserving the repository's letter case. The example role permits temporary SSH credentials and TCP firewall updates only on an instance bearing that exact tag in the configured region. Its AWS policy contains no IAM administration, tagging, S3 or SES permissions. Regional instance metadata and firewall reads use `Resource: "*"` as required by Lightsail. The port API itself has no IAM port-number condition, so trusted workflow code and environment protections are part of this access boundary.
+4. Set `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION` and `LIGHTSAIL_INSTANCE_NAME` in the GitHub `production` environment. The role can administer the tagged host through temporary SSH; treat changes to trusted `main` workflows as privileged. No new GitHub secret is required.
+
+CD temporarily permits TCP 22 from the current runner's IPv4 `/32`, pins the SSH host keys returned by the signed Lightsail API, and removes only its own firewall entry afterward. Existing operator rules and ports 80/443 are preserved. Normal failure/cancellation cleanup runs both in the helper and an `always()` workflow step; a forcibly lost runner can still leave a stale `/32`, which an operator should remove. The SSH certificate expires independently. Archive paths and member types, commit SHA, bundle checksum and release manifests are validated before an immutable candidate is staged. A repeated attempt can reuse only an identical candidate; it never overwrites an accepted release.
+
+The original SSH procedure remains available: upload the release bundle and verify its commit and image digests. Extract it into a new root-owned, mode-0700 `/root/eventmap-releases/<full-commit-sha>` directory; never overwrite an accepted release directory. The bundle excludes the host's `.env` and credentials. Connect using the operator's SSH key and verified host fingerprint, then deploy manually:
 
 ```sh
 set -e

@@ -1,0 +1,35 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TemporaryAccessAndFirewallForTaggedInstance",
+      "Effect": "Allow",
+      "Action": [
+        "lightsail:GetInstanceAccessDetails",
+        "lightsail:OpenInstancePublicPorts",
+        "lightsail:CloseInstancePublicPorts"
+      ],
+      "Resource": "arn:aws:lightsail:AWS_REGION:AWS_ACCOUNT_ID:Instance/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "AWS_REGION",
+          "aws:ResourceTag/GitHubDeployTarget": "GITHUB_OWNER/GITHUB_REPOSITORY:LIGHTSAIL_INSTANCE_NAME"
+        }
+      }
+    },
+    {
+      "Sid": "ReadRegionalInstanceAndFirewallState",
+      "Effect": "Allow",
+      "Action": [
+        "lightsail:GetInstance",
+        "lightsail:GetInstancePortStates"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "AWS_REGION"
+        }
+      }
+    }
+  ]
+}
