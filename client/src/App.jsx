@@ -27,19 +27,19 @@ function MapPage() {
 }
 
 function PageWrapper({ children }) {
-  const content=useRef(null),location=useLocation();
+  const page=useRef(null),location=useLocation();
   useEffect(()=>{
-    content.current?.scrollTo({top:0});
+    page.current?.scrollTo({top:0});
     if(!['/signin','/register','/reset-password'].includes(location.pathname)&&!location.pathname.startsWith('/events/')) {
       const title={'/bookmarks':'Saved events','/recommendations':'For you','/notifications':'Notifications','/comments':'My comments','/settings':'Email & privacy'}[location.pathname];
       document.title=title?`${title} · Dynamic Event Map`:'Dynamic Event Map';
     }
   },[location.pathname]);
   return (
-    <div className="app-shell">
+    <div ref={page} className="app-shell" data-page-scroll>
       <Navbar />
       <NotificationBanner />
-      <div ref={content} id="main-content" className="app-content" tabIndex={-1}>{children}</div>
+      <div id="main-content" className="app-content" tabIndex={-1}>{children}</div>
     </div>
   );
 }

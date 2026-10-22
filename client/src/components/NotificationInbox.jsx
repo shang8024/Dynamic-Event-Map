@@ -11,7 +11,7 @@ function useInbox({summary=false,listRef}={}) {
   const inbox=useMemo(()=>createNotificationInbox({get,post,summary,enabled:Boolean(uid),
     onRead:()=>window.dispatchEvent(new Event('eventmap:inbox-read'))}),[uid,summary]);
   const subscribe=useMemo(()=>listener=>inbox.subscribe(()=>{
-    const list=listRef?.current,scroller=list?.closest('.app-content');
+    const list=listRef?.current,scroller=list?.closest('[data-page-scroll]');
     if(list&&scroller) {
       const edge=scroller.getBoundingClientRect().top;
       const item=[...list.children].find(node=>node.getBoundingClientRect().bottom>edge);

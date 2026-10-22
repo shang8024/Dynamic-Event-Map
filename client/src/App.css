@@ -67,8 +67,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 h1,h2,h3 { text-wrap:pretty; overflow-wrap:anywhere; }
 .eyebrow { font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--color-primary); }
 .muted { color:var(--muted); }
-.app-shell { display:flex; flex-direction:column; height:100dvh; overflow:hidden; }
-.app-content { flex:1; min-height:0; overflow:auto; padding:0 24px; }
+/* The complete page scrolls, including its ordinary-flow header. Keep the
+   content's viewport allocation definite so the map can fill the remaining
+   height; longer personal pages overflow into this outer page scroller. */
+.app-shell { display:flex; flex-direction:column; height:100dvh; overflow:auto; }
+.app-content { flex:1 0 0; min-height:0; overflow:visible; padding:0 24px; }
 .app-content:focus { outline:none; }
 .site-header { flex:none; display:grid; grid-template-columns:auto 1fr auto; align-items:center; column-gap:32px; padding:12px 24px; background:var(--color-base-100); border-bottom:1px solid var(--color-base-300); position:relative; z-index:40; }
 .brand { display:flex; align-items:center; gap:10px; text-decoration:none; font-size:18px; font-weight:650; letter-spacing:-.025em; white-space:nowrap; }

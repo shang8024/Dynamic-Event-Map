@@ -5,14 +5,12 @@ import {useAuthFlow} from '../contexts/AuthFlowContext';
 import GuestAvatar from '../assets/guest.png';
 import {NotificationBell} from './NotificationInbox';
 import {authErrorMessage} from '../services/authSession';
-import useScrollNavigation from '../hooks/useScrollNavigation';
 import './Navbar.css';
 
 export default function Navbar() {
   const {user,account,loading,logout}=useAuth();
   const requestAuth=useAuthFlow(),location=useLocation();
-  const menu=useRef(null),header=useRef(null);
-  const {hidden,height,reveal}=useScrollNavigation(header,location.key);
+  const menu=useRef(null);
   const authPage=['/signin','/register','/reset-password'].includes(location.pathname);
   const [logoutError,setLogoutError]=useState('');
   const create=()=>requestAuth('create an event','/',{kind:'create'});
@@ -27,8 +25,8 @@ export default function Navbar() {
     setLogoutError('');
     try {await logout();} catch(error) {setLogoutError(authErrorMessage(error));}
   }
-  return <div className="site-header-shell" data-hidden={hidden} style={height==null?undefined:{'--navigation-height':`${height}px`}}>
-    <header ref={header} className="site-header" inert={hidden} aria-hidden={hidden||undefined} onPointerEnter={reveal}>
+  return <div className="site-header-shell">
+    <header className="site-header">
     <a className="skip-link" href="#main-content">Skip to content</a>
     <Link to="/" className="brand" aria-label="Dynamic Event Map home">
       <img src="/logo.png" alt="" width="34" height="40"/>
