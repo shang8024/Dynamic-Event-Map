@@ -73,10 +73,10 @@
   .event-list-item .event-template > span { font-size:28px; }
   .event-list-item .event-template > small { display:none; }
 
-  .event-page { max-width:900px; padding:16px 0 36px; }
+  .event-page { max-width:1120px; padding:16px 0 36px; }
   .event-page-nav { gap:12px; margin-bottom:12px; }
   .event-page .event-detail-hero { height:220px; }
-  .event-page .event-detail-body { max-width:760px; padding:24px; }
+  .event-page .event-detail-body { padding:28px; }
   .event-page .event-heading h1 { font-size:30px; }
   .event-page-message,.account-gate { padding:24px; }
   .auth-page { max-width:860px; grid-template-columns:minmax(0,1fr) minmax(0,380px); gap:48px; padding:28px 0 36px; }

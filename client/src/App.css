@@ -156,15 +156,38 @@ h1,h2,h3 { text-wrap:pretty; overflow-wrap:anywhere; }
 .comments-preview .comment-text { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 .event-comments .comment-text { overflow-wrap:anywhere; }
 .event-comments > ul > li { border:1px solid var(--color-base-300); }
-.event-page { width:100%; max-width:1000px; margin:0 auto; padding:24px 0 48px; }
+.event-page { width:100%; max-width:1120px; margin:0 auto; padding:24px 0 48px; }
 .event-page-nav { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px; }
 .event-page-nav .btn { margin-left:-12px; }
 .event-page > .event-detail-content { border:1px solid var(--color-base-300); border-radius:20px; overflow:hidden; background:var(--color-base-100); }
 .event-page .event-detail-hero { height:clamp(200px,30vw,360px); }
-.event-page .event-detail-body { max-width:800px; width:100%; margin:0 auto; padding:32px; }
+.event-page .event-detail-body { width:100%; margin:0 auto; padding:32px; gap:32px; }
 .event-page .event-heading h1 { font-size:clamp(28px,4vw,40px); font-weight:650; line-height:1.2; letter-spacing:-.025em; margin-top:8px; }
 .event-page .event-heading h1:focus { outline:none; }
-.event-page .event-save { max-width:360px; }
+.event-page .event-overview { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,320px); gap:24px 40px; align-items:start; }
+.event-page .event-intro { grid-column:1; grid-row:1; }
+.event-page .event-story { grid-column:1; grid-row:2; }
+.event-page .event-visit-card { grid-column:2; grid-row:1 / span 2; padding:24px; border:1px solid var(--color-base-300); border-radius:18px; background:color-mix(in srgb,var(--color-base-200) 45%,var(--color-base-100)); box-shadow:0 4px 18px #00000005; }
+.event-page .event-story .detail-section { border-top:1px solid var(--color-base-300); padding-top:24px; }
+.event-page .event-intro .category-label { padding:5px 10px; border-radius:20px; background:color-mix(in srgb,var(--color-primary) 12%,transparent); }
+.event-page .event-intro .event-heading h1 { margin-top:16px; font-size:clamp(28px,3.3vw,40px); line-height:1.15; }
+.event-page .event-story .event-description { font-size:15px; line-height:1.85; }
+.event-page .event-visit-card .event-facts { gap:24px; }
+.event-page .event-visit-card .event-facts > div { gap:12px; }
+.event-page .event-visit-card .event-facts > div > div { min-width:0; }
+.event-page .event-visit-card .event-facts svg { width:32px; height:32px; padding:6px; margin-top:0; border:1px solid var(--color-base-300); border-radius:9px; background:var(--color-base-100); color:var(--color-primary); }
+.event-page .event-visit-card dt { display:flex; flex-wrap:wrap; gap:2px 6px; }
+.event-page .event-visit-card .event-save { padding-top:20px; border-top:1px solid var(--color-base-300); }
+.event-page .event-visit-card .event-save > .btn { min-height:44px; height:auto; padding-block:10px; }
+.event-page .event-comments { padding-top:32px; gap:20px; }
+.event-page .event-comments h2 { font-size:22px; font-weight:650; }
+.event-page .comment-sign-in { flex-direction:row; align-items:center; justify-content:space-between; gap:20px; padding:20px 24px; border:1px solid var(--color-base-300); border-radius:16px; }
+.event-page .comment-sign-in .btn { flex:none; }
+@media (max-width:800px) {
+  .event-page .event-overview { display:flex; align-items:stretch; gap:24px; }
+  .event-page .event-visit-card { padding:20px; }
+  .event-page .comment-sign-in { flex-direction:column; align-items:flex-start; gap:12px; padding:20px; }
+}
 .event-page-message { display:flex; flex-direction:column; align-items:flex-start; gap:20px; padding:32px; border:1px solid var(--color-base-300); border-radius:20px; background:var(--color-base-100); }
 .event-page-message h1 { font-size:28px; font-weight:650; }
 .event-page-message p { color:var(--muted); line-height:1.7; }
@@ -206,6 +229,7 @@ h1,h2,h3 { text-wrap:pretty; overflow-wrap:anywhere; }
 .dialog-description { color:var(--muted); font-size:14px; margin-bottom:24px; }
 .ui-icon { flex:none; }
 .event-detail-body { display:flex; flex-direction:column; gap:24px; padding:24px; }
+.event-overview,.event-intro,.event-story,.event-visit-card { display:flex; flex-direction:column; gap:inherit; min-width:0; }
 .photo-credit,.source-disclosure { font-size:12px; line-height:1.6; color:var(--muted); overflow-wrap:anywhere; }
 .photo-credit { margin-bottom:-8px; }
 .category-label { display:inline-block; font-size:12px; font-weight:650; color:var(--color-primary); letter-spacing:.02em; }

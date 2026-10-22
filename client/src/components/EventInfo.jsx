@@ -69,9 +69,13 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
     <div className="event-detail-body">
       {image&&<p className="photo-credit">{image.credit||(image.source==='toronto'?'Photo supplied with the Toronto event listing':'Event photo')}
         {image.source==='toronto'&&<> · <a href="https://open.toronto.ca/dataset/festivals-events/" target="_blank" rel="noopener noreferrer" className="link">Source</a></>}</p>}
+      <div className="event-overview">
+      <div className="event-intro">
       <header className="event-heading"><div className="event-heading-topline"><span className="category-label">{event.category||'Other'}</span>{!standalone&&<div className="event-heading-links"><Link className="event-full-link" to={`/events/${event.id}`} target="_blank" rel="noopener noreferrer">Full details <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></Link></div>}</div><Heading id="event-detail-title" tabIndex={-1}>{event.title}</Heading></header>
       {(ended||cancelled)&&<p role="status" className="event-status-note">{cancelled?'This event has been cancelled.':'This event has ended. It stays in your saved events.'}</p>}
       {promptForPhoto&&manage&&!ended&&!cancelled&&<div className="rounded-xl border border-base-300 p-3 flex flex-wrap items-center justify-between gap-3" role="status"><p className="text-sm">Your event is published. Add a photo to help people recognize it.</p><button className="btn btn-outline btn-sm" onClick={()=>setPhotoOpen(value=>Number(value)+1)}>Add photo link</button></div>}
+      </div>
+      <section className="event-visit-card" aria-label="Time, location and saving">
       <dl className="event-facts">
         <div><Icon name="calendar"/><div><dt>{when.label} <span>· Toronto time</span></dt><dd>{when.text}</dd></div></div>
         <div><Icon name="pin"/><div><dt>Location</dt><dd>{event.location_name&&<>{event.location_name}<br/></>}{event.location_address||'Location to be confirmed'}</dd></div></div>
@@ -81,6 +85,8 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
         {bookmarkError&&<p role="alert" className="text-sm text-error">{bookmarkError} <button className="link min-h-11" onClick={refetchBookmarks}>Retry</button></p>}
         {count>0&&<p className="text-sm muted">Saved by {count} {count===1?'person':'people'}</p>}
       </div>
+      </section>
+      <div className="event-story">
       <section className="detail-section"><SectionHeading>About this event</SectionHeading><p className="event-description">{event.description||'The organizer has not provided a description yet.'}</p>
         {event.data?.website&&/^https?:\/\//.test(event.data.website)&&<a className="link organizer-link" href={event.data.website} target="_blank" rel="noopener noreferrer">Organizer’s website ↗</a>}
       </section>
@@ -89,6 +95,8 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
         {unconfirmed.length>0&&<details className="past-dates"><summary>Earlier dates · end time unknown · {unconfirmed.length}</summary>{dateList(unconfirmed)}</details>}
         {past.length>0&&<details className="past-dates"><summary>Past dates · {past.length}</summary>{dateList(past)}</details>}
       </details>}
+      </div>
+      </div>
       <EventComments key={event.id} eventId={event.id} preview={!standalone} returnTo={standalone?`${returnTo}#comments`:returnTo}/>
       {manage&&<section className="event-management" aria-label="Manage event"><div><p className="eyebrow">Manage event</p><p className="text-sm muted">Only you and project administrators can change this listing.</p></div>
         <div className="flex flex-wrap gap-2"><button className="btn btn-outline flex-1" onClick={()=>onEdit(event)}>Edit event</button>
