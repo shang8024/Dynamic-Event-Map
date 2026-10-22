@@ -79,5 +79,5 @@ def audit(directory, *, execute=subprocess.run, sleep=time.sleep, emit=log):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("directory", choices=("api", "client"))
+    parser.add_argument("directory", choices=("api", "client", "infra/ingest"))
     raise SystemExit(audit(parser.parse_args().directory))

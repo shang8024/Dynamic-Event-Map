@@ -91,8 +91,9 @@ jobs:
           INGEST_DB_TEST: '1'
           INGEST_PG16_TEST: '1'
         run: |
-          npm ci --prefix infra/ingest
+          npm ci --prefix infra/ingest --no-audit
           npm test --prefix infra/ingest
+          python3 infra/scripts/npm_audit.py infra/ingest
       - name: Test backup and recovery guardrails
         run: |
           docker build -t eventmap-backup-check:local infra/backup
