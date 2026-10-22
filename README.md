@@ -2,364 +2,75 @@
 
 Discover Toronto events across a GTA-wide interactive map. Browse by location, category and date, save activities, and share local discoveries.
 
-[Open the live map](https://www.dynamic-event-map.cloud)
+[Explore the live map](https://www.dynamic-event-map.cloud/)
 
-![Toronto events map](images/main_page.png)
+![Event map with photo markers and a compact event panel](images/main_page.png)
+![Event detail page with a time, location and save card](images/event.png)
 
 ## Features
 
-- Google Maps with photo thumbnails, counted marker groups, GTA location search and filters.
-- Official City of Toronto event data alongside community submissions.
-- Google sign-in and email/password registration with verification and password reset.
-- Bookmarks, live comments, a notification inbox and owner/admin event management.
-- Shareable event pages with full discussions; map panels show the latest three comments.
-- Recommendations with explanations and optional personalization based on saved categories.
-- Independent opt-in settings for event reminders and weekly discovery emails, with signed unsubscribe links.
-- Live updates through Socket.IO and Redis.
-
-Email delivery is currently disabled. Preferences and recommendations work independently of sending mail.
+- GTA-wide map with location search, category/date/distance filters, photo markers, and grouped event counts.
+- Official Toronto listings and community-created events, with owner and administrator editing.
+- Multiple dates per event, shareable detail pages, and saved history after events end.
+- Google and email/password sign-in, email verification, and password reset through Firebase.
+- Saved events and optional recommendations based on saved categories, with explanations.
+- Live comments, cached comment previews, a notification inbox, and separate reminder/marketing preferences.
+- Responsive layouts, keyboard navigation, and persistent day/night modes.
 
 ## Stack
 
-| Layer | Technology |
+| Layer | Technologies |
 | --- | --- |
-| Client | React, Vite, Tailwind CSS, Google Maps and Places |
-| API | Node.js, Express, Socket.IO |
+| Frontend | React, Vite, Tailwind CSS, DaisyUI, Google Maps JavaScript API, Places API (New) |
+| Backend | Node.js, Express, Socket.IO |
 | Data | PostgreSQL 16, Redis 7 |
 | Authentication | Firebase Authentication |
-| Containers | Docker Compose for development; Docker Swarm for production |
-| HTTPS | Traefik, Nginx, Let's Encrypt |
-| Hosting | AWS Lightsail in Canada (Central) |
-| Backups | Private Amazon S3 with checksum-verified recovery |
-| Releases | GitHub Actions and GitHub Container Registry |
-| Email | Amazon SES, signed SNS feedback and a PostgreSQL outbox |
-
-The deployment uses one VM. Container replicas do not provide host-level high availability.
+| Infrastructure | AWS Lightsail, Docker Swarm, Traefik, Nginx, Let's Encrypt |
+| Delivery & backups | GitHub Actions, GHCR, Amazon S3 |
+| Optional email pipeline | Amazon SES, SNS; sending disabled by default |
 
 ## Development
 
-Install Docker with Compose and Node.js 22.12 or later. Shell examples use Bash; use Linux, macOS or WSL.
+Requires Docker with Compose and Node.js 22.12+. Commands use Bash (WSL on Windows).
 
-1. Copy `.env.example` to `.env` and configure the browser values. Give the local database a unique password.
-2. In Firebase, enable Google and email/password sign-in and authorize `localhost`. Set matching `FIREBASE_PROJECT_ID` and `VITE_FIREBASE_PROJECT_ID` values.
-3. Enable Maps JavaScript API and Places API (New). Use a separate development browser key restricted to the development website and these APIs. Browser Firebase/Maps configuration is public in the compiled client; it must not contain a server credential.
-4. Start the services:
+Copy `.env.example` to `.env`, then fill in:
 
-   ```sh
-   docker compose -f docker-compose.dev.yml config --quiet
-   docker compose -f docker-compose.dev.yml up --build -d --wait
-   ```
+| Configuration | Required values |
+| --- | --- |
+| Google Maps | `VITE_GOOGLE_MAPS_KEY` and `VITE_GOOGLE_MAPS_MAP_ID` (JavaScript vector Map ID) |
+| Firebase web app | The `VITE_FIREBASE_*` values in `.env.example`; set `FIREBASE_PROJECT_ID` to the same project ID |
+| Local database | Choose your own `DB_PASSWORD`; the other local defaults can stay as supplied |
 
-5. Apply the numbered migrations to the development database:
-
-   ```sh
-   for migration in db/migrations/[0-9]*.sql; do
-     docker compose -f docker-compose.dev.yml exec -T db sh -ec \
-       'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < "$migration"
-   done
-   ```
-
-Open `http://localhost:3000`; the API is available at `http://localhost:5000/api`. Development database/cache ports bind to loopback. Do not use `docker compose down -v` to update a database you want to keep.
-
-The API validates Firebase ID tokens with public signing certificates and the configured project ID. Web login requires no Firebase service-account private key. Administrative user lookups and revocation checks require separate credentials; the optional mail worker uses a dedicated read-only identity.
-
-### Event administration
-
-New accounts receive the `member` role. An administrator can edit or cancel imported listings without becoming their author. Imports retain the Toronto system author and preserve edited fields, custom image links and hidden-photo choices. Cancelling an official listing retains its bookmarks and history. Ordinary members can manage only their own events; browser-supplied roles or author IDs grant no permission.
-
-To grant an administrator, first create and verify that person's Firebase account. Run the operator-only command with a matching project and a protected read-only Firebase Auth credential outside the repository:
+Enable **Maps JavaScript API** and **Places API (New)**, and restrict your development Maps key to `http://localhost:3000/*` and those APIs. In Firebase, enable Google and email/password sign-in and add `localhost` to authorized domains. Basic local development needs no AWS credentials or Firebase Admin private key. Keep `.env` out of Git.
 
 ```sh
-GOOGLE_APPLICATION_CREDENTIALS=/protected/firebase-auth-reader.json \
-  node --env-file=.env api/scripts/set-admin.js verified-admin@example.com
+cp .env.example .env
+# Fill in the values above before continuing.
 ```
 
-It verifies the exact Firebase UID and verified, enabled account before updating the database role. Do not put an administrator email, service-account key or automatic admin seed in source control. On an existing server, use a protected operator connection to the intended database, then sign in again to refresh the displayed role.
-
-### Account access control
-
-Apply migration `009_account_access.sql` before running code that reads its profile fields. Operators with a protected connection to the intended database can disable a Firebase-linked account by its database profile ID without granting the application extra Firebase administration permissions:
+Start the local database/cache and apply migrations once to the fresh database:
 
 ```sh
-node --env-file=.env api/scripts/set-account-status.js 123 disable
-node --env-file=.env api/scripts/set-account-status.js 123 enable
-node --env-file=.env api/scripts/set-account-status.js 123 revoke
+docker compose -f docker-compose.dev.yml up -d --wait db redis
+for migration in db/migrations/[0-9]*.sql; do
+  docker compose -f docker-compose.dev.yml exec -T db sh -ec \
+    'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < "$migration"
+done
+docker compose -f docker-compose.dev.yml up --build -d
 ```
 
-`disable` rejects private API access on the next request; authenticated sockets recheck account access every 20 seconds and disconnect when blocked. `revoke` invalidates existing local sessions without disabling the account. All three actions advance an authentication cutoff: enabling an account requires a fresh Firebase sign-in, and merely refreshing an old ID token does not restore access. This operator command cannot grant roles or change ownership; there is no public account-control endpoint.
+Open [localhost:3000](http://localhost:3000). The frontend uses the Vite development server with hot reload; routine frontend edits do not need another image build.
 
-Firebase Console account disable/revoke alone does not immediately invalidate an already issued ID token in project-ID-only verification mode; it can remain valid until its normal expiry, typically up to an hour. Use this local disable control for immediate website blocking and Firebase account controls for provider-level access. Production startup refuses `FIREBASE_AUTH_EMULATOR_HOST`.
-
-### Event photos and saved history
-
-This version accepts **image links only**, with optional alt text and credit. Direct HTTPS links are limited to `secure.toronto.ca` (official event image paths), `images.unsplash.com`, `i.imgur.com`, `res.cloudinary.com` and `images.pexels.com`. A rejected link produces a visible warning and leaves the previous photo intact. The database stores the URL and credit, not image files. Official imports also retain their supplied photo links and credits.
-
-The API serves linked photos through an isolated image worker. Every redirect and DNS answer is checked, connections use the checked addresses, and non-public destinations are rejected. Only still JPEG, PNG, WebP and AVIF inputs up to 8 MiB and 12 million pixels are decoded and re-encoded as metadata-free WebP. Production refuses to decode inside the API process. The worker has no database/cache/cloud secrets, mounts or published port; it runs as UID 1000 with a read-only filesystem, dropped capabilities, a separate network, 256 MiB memory and 0.5 CPU limits. Download/decoding deadlines, one concurrent decode, a bounded queue and HTTP rate limits constrain abuse. These controls reduce risk; processing untrusted images is not a guarantee against vulnerabilities.
-
-The detail view prefers the event's linked photo, then an attributed Google venue photo, then a category illustration. Google venue photos load only when details are opened; they are labelled as venue photos, matched to the event location, and never imported into our storage. Marker thumbnails use the event's linked photo and do not trigger Google photo searches for every pin. Create a JavaScript vector Map ID and set `VITE_GOOGLE_MAPS_MAP_ID` locally / `GOOGLE_MAPS_MAP_ID` in the production GitHub environment. Set explicit Maps and Places quotas, including Text Search and Photo Media; budget alerts alone do not stop requests.
-
-Linked-image bytes are cached only in worker memory (20 MiB maximum, one-hour expiry) and by the browser for up to an hour. Ended, cancelled or hidden event photos stop being served; cached bytes expire without a storage-cleanup job or bucket. Daily maintenance deletes finished listings without bookmarks or comments. Referenced listings become small history summaries: bookmarks and discussions remain, while full descriptions, coordinates, photo links and occurrence payloads are removed. Once the last bookmark/comment is removed, the next cleanup can delete the summary. Unknown end times are not guessed.
-
-### Import event data
-
-The importer reads the City's [Festivals & Events dataset](https://open.toronto.ca/dataset/festivals-events/). No Toronto API key or AI agent is required. It validates the complete official snapshot, normalizes Toronto dates, deduplicates source identities, and imports one event per source submission with separate occurrence ranges. Published occurrence dates and venue date rules provide individual starts/ends, including weekday-specific hours, multiple intervals, overnight ranges and Toronto daylight-saving changes. Ambiguous, conflicting or missing ends remain unknown; the series' final expiry is never copied onto every occurrence.
+Optional: populate the empty local database from Toronto's official feed (no Toronto API key required):
 
 ```sh
 npm ci --prefix infra/ingest
-mkdir -p .local
-# Preview only; no database writes.
-node --env-file=.env infra/ingest/update_toronto_events.js --output .local/import-preview.json
-# Review the preview, then import into the local Compose database.
 DB_HOST=127.0.0.1 REDIS_HOST=127.0.0.1 \
   node --env-file=.env infra/ingest/update_toronto_events.js --write
 ```
-
-A fresh database starts without downloaded events. Imports preserve internal events and manual edits, and use a transaction and advisory lock. A failed, partial or stale download does not replace existing data. Missing source entries are not automatically deleted or declared cancelled. Recurring event ranges are not treated as continuous opening hours. One source submission stays one event, with distinct occurrence starts; series expiry uses its final known end, never its first occurrence. An ongoing/future scheduled occurrence blocks cleanup when dates conflict.
-
-The create/edit form accepts separate date ranges, with optional ends. Saves atomically refresh `event_occurrences`; removed or rescheduled slots invalidate queued reminders. An admin's explicit schedule override on an official event survives later imports. Changing only a title does not take ownership of the official schedule. Maps keep one pin per event, details show all ranges, and reminders use each occurrence's start with distinct delivery keys. A manual schedule with an unknown final end cannot be automatically expired until resolved. User bookmarks/comments retain their small historical summaries after final expiry.
-
-Data quality is checked across normalization and PostgreSQL writes, including event fields, images/credits, source categories, locations, website and individual occurrence ranges. Available source fields must survive normalization; unexpected completeness regressions against existing imports count as anomalies. By default, at least three anomalous new events and a 10% anomaly ratio block the import; the same guard also checks the complete active candidate set. Configure `INGEST_ERROR_MINIMUM` and `INGEST_ERROR_RATIO` in the protected runtime environment. Normal unknown ends and explicit policy exclusions are distinct from unexplained loss.
-
-Every written event and occurrence range is checked before commit, including preserved manual edits and ownership. Any write mismatch rolls back regardless of the ratio. Failed imports do not advance the source checkpoint. Failures create a durable `ingest_alerts` record and a private `ingest_alert` inbox notification for project admins, with Socket.IO delivery. Repeated failures for the same official revision/code update a counter without duplicating inbox messages. Details contain controlled field names/counts, not raw organizer records or secrets. Email delivery remains disabled; these are administrator site notifications, not SES email alerts. If PostgreSQL itself is unavailable, the job fails and logs the error but cannot persist an alert in that unavailable database.
-
-Successful full imports atomically record the resource ID, URL, publication timestamp, declared size/hash, downloaded SHA-256/byte count and importer format version. A later write run first reads the small official catalogue. An identical verified revision skips the large JSON download, parsing and upsert; unknown, changed or incompatible checkpoints require a full verified import. Failed imports never advance the checkpoint. `--force-download` bypasses this optimization for a reviewed manual refresh. Dry runs still download/validate the snapshot and never change the database.
-
-```sh
-# Metadata-only source verification plus local expiry cleanup; no event download.
-node --env-file=.env infra/ingest/update_toronto_events.js --write --check-only
-# Expiry cleanup alone; does not contact Toronto or download any feed.
-node --env-file=.env infra/ingest/update_toronto_events.js --write --cleanup-only
-```
-
-A metadata-only check renews source freshness only when the publication exactly matches the verified import. A changed publication sets `check_status='changed'` and stops old official occurrence reminders/recommendations until a full import; it does not import updates or declare cancellations. Network/schema errors fail the job. Inspect `event_ingest_state` and the job journal for `source_changed`; a successful metadata check is distinct from a successful full download. Monthly imports can miss short-lived events and leave listings outdated between runs. An operator can explicitly run a full refresh earlier.
-
-The feed is large: allow at least 400 MiB of free disk for its temporary snapshot. Production ingestion uses a 768 MiB container limit and a 512 MiB Node heap. Do not put its staging directory on tmpfs. Legacy external rows require a reviewed source-ID mapping before importing; do not delete them to bypass that guard.
-
-### Checks
-
-```sh
-npm ci --prefix api
-npm ci --prefix client
-npm test --prefix api
-npm test --prefix client
-npm test --prefix infra/ingest
-npm run build --prefix client
-```
-
-Database and Redis integration tests are opt-in and should target isolated test resources.
-
-## Production setup
-
-### Host and accounts
-
-1. Create an Ubuntu 24.04 x86-64 Lightsail instance and static IP. Point the apex and `www` DNS records to it. Allow public TCP 80/443; restrict SSH to operator addresses. Keep PostgreSQL, Redis, Docker and Swarm management ports private.
-2. Configure production Firebase authorized domains and a production Maps key restricted to the actual website and required APIs. Configure quotas and billing alerts in the provider consoles.
-3. Create a private regional S3 bucket with Block Public Access, Bucket owner enforced and SSE-S3. Choose lifecycle retention explicitly, including noncurrent versions and incomplete multipart uploads when versioning is enabled.
-4. Give a dedicated backup identity `s3:PutObject`, `s3:GetObject`, `s3:AbortMultipartUpload` and `s3:ListMultipartUploadParts` on the chosen object prefix, and `s3:ListBucket` constrained to that prefix. It needs no object deletion, bucket creation or IAM administration permissions. Read access is required for full backup verification and restores.
-5. Use a dedicated SSH key and verify the server fingerprint through the provider console. The deployment user needs noninteractive `sudo`; this key therefore grants host administration and must be protected accordingly.
-
-Upload only `stack.yml`, `stack.notifications.yml`, `stack.notifications.identity.yml`, `db/`, `infra/scripts/`, `infra/system/` and `infra/env/.env.production.example` into `/root/deploy`. Do not upload `.env`, raw event downloads or local credential directories.
-
-On the host, review and run:
-
-```sh
-sudo bash /root/deploy/infra/scripts/bootstrap/install_host.sh
-sudo docker swarm init --advertise-addr <host-private-ipv4>
-```
-
-Initialize Swarm only once and keep its join tokens private. The installer uses Docker's official package repository and adds swap on a small host only when none exists.
-
-### Secrets and runtime configuration
-
-For a **new** database, create protected secret files and Docker secrets. The commands below run in a root shell; `test` guards prevent overwriting existing files.
-
-```sh
-sudo -i
-set -e
-umask 077
-install -d -m 700 /root/.config/eventmap
-for name in pg_password redis_password unsubscribe_signing_secret; do
-  test ! -e "/root/.config/eventmap/$name"
-  openssl rand -hex 32 > "/root/.config/eventmap/$name"
-done
-# Securely place the backup identity's access key and secret in these files:
-# /root/.config/eventmap/s3_access_key and /root/.config/eventmap/s3_secret_key
-chmod 600 /root/.config/eventmap/*
-for name in pg_password redis_password s3_access_key s3_secret_key unsubscribe_signing_secret; do
-  docker secret create "$name" "/root/.config/eventmap/$name"
-done
-bash /root/deploy/infra/scripts/bootstrap/setup_infra.sh
-```
-
-Bootstrap prepares data-directory ownership and installs this project's timers without enabling them. Edit `/root/deploy/.env` from the supplied production example; keep it root-owned with mode 0600. This file is sourced as shell code and must be operator-controlled. Set `DOMAIN`, `EMAIL`, `FIREBASE_PROJECT_ID`, database settings and:
-
-```dotenv
-S3_PROVIDER=AWS
-S3_REGION=ca-central-1
-S3_BUCKET=your-private-backup-bucket
-S3_PREFIX=production/postgres
-S3_ENDPOINT=
-```
-
-Leave internal ports at 5000/5432/6379. After the first full application deployment, inspect `docker network inspect eventmap_proxy`, set `TRUSTED_PROXY_CIDRS` to that network's exact subnet, and redeploy. Do not trust arbitrary forwarded addresses or all private networks.
-
-Runtime passwords and private keys belong in Docker secrets, not `.env`, images or GitHub build arguments. Changing a PostgreSQL password file does not rotate an existing database role. Rotate the role and consumers together using versioned Docker secrets. Preserve the unsubscribe signing secret in protected recovery storage so existing unsubscribe links remain valid. The baseline uses the database owner for application/jobs; installations needing stronger database separation should provision dedicated runtime and migration roles.
-
-On a fresh host, start only PostgreSQL and Redis before the first application release:
-
-```sh
-sudo bash /root/deploy/infra/scripts/bootstrap/start_database.sh
-sudo docker service ps eventmap_db eventmap_redis
-sudo docker ps --format 'table {{.Names}}\t{{.Status}}'
-```
-
-Wait until both data-service containers report healthy, then apply and record every numbered migration using the database section below. This bootstrap refuses an existing database service. For an existing deployment, use the backup/migration procedure instead. Full application deployment requires the migration ledger and installed schema.
-
-### GitHub Actions and releases
-
-CI tests and builds changes without cloud credentials. Releases and deployments are opt-in jobs in **CI and Release Images**, available only through **Run workflow** on `main`. Changes developed on another branch must be reviewed and merged there first. Create a protected GitHub environment named `production`, restricted to `main`, for production browser configuration and the optional deployment role.
-
-| Location | Names |
-| --- | --- |
-| Environment secrets | `GOOGLE_MAPS_KEY`, `FIREBASE_API_KEY` |
-| Environment variables | `GOOGLE_MAPS_MAP_ID`, `FIREBASE_PROJECT_ID`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_APP_ID`, `FIREBASE_MESSAGING_SENDER_ID` |
-| Optional CD environment variables | `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION` (default `ca-central-1`), `LIGHTSAIL_INSTANCE_NAME` |
-| Built-in workflow token | `GITHUB_TOKEN` with package write permission for image publication |
-
-Copy Firebase browser fields from the registered web app; do not derive its storage bucket or authorized auth domain by guesswork. Browser values appear in the delivered JavaScript even when stored as GitHub secrets. Apply production website/API restrictions to the keys.
-
-GitHub does not need long-lived SSH/AWS keys, database, S3, SES or Firebase Admin credentials. Optional CD uses GitHub OIDC and Lightsail's temporary SSH certificates. Recovery and cleanup remain operator-run commands. Enable GitHub Actions for a fork if necessary and allow the repository's workflow token to publish its GHCR packages.
-
-Run **CI and Release Images** manually from `main` with `publish_images` checked. After tests pass, it builds four x86-64 images (`api`, `client`, `events-ingest`, `db-backup`) under `ghcr.io/<owner>/<repository>-production-<component>`, tagged with the same full commit SHA using the short-lived `GITHUB_TOKEN`. Download the `eventmap-release-<sha>` artifact; it contains release configuration and image digests. Make only these newly published production packages public for anonymous host pulls, or configure a protected host credential with only package read access. Keep any legacy packages private until separately reviewed. Do not put a registry password in application configuration.
-
-For one manually triggered build-and-deploy, check `deploy_production` instead. This also publishes images; `publish_images` need not be checked separately. Ordinary pushes and pull requests only run verification, and never deploy. The deployment job takes the bundle from that same workflow run, backs up the database, and invokes the existing deployment helper. It does not run migrations or enable email delivery. Missing or changed migration records stop deployment for operator review.
-
-One-time CD setup:
-
-1. Add the IAM OpenID Connect provider `https://token.actions.githubusercontent.com` with audience `sts.amazonaws.com`.
-2. Create a dedicated deployment role using the examples in `infra/iam/`. Match the exact repository subject from `gh api repos/OWNER/REPOSITORY/actions/oidc/customization/sub`; newer repositories use an immutable owner/repository ID prefix. Append `:environment:production`, and keep the GitHub environment restricted to `main`. Never use a wildcard repository or environment subject.
-3. Tag only the intended Lightsail instance with `GitHubDeployTarget=OWNER/REPOSITORY:INSTANCE_NAME`, preserving the repository's letter case. The example role permits temporary SSH credentials and TCP firewall updates only on an instance bearing that exact tag in the configured region. Its AWS policy contains no IAM administration, tagging, S3 or SES permissions. Regional instance metadata and firewall reads use `Resource: "*"` as required by Lightsail. The port API itself has no IAM port-number condition, so trusted workflow code and environment protections are part of this access boundary.
-4. Set `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION` and `LIGHTSAIL_INSTANCE_NAME` in the GitHub `production` environment. The role can administer the tagged host through temporary SSH; treat changes to trusted `main` workflows as privileged. No new GitHub secret is required.
-
-CD temporarily permits TCP 22 from the current runner's IPv4 `/32`, pins the SSH host keys returned by the signed Lightsail API, and removes only its own firewall entry afterward. Existing operator rules and ports 80/443 are preserved. Normal failure/cancellation cleanup runs both in the helper and an `always()` workflow step; a forcibly lost runner can still leave a stale `/32`, which an operator should remove. The SSH certificate expires independently. Archive paths and member types, commit SHA, bundle checksum and release manifests are validated before an immutable candidate is staged. A repeated attempt can reuse only an identical candidate; it never overwrites an accepted release.
-
-The original SSH procedure remains available: upload the release bundle and verify its commit and image digests. Extract it into a new root-owned, mode-0700 `/root/eventmap-releases/<full-commit-sha>` directory; never overwrite an accepted release directory. The bundle excludes the host's `.env` and credentials. Connect using the operator's SSH key and verified host fingerprint, then deploy manually:
-
-```sh
-set -e
-release_sha=YOUR_FULL_40_CHARACTER_COMMIT_SHA
-[[ "$release_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
-sudo test ! -e "/root/eventmap-releases/$release_sha"
-sudo install -d -m 700 "/root/eventmap-releases/$release_sha"
-sudo tar --no-same-owner -xzf eventmap-release.tar.gz -C "/root/eventmap-releases/$release_sha"
-sudo bash "/root/eventmap-releases/$release_sha/infra/scripts/deploy.sh" \
-  ghcr.io/your-owner/your-repository-production "$release_sha" "/root/eventmap-releases/$release_sha"
-```
-
-The helper validates migration checksums and schema, pulls the recorded image digests, and waits for the intended image tasks plus HTTPS readiness. It promotes staged files only after success and records `/root/deploy/.release.env`, `.release.images.lock` and previous-release copies. It preserves earlier configuration under `/root/eventmap-release-history/` and holds the maintenance lock throughout. It does not apply migrations. Never disable SSH host-key verification; confirm DNS before requesting TLS certificates.
-
-## Database upgrades
-
-`db/init.sql` runs only when PostgreSQL initializes an empty volume. Editing it does not upgrade an existing database. Apply all numbered migrations in order, including on a fresh installation. `001` fixes source identities; `002` adds consent, occurrences and the email outbox; `003` adds admin event management; `004` adds durable realtime activity; `005` adds import checkpoints and expiry cleanup; `006` supports independent occurrence ranges; `007` adds private ingestion alerts; `008` indexes recent comments and advances realtime revisions for comment edits. These migrations define maintenance functions without running cleanup or enabling timers. No migration enables mail. Importer format version 4 forces the next reviewed full import to rebuild official ranges even if the source publication is unchanged.
-
-Before changing an existing database, run a backup and restore rehearsal, review migration SQL, and record its SHA-256 and target. For later releases, use the reviewed migrations from the staged candidate bundle rather than an older installed copy. Run these commands in a root Bash shell on the manager:
-
-```sh
-set -euo pipefail
-cd /root/deploy
-exec 9>/var/lock/eventmap-maintenance.lock
-flock -n 9
-mapfile -t db_tasks < <(docker ps -q --filter label=com.docker.swarm.service.name=eventmap_db)
-test "${#db_tasks[@]}" = 1
-db_container="${db_tasks[0]}"
-install -d -m 700 /var/lib/eventmap/migrations
-for migration in db/migrations/[0-9]*.sql; do
-  ledger="/var/lib/eventmap/migrations/$(basename "$migration" .sql).applied"
-  expected=$(sha256sum "$migration" | awk '{print $1}')
-  if test -f "$ledger"; then
-    test "$(grep -Eo '^[a-f0-9]{64}' "$ledger")" = "$expected"
-    continue
-  fi
-  sha256sum "$migration"
-  docker exec -i "$db_container" sh -ec \
-    'export PGPASSWORD="$(cat /run/secrets/pg_password)"; exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < "$migration"
-  { date -u +%FT%TZ; sha256sum "$migration"; } > "$ledger"
-done
-flock -u 9
-exec 9>&-
-```
-
-The current numbered migrations own their transactions and are idempotent. Review future migrations individually and never edit an applied migration. Retain Firebase UID ownership when moving user data. Use compatible PostgreSQL dump/restore versions; a newer-major dump is not guaranteed to restore to PostgreSQL 16.
-
-## Backups, recovery and scheduled jobs
-
-Use the host helper to serialize jobs with deployments, wait for the exact task's exit status, and return it to zero replicas:
-
-```sh
-sudo bash /root/deploy/infra/scripts/run_swarm_job.sh backup
-sudo bash /root/deploy/infra/scripts/run_swarm_job.sh list
-# Substitute an exact .dump filename from the successful backup output.
-sudo bash /root/deploy/infra/scripts/run_swarm_job.sh restore \
-  <backup-filename.dump> recovery_rehearsal_yyyymmdd
-```
-
-A backup succeeds only after the complete uploaded archive has been read back and its SHA-256 matches. Restore verifies the checksum and creates a **new** `recovery_...` database; existing targets are refused. It restores in one transaction, without cleaning or overwriting the live database. Compare records, constraints, bookmarks and ownership before a separate controlled cutover. Retain the original database until validation finishes, and remove rehearsal databases only after explicit review. Never restore an untrusted SQL archive.
-
-After a successful backup and recovery rehearsal, enable the weekly Sunday 03:00 UTC timer (up to five minutes of jitter):
-
-```sh
-sudo bash /root/deploy/infra/scripts/bootstrap/setup_infra.sh --enable-backup-timer
-sudo systemctl list-timers eventmap-db-backup.timer
-sudo journalctl -u eventmap-db-backup.service --since yesterday --no-pager
-```
-
-Bucket lifecycle controls retention; the uploader cannot delete backups. Verify that retention meets recovery needs before enabling expiration. The host timer is the only backup schedule. Container cleanup is a separate manual operation; review its dry run before applying it:
-
-```sh
-sudo bash /root/deploy/infra/scripts/cleanup/docker_clean.sh --dry-run
-# After reviewing the listed project images:
-sudo bash /root/deploy/infra/scripts/cleanup/docker_clean.sh --apply
-```
-
-Cleanup preserves current and rollback images and does not prune volumes or containers.
-
-After deployment approval and migration verification, refresh official events manually before enabling the host schedules:
-
-```sh
-sudo bash /root/deploy/infra/scripts/run_swarm_job.sh ingest
-sudo bash /root/deploy/infra/scripts/run_swarm_job.sh event-maintenance
-sudo bash /root/deploy/infra/scripts/bootstrap/setup_infra.sh --enable-ingest-timer
-sudo systemctl list-timers eventmap-events-ingest.timer eventmap-events-maintenance.timer
-```
-
-Full ingestion runs monthly on the 1st at 02:00 UTC, with up to five minutes of jitter. Daily maintenance at 04:00 UTC checks only the small catalogue and cleans local expired listings; it never downloads the large event feed. Bootstrap installs both timers and restarts them when explicitly enabled, so an existing daily import schedule is replaced. Use one scheduler only; do not enable legacy ingestion units or the legacy Actions workflow alongside these host timers. Inspect both service journals, `event_ingest_state`, and `/var/lib/eventmap/job-status/{ingest,event-maintenance,backup}.last-success`. Configure operational alerts for failed/missing checks and changed-but-not-imported publications; local timestamps do not send alerts. Backup remains weekly with the configured 14-day current-object retention and one-day noncurrent recovery window.
-
-## Optional email delivery
-
-Reminder, marketing and personalization consent all default to false. Marketing consent is independent of bookmarks and reminders. Unsubscribe links open a confirmation page; a GET never changes consent. The worker rechecks consent, current event time, source freshness, suppression and the current verified Firebase account before dispatch.
-
-1. Verify an SES domain identity in the sending region, configure DKIM/SPF/DMARC, and use production SES access or controlled sandbox recipients. Grant a dedicated mail identity only `ses:SendEmail` for that identity and approved From address, with HTTPS required.
-2. Create Docker secrets `ses_access_key` and `ses_secret_key` from protected files. Set `NOTIFICATIONS_CONFIGURED=true` and configure `SES_REGION` and `EMAIL_FROM` in the host `.env`. The deploy helper includes `stack.notifications.yml` and keeps the worker at zero replicas.
-3. Provision a dedicated Firebase identity with only `firebaseauth.users.get`, which permits project-wide Auth record reads/listing. Create its `firebase_notifications` Docker secret and set `NOTIFICATION_IDENTITY_CONFIGURED=true`. The separate identity overlay mounts it only into the worker. Keep the web API keyless and verify the worker can read a verified, enabled account.
-4. Configure a dedicated SNS topic for SES permanent-bounce/complaint feedback. Restrict publishing to the expected SES identity/account and subscribe `https://www.YOUR_DOMAIN/api/notifications/feedback/ses`. Set its exact `SES_FEEDBACK_TOPIC_ARN`. Enable `SES_AUTO_CONFIRM_SUBSCRIPTION=true` only during the intended signed subscription setup, then turn it off. Test signed feedback and suppression before enabling delivery.
-5. Redeploy, then exercise dry-run scheduling:
-
-   ```sh
-   sudo bash /root/deploy/infra/scripts/run_swarm_job.sh notifications
-   ```
-
-Keep `EMAIL_PROVIDER=disabled`, `EMAIL_DELIVERY_ENABLED=false`, `EMAIL_FEEDBACK_READY=false` and `MARKETING_DELIVERY_ENABLED=false` by default. After identity and signed-feedback checks, temporarily enable `EMAIL_PROVIDER=ses`, `EMAIL_FEEDBACK_READY=true` and `EMAIL_DELIVERY_ENABLED=true` for a controlled, consenting recipient test. Verify reminder delivery, unsubscribe and suppression before unattended sending. Enable marketing separately only with valid consent and real `EMAIL_SENDER_CONTACT` footer details. Add exactly one one-minute worker scheduler when ready; no mail timer is installed automatically.
-
-The outbox uses unique delivery keys and bounded send windows. An opt-out cannot recall an already in-flight message. Ambiguous post-dispatch failures become `uncertain` and are not retried automatically; reconcile them with SES before any replay. Do not bulk-reset sent or uncertain jobs. Disabling delivery and stopping the worker is the immediate way to pause sending.
-
-## Release validation and rollback
-
-Verify HTTPS and the apex redirect, `/api/healthz` (liveness), `/api/readyz` (PostgreSQL, Redis, Socket.IO and image-worker readiness), map/search, verified login, bookmark/comment ownership, settings, recommendations, Socket.IO, ingestion and an off-host restore. Confirm that restricted browser keys work only on intended domains.
-
-To roll back application code, inspect `/root/deploy/.release.previous.env` and the previous digest manifest, then run `deploy.sh` with that prior prefix, SHA and retained release-bundle directory after checking schema compatibility. A failed rollout also retains its previous configuration and image references under `/root/eventmap-release-history/`; inspect actual service tasks before recovery. Preserve prior images and release bundles. Application rollback does not undo a database migration. Recover damaged data into a separate database and perform a controlled cutover; do not overwrite newer user writes with an old backup automatically.
 
 ## Data and license
 
 Contains information licensed under the [Open Government Licence – Toronto](https://open.toronto.ca/open-data-licence/). Event schedules can change; follow source links and confirm details with organizers. The data licence does not imply City endorsement and is separate from the source-code licence.
 
-Application code is distributed under the [MIT License](LICENSE). Original copyright notices and contributor attribution are retained in the licence and Git history.
+Application code is distributed under the [MIT License](https://github.com/shang8024/Dynamic-Event-Map/blob/main/LICENSE). Original copyright notices and contributor attribution are retained in the licence and Git history.
