@@ -53,6 +53,8 @@ jobs:
             infra/ingest/package-lock.json
       - name: Validate workflow definitions
         run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint@sha256:a0383f60d92601e2694e24b24d37df7b6a40bed7cedbc447611c50009bf02d94
+      - name: Test dependency audit retry guardrails
+        run: python3 -m unittest discover -s infra/scripts/tests -p 'test_npm_audit.py'
       - name: Test API with PostgreSQL and Redis
         env:
           PGHOST: 127.0.0.1
@@ -69,16 +71,16 @@ jobs:
           REDIS_HOST: 127.0.0.1
           REDIS_PORT: '56379'
         run: |
-          npm ci --prefix api
+          npm ci --prefix api --no-audit
           npm test --prefix api
-          npm audit --prefix api --audit-level=high
+          python3 infra/scripts/npm_audit.py api
       - name: Test and build client
         run: |
-          npm ci --prefix client
+          npm ci --prefix client --no-audit
           npm run lint --prefix client
           npm test --prefix client
           npm run build --prefix client
-          npm audit --prefix client --audit-level=high
+          python3 infra/scripts/npm_audit.py client
       - name: Test Toronto snapshot normalization and database merge
         env:
           PGHOST: 127.0.0.1
