@@ -29,7 +29,7 @@ export default function PhotoMarkers({map,events,zoom,viewport,onSelect,onCluste
         const marker=new AdvancedMarkerElement({position,
           content:content(representative(grouped),count,photos&&isVisible({lat:position.lat(),lng:position.lng()}),grouped.some(event=>String(event.id)===String(selectedId))),
           title:`${count} events in this area`,gmpClickable:true,zIndex:100+count});
-        marker.addEventListener('gmp-click',()=>onCluster(grouped.map(event=>event.id)));return marker;
+        marker.addEventListener('gmp-click',()=>onCluster(grouped.map(event=>event.id),{lat:position.lat(),lng:position.lng()}));return marker;
       }},
       // The SDK's AdvancedMarker uses DOM events. Disable the clusterer's older
       // addListener('gmp-click') bridge and handle the accessible marker above.

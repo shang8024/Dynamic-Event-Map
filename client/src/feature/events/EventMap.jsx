@@ -15,6 +15,7 @@ import {useNotifications} from '../../contexts/NotificationContext';
 import {fetchEvents,deleteEvent} from '../../services/eventsService';
 import socket,{onRealtimeWake} from '../../services/socket';
 import {readMapBrowsing,rememberMapBrowsing} from '../../services/mapBrowsing';
+import {createMapCameraMotion} from '../../utils/mapCamera';
 import {withinGTA,GTA_LOCATION_HELP} from '../../utils/eventLocation';
 import {GTA_BOUNDS,distanceKm,eventImage,eventTime,eventView,isEnded,nextStart} from '../../utils/event';
 import './MapFocusLayout.css';
@@ -33,6 +34,8 @@ export default function EventMap() {
   const {user}=useAuth(),requestAuth=useAuthFlow(),location=useLocation();
   const [initialBrowse]=useState(()=>readMapBrowsing(location.key));
   const [params,setParams]=useSearchParams(),[events,setEvents]=useState([]),[map,setMap]=useState(null),[viewport,setViewport]=useState(null);
+  const camera=useMemo(()=>createMapCameraMotion(map),[map]);
+  useEffect(()=>()=>camera.cancel(),[camera]);
   const [zoom,setZoom]=useState(initialBrowse?.zoom??DEFAULT_ZOOM),[center,setCenter]=useState(initialBrowse?.center??DEFAULT_CENTER),[category,setCategory]=useState(initialBrowse?.category??''),[time,setTime]=useState(initialBrowse?.time??'all'),[distance,setDistance]=useState(initialBrowse?.distance??'0');
   const [mode,setMode]=useState(initialBrowse?.mode??'location'),[query,setQuery]=useState(initialBrowse?.query??''),[filters,setFilters]=useState(initialBrowse?.filters??false),[listOpen,setListOpen]=useState(initialBrowse?.listOpen??false),[listLimit,setListLimit]=useState(initialBrowse?.listLimit??30),[clusterIds,setClusterIds]=useState(initialBrowse?.clusterIds??[]);
   const [toolsOpen,setToolsOpen]=useState(false);
@@ -53,6 +56,7 @@ export default function EventMap() {
     previousEntry.current=location.key;
     const view=readMapBrowsing(location.key,{fallback:false});
     if(!view) return;
+    camera.cancel();
     skipRemember.current=true;restoreList.current=view.listOpen&&!params.has('event')?view:null;
     setCenter(view.center);setZoom(view.zoom);setCategory(view.category);setTime(view.time);setDistance(view.distance);
     setMode(view.mode);setQuery(view.query);setFilters(view.filters);setListOpen(view.listOpen);setListLimit(view.listLimit);setClusterIds(view.clusterIds);
@@ -61,7 +65,7 @@ export default function EventMap() {
     restoringCamera.current=!atTarget;
     if(atTarget) setRestoreTick(value=>value+1);
     else instance?.moveCamera({center:view.center,zoom:view.zoom});
-  },[location.key,params]);
+  },[location.key,params,camera]);
   useEffect(()=>{
     if(skipRemember.current) {skipRemember.current=false;return;}
     if(restoreList.current||restoringCamera.current) return;
@@ -69,13 +73,15 @@ export default function EventMap() {
   },[location.key,browsing]);
   const handledIntent=useCallback(()=>setParams(params,{replace:true,state:{...location.state,authIntent:null}}),[params,setParams,location.state]);
   const select=useCallback(id=>{
+    camera.cancel();
     rememberMapBrowsing(location.key,{...browsing(),focusId:String(id)});selectionTrigger.current=document.activeElement;
-    setToolsOpen(false);setListOpen(false);setClusterIds([]);restoreList.current=null;
+    setToolsOpen(false);setListOpen(false);setClusterIds([]);restoreList.current=null;opened.current=null;
     setParams({event:String(id)});
-  },[setParams,location.key,browsing]);
+  },[setParams,location.key,browsing,camera]);
   function openForm(value) {setFormDirty(false);setFormBusy(false);setForm(value);}
   const discardForm=useCallback(()=>{setForm(null);setFormDirty(false);setFormBusy(false);},[]);
   const close=()=>{
+    camera.cancel();
     setToolsOpen(false);setListOpen(false);setClusterIds([]);restoreList.current=null;opened.current=null;
     setParams({},{replace:true});requestAnimationFrame(()=>{
     const target=selectionTrigger.current; if(target?.isConnected) target.focus({preventScroll:true});else document.getElementById('map-mode')?.focus({preventScroll:true});
@@ -107,10 +113,10 @@ export default function EventMap() {
     if(!selected || !map || opened.current===selected.id) return;
     opened.current=selected.id;
     panelRef.current?.scrollTo({top:0});
-    if(selected.position) map.moveCamera({center:selected.position,zoom:map.getZoom()<14?15:map.getZoom()});
+    if(selected.position) camera.flyTo({center:selected.position,zoom:map.getZoom()<14?15:map.getZoom()});
     if(intent?.kind==='comment') return;
     const frame=requestAnimationFrame(()=>document.getElementById('event-detail-title')?.focus({preventScroll:true}));return()=>cancelAnimationFrame(frame);
-  },[map,selected,intent]);
+  },[map,selected,intent,camera,location.key]);
   useEffect(()=>{
     if(!listOpen||selected||document.activeElement?.id==='event-query') return;
     const restored=restoreList.current;
@@ -136,9 +142,10 @@ export default function EventMap() {
   },[events,time,category,query,mode,distance,center]);
   const visible=useMemo(()=>filtered.filter(event=>!event.position || !viewport || (event.position.lat>=viewport.south && event.position.lat<=viewport.north && event.position.lng>=viewport.west && event.position.lng<=viewport.east)),[filtered,viewport]);
   const listed=useMemo(()=>[...(clusterIds.length?filtered.filter(event=>clusterIds.includes(event.id)):visible)].sort((a,b)=>new Date(nextStart(a))-new Date(nextStart(b))),[clusterIds,filtered,visible]);
-  const cluster=useCallback(ids=>{setToolsOpen(false);setClusterIds(ids);setListLimit(30);setListOpen(true);setParams({},{replace:true});},[setParams]);
+  const cluster=useCallback((ids,position)=>{setToolsOpen(false);setClusterIds(ids);setListLimit(30);setListOpen(true);setParams({},{replace:true});camera.flyTo({center:position});},[setParams,camera]);
   const loadMap=useCallback(instance=>{mapRef.current=instance;opened.current=null;setMap(instance);},[]);
   function idle() {
+    if(camera.isMoving()) return;
     const instance=mapRef.current;if(!instance?.getBounds()) return;
     const value=instance.getBounds().toJSON();
     setViewport(old=>old && Object.keys(value).every(key=>Math.abs(value[key]-old[key])<0.000001)?old:value);
@@ -150,7 +157,7 @@ export default function EventMap() {
     if(!navigator.geolocation) return push({type:'warning',message:'Location is unavailable in this browser.',autoCloseMs:5000});
     setLocationBusy(true);navigator.geolocation.getCurrentPosition(position=>{
       const point={lat:position.coords.latitude,lng:position.coords.longitude};
-      if(withinGTA(point)) map?.moveCamera({center:point,zoom:14});
+      if(withinGTA(point)) {camera.cancel();map?.moveCamera({center:point,zoom:14});}
       else push({type:'warning',message:GTA_LOCATION_HELP,autoCloseMs:7000});
       setLocationBusy(false);
     },()=>{setLocationBusy(false);push({type:'warning',message:'Location could not be used. Search for a city or neighbourhood instead.',autoCloseMs:6000});},{timeout:10000,maximumAge:60000});
@@ -167,21 +174,22 @@ export default function EventMap() {
   function toggleTools() {
     setToolsOpen(value=>!value);
   }
+  function resetView() {camera.cancel();viewGTA(map);}
   const activeFilters=Number(Boolean(category))+Number(time!=='all')+Number(distance!=='0')+Number(mode==='event'&&Boolean(query.trim()));
   const mapTools=<MapTools mode={mode} setMode={setMode} query={query} onQueryChange={value=>{setQuery(value);if(!compact||toolsOpen) setListOpen(true);setClusterIds([]);if(selectedId) setParams({},{replace:true});}}
     filters={filters} setFilters={setFilters} category={category} setCategory={setCategory} time={time} setTime={setTime} distance={distance} setDistance={setDistance} listOpen={listOpen}
     onViewChange={value=>{setToolsOpen(false);setListOpen(value==='list');setClusterIds([]);setParams({},{replace:true});}}
-    onLocationSelected={place=>{const point=place.geometry.location;map?.moveCamera({center:{lat:point.lat(),lng:point.lng()},zoom:14});setToolsOpen(false);}}/>;
+    onLocationSelected={place=>{const point=place.geometry.location;camera.cancel();map?.moveCamera({center:{lat:point.lat(),lng:point.lng()},zoom:14});setToolsOpen(false);}}/>;
   return <main className="map-page" data-panel-open={panelOpen} data-tools-open={toolsOpen} data-navigation-open={navigationOpen}>
     {!(compact&&panelOpen)&&mapTools}
     {compact&&panelOpen&&toolsOpen&&<Modal title="Map tools" className="map-tools-drawer" onClose={()=>setToolsOpen(false)} description="Search and filter events without losing your place on the map.">
-      {mapTools}<div className="map-tools-quick-actions"><button className="btn btn-outline" onClick={()=>{viewGTA(map);setToolsOpen(false);}}>View GTA</button>
+      {mapTools}<div className="map-tools-quick-actions"><button className="btn btn-outline" onClick={()=>{resetView();setToolsOpen(false);}}>View GTA</button>
         <button className="btn btn-outline" disabled={locationBusy} onClick={()=>{locate();setToolsOpen(false);}}>{locationBusy?'Locating…':'My location'}</button>
         <button className="btn btn-ghost" onClick={()=>{setNavigationOpen(value=>!value);setToolsOpen(false);if(!navigationOpen) window.dispatchEvent(new Event('eventmap:show-navigation'));}}>{navigationOpen?'Hide site navigation':'Show site navigation'}</button></div>
     </Modal>}
     {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-base-200 p-3 text-sm">{error}<button className="btn btn-sm" onClick={refresh}>Retry</button></div>}
     <div className={`map-stage ${selected||listOpen?'has-panel':''}`}>
-      <div className="map-canvas"><GoogleMap onLoad={loadMap} onIdle={idle} mapContainerStyle={{height:'100%',width:'100%'}} center={initialView.current.center} zoom={initialView.current.zoom} options={OPTIONS}>
+      <div className="map-canvas" onPointerDownCapture={camera.cancel} onWheelCapture={camera.cancel} onKeyDownCapture={camera.cancel}><GoogleMap onLoad={loadMap} onIdle={idle} mapContainerStyle={{height:'100%',width:'100%'}} center={initialView.current.center} zoom={initialView.current.zoom} options={OPTIONS}>
         <PhotoMarkers map={map} events={filtered} zoom={zoom} viewport={viewport} onSelect={select} onCluster={cluster} selectedId={selectedId}/>
       </GoogleMap>
         {panelOpen&&<button type="button" className="btn map-tools-toggle" aria-controls={toolsOpen?'map-tools':undefined} aria-haspopup="dialog" aria-expanded={toolsOpen} onClick={toggleTools}>{activeFilters?`Map tools (${activeFilters})`:'Map tools'}</button>}
@@ -189,7 +197,7 @@ export default function EventMap() {
         <div className="map-caption" role="status">{loading?'Loading events…':`${visible.length} upcoming`}</div>
       </div>
       {selected && <aside className="event-panel event-detail-panel" aria-labelledby="event-detail-title" onKeyDown={event=>{if(event.key==='Escape'&&!event.defaultPrevented) {event.stopPropagation();close();}}}><EventInfo key={selected.id} event={selected} onClose={close} bodyRef={panelRef} onBodyScroll={()=>{if(!restoreList.current&&!restoringCamera.current) rememberMapBrowsing(location.key,browsing());}} onEdit={openForm} onDelete={remove} onSaved={saved} promptForPhoto={photoPrompt===selected.id} pendingAction={intent} onActionHandled={handledIntent}/></aside>}
-      {!selected && listOpen && <aside className="event-panel event-list" aria-label="Events in this area"><header className="event-list-header"><div><h2 id="event-list-title" tabIndex={-1} className="text-xl font-semibold outline-none">{clusterIds.length?'Events in this group':'Events in this view'}</h2><p className="text-sm muted">{listed.length} events</p></div><button className="btn btn-circle btn-ghost" aria-label="Close event list" onClick={()=>{setToolsOpen(false);setListOpen(false);setClusterIds([]);requestAnimationFrame(()=>document.getElementById('list-mode')?.focus());}}>✕</button></header>
+      {!selected && listOpen && <aside className="event-panel event-list" aria-label="Events in this area"><header className="event-list-header"><div><h2 id="event-list-title" tabIndex={-1} className="text-xl font-semibold outline-none">{clusterIds.length?'Events in this group':'Events in this view'}</h2><p className="text-sm muted">{listed.length} events</p></div><button className="btn btn-circle btn-ghost" aria-label="Close event list" onClick={()=>{camera.cancel();setToolsOpen(false);setListOpen(false);setClusterIds([]);requestAnimationFrame(()=>document.getElementById('list-mode')?.focus());}}>✕</button></header>
         <div ref={panelRef} className="event-list-scroll" onScroll={()=>{if(!restoreList.current&&!restoringCamera.current) rememberMapBrowsing(location.key,browsing());}}>
         {!listed.length && <p className="p-5 text-base-content/75">No matching events here. Move the map or change your filters.</p>}
         <ul className="divide-y divide-base-300">{listed.slice(0,listLimit).map(event=><li key={event.id}><button className="event-list-item" data-event-id={event.id} onClick={()=>select(event.id)}><EventArtwork src={eventImage(event,'thumb')?.url} title={event.title} category={event.category} className="h-20 w-20 shrink-0 rounded-lg"/><span className="min-w-0"><strong className="block text-left font-semibold">{event.title}</strong><span className="mt-2 block text-left text-sm text-base-content/75">{eventTime(nextStart(event))}</span>{!event.position&&<span className="text-sm">Location to be confirmed</span>}</span></button></li>)}</ul>
