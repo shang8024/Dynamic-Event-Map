@@ -40,11 +40,12 @@ export function nextOccurrence(event,now=Date.now()) {
     ||slots.find(item=>Date.parse(item.starts_at)>=now)||null;
 }
 export function occurrenceTime(item) {
-  return `${eventTime(item?.starts_at)} — ${item?.ends_at?eventTime(item.ends_at):'End time not provided'}`;
+  return [item?.starts_at,item?.ends_at].filter(value=>value&&Number.isFinite(new Date(value).getTime())).map(eventTime).join(' — ')||'--';
 }
 export function scheduleSummary(event,now=Date.now()) {
+  const recordedStart=event?.starts_at||event?.startsAt||event?._row?.starts_at;
   if(isEnded(event,now)) {
-    const start=event?.starts_at||event?.startsAt||event?._row?.starts_at;
+    const start=recordedStart;
     const end=event?.ends_at||event?.endsAt||event?._row?.ends_at||eventOccurrences(event).at(-1)?.ends_at;
     return {label:'Event dates',text:start?`Started ${eventTime(start)}${end?` · Last ended ${eventTime(end)}`:''}`:eventTime(end)};
   }
@@ -54,10 +55,10 @@ export function scheduleSummary(event,now=Date.now()) {
   const end=event?.ends_at||event?.endsAt||event?._row?.ends_at;
   if(!eventOccurrences(event).length&&start&&end&&Date.parse(start)<=now&&Date.parse(end)>now) return {label:'Happening now',text:occurrenceTime({starts_at:start,ends_at:end})};
   if(start && Date.parse(start)>=now) return {label:'Next occurrence',text:eventTime(start)};
-  return {label:'Dates to be confirmed',text:'Check the organizer’s schedule for the next date.'};
+  return {label:'Dates to be confirmed',text:recordedStart||end||eventOccurrences(event).length?'Check the organizer’s schedule for the next date.':'--'};
 }
 export function eventTime(value) {
-  if(!value || !Number.isFinite(new Date(value).getTime())) return 'Check the organizer’s schedule';
+  if(!value || !Number.isFinite(new Date(value).getTime())) return '--';
   return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Toronto',dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
 }
 export function distanceKm(a,b) {

@@ -14,7 +14,7 @@ test('ongoing, future and unknown schedules never relabel the first historical s
   assert.equal(nextStart(event,Date.parse('2026-11-02T00:00:00Z')),'2026-11-05T17:00:00Z');
   assert.equal(nextStart(event,Date.parse('2026-11-06T00:00:00Z')),null);
   assert.equal(isEnded(event,Date.parse('2026-11-06T00:00:00Z')),false);
-  assert.match(occurrenceTime(event.data.occurrences[1]),/End time not provided/);
+  assert.equal(occurrenceTime(event.data.occurrences[1]),'Nov 5, 2026, 12:00 p.m.');
   assert.equal(eventOccurrences(event).length,2);
 });
 
