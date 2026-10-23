@@ -38,6 +38,6 @@ CREATE INDEX IF NOT EXISTS event_requests_submitter_idx ON event_change_requests
 CREATE INDEX IF NOT EXISTS event_requests_pending_idx ON event_change_requests(id DESC) WHERE status='pending';
 ALTER TABLE in_app_notifications DROP CONSTRAINT IF EXISTS in_app_notifications_kind_check;
 ALTER TABLE in_app_notifications ADD CONSTRAINT in_app_notifications_kind_check
-  CHECK(kind IN ('comment','event_updated','event_cancelled','suggestion_submitted','suggestion_approved','suggestion_rejected'));
+  CHECK(kind IN ('comment','event_updated','event_cancelled','ingest_alert','suggestion_submitted','suggestion_approved','suggestion_rejected'));
 ALTER TABLE in_app_notifications ADD COLUMN IF NOT EXISTS suggestion_id bigint REFERENCES event_change_requests(id) ON DELETE SET NULL;
 COMMIT;
