@@ -66,9 +66,16 @@ try:
     storage_ip = docker("inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", storage).stdout.strip()
     storage_endpoint = f"http://{storage_ip}:9000"
     for attempt in range(30):
-        if docker("exec", database, "pg_isready", "-U", "app", check=False).returncode == 0:
+        # The entrypoint's temporary initialization server accepts Unix-socket
+        # connections before shutting down. Only the final server listens on TCP.
+        ready = docker("exec", "-e", "PGPASSWORD=test-only-password", "-e", "PGCONNECT_TIMEOUT=2",
+                       database, "psql", "-h", "127.0.0.1", "-U", "app", "-d", "eventsdb",
+                       "-At", "-v", "ON_ERROR_STOP=1", "-c", "SELECT 1", check=False)
+        if ready.returncode == 0 and ready.stdout.strip() == "1":
             break
         time.sleep(1)
+    else:
+        raise AssertionError("Test PostgreSQL server did not become ready for TCP queries")
     psql("CREATE TABLE proof(id integer PRIMARY KEY, value text); INSERT INTO proof VALUES (1,'preserve me');")
 
     rejects(run(S3_BUCKET=""), "Set a valid S3_BUCKET")
