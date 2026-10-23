@@ -76,6 +76,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/profiles", profilesRoutes);
 app.use('/api', require('./routes/interests'));
 app.use('/api', require('./routes/notifications'));
+app.use('/api', require('./routes/eventSuggestions'));
+app.use('/api', require('./routes/eventPhotoPreview'));
 app.use('/api', require('./routes/emailFeedback'));
 
 // User comments route

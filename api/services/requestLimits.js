@@ -37,6 +37,10 @@ function requestPolicies(req,authenticated) {
     policies.push({bucket:'write-day',limit:500,window:86400000});
     const pathname=canonicalPath(req);
     if(req.method==='POST' && pathname==='/api/events') policies.push({bucket:'event-create-day',limit:10,window:86400000});
+    if(req.method==='POST' && /^\/api\/events\/\d+\/suggestions$/.test(pathname)) {
+      policies.push({bucket:'suggestion-burst',limit:3,window:600000},{bucket:'suggestion-day',limit:20,window:86400000});
+    }
+    if(req.method==='POST' && pathname==='/api/event-photo-preview') policies.push({bucket:'photo-preview',limit:20,window:3600000});
     if(req.method==='POST' && /^\/api\/events\/\d+\/comments$/.test(pathname)) policies.push({bucket:'comment-day',limit:100,window:86400000});
   }
   return policies;

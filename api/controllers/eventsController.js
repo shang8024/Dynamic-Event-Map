@@ -7,6 +7,7 @@ const {publicEvent}=require('../services/publicEvents');
 function broadcast(name,payload) { try {socket.getIO().emit(name,payload);} catch {/* HTTP data remains authoritative. */} }
 function fail(res,error) {
   console.error('Event operation failed',error.code || error.name);
+  if(error.code?.startsWith('IMAGE_')) return res.status(422).json(require('../services/imageErrors').publicImageError(error));
   return res.status(error.status||500).json({error:error.status?error.message:'Unable to save the event. Please try again.'});
 }
 async function getEvents(_req,res) {
@@ -30,7 +31,8 @@ async function createEvent(req,res) {
     if(error) return res.status(400).json({error});
     const submission={role:input.submission_role,
       ...(input.submission_role==='organizer'?{organizer_confirmed_at:new Date().toISOString()}:{})};
-    const row=(await Event.create({...input,lat:Number(input.latitude),lng:Number(input.longitude),user_id:req.user.id,source:'internal',submission})).rows[0];
+    const image=input.image==null?null:(await require('../services/eventPhotoInput').preparePhoto(input.image)).image;
+    const row=(await Event.create({...input,lat:Number(input.latitude),lng:Number(input.longitude),user_id:req.user.id,source:'internal',submission,image})).rows[0];
     const output=publicEvent(row);
     await bumpEventCount(1); broadcast('event:created',output); res.json(output);
   } catch(error) {fail(res,error);}
@@ -43,7 +45,7 @@ async function updateEvent(req,res) {
     if(!canManageEvent(req.user,before)) return res.status(403).json({error:'You cannot edit this event'});
     const prepared=prepareEventInput(req.body),error=validateEvent(prepared,before);
     if(error) return res.status(400).json({error});
-    const input=Object.fromEntries(['title','description','category','starts_at','ends_at','latitude','longitude','location_address','status','place_id','version','occurrences']
+    const input=Object.fromEntries(['title','description','category','starts_at','ends_at','latitude','longitude','location_address','status','place_id','version','occurrences','organizer_name']
       .filter(field=>Object.hasOwn(prepared,field)).map(field=>[field,prepared[field]]));
     const row=(await Event.update({...input,id:before.id,actor_id:req.user.id})).rows[0];
     const output=publicEvent(row);

@@ -25,6 +25,14 @@ const validationMessages=new Set([
   'Occurrence dates must include a valid timezone.','An occurrence must end after it starts.','Remove duplicate event occurrences.',
   'This event changed. Reopen it before saving.','This event is archived and cannot be edited.',
   'Missing comment text','Invalid JSON request body','Request body is too large',
+  'Choose whether you are an organizer or are sharing an event.','Organizer confirmation must be a checkbox value.',
+  'Confirm that you are the organizer or are authorized to publish on their behalf.','Organizer name must be 255 characters or fewer.',
+  'Explain your changes in 1 to 2000 characters.','Check your proposed event changes.','Change at least one event detail before submitting.',
+  'This event changed. Reopen it before submitting a suggestion.','You already have 10 suggestions waiting for review.',
+  'You already have a suggestion waiting for review for this event.','This submission has already been reviewed.',
+  'This event changed since submission. Reject this suggestion and ask for a new one.',
+  'This event is no longer available for community changes.','Include a review reason in 1 to 2000 characters.',
+  'This event has ended or been archived and cannot accept suggestions.','Another administrator must review your own suggestion.',
 ]);
 export class ApiError extends Error {
   constructor(message,{status=null,code='request_failed',retryAfter=null,ambiguous=false}={}) {

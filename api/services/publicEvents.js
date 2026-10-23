@@ -2,9 +2,9 @@
 // event contract. A projection also avoids sending duplicate occurrence arrays.
 const FIELDS = ['id','user_id','title','description','category','source','status','starts_at','ends_at',
   'latitude','longitude','location_address','location_name','version','archived_at',
-  'author_name','bookmarks_count','next_start','created_at','updated_at'];
+  'author_name','bookmarks_count','next_start','created_at','updated_at','contributor_count'];
 const DATA_FIELDS = ['image','imported_image','image_hidden','place_id','website',
-  'editor_overrides','schedule_format','schedule_origin'];
+  'editor_overrides','schedule_format','schedule_origin','organizer_name'];
 
 function pick(value, fields) {
   return Object.fromEntries(fields.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]));
@@ -14,6 +14,8 @@ function publicEvent(row) {
   const result = pick(row, FIELDS);
   const data = row.data && typeof row.data === 'object' ? row.data : {};
   result.data = pick(data, DATA_FIELDS);
+  if(row.source==='internal' && ['reporter','organizer'].includes(data.submission?.role)) result.submission_role=data.submission.role;
+  if(Array.isArray(row.contributor_preview)) result.contributor_preview=row.contributor_preview.slice(0,3).map(value=>pick(value,['id','name']));
   const ranges = Array.isArray(row.occurrences) ? row.occurrences : data.occurrences;
   if (Array.isArray(ranges)) result.occurrences = ranges.map(occurrence);
   if (row.next_occurrence) result.next_occurrence = occurrence(row.next_occurrence);

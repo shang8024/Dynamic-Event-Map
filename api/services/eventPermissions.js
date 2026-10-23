@@ -30,6 +30,7 @@ function validateEvent(input, existing) {
   if (value.ends_at && new Date(value.ends_at) < new Date(value.starts_at)) return 'End time must be after start time';
   if (value.status && !['scheduled','cancelled'].includes(value.status)) return 'Invalid event status';
   if (value.place_id && (typeof value.place_id !== 'string' || value.place_id.length > 255)) return 'Invalid place';
+  if (Object.hasOwn(input,'organizer_name') && (typeof input.organizer_name !== 'string' || input.organizer_name.length > 255)) return 'Organizer name must be 255 characters or fewer.';
   return null;
 }
 module.exports = { canManageEvent, validateEvent, validateEventSubmission };

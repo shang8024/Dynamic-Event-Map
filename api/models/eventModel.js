@@ -1,6 +1,10 @@
 const {prepareEventInput}=require('../services/eventSchedule');
 const editable = ['title','description','category','starts_at','ends_at','latitude','longitude','location_address','status'];
 const select = `SELECT e.*, p.username AS author_name,
+  (SELECT count(*)::integer FROM event_contributors c WHERE c.event_id=e.id) contributor_count,
+  (SELECT COALESCE(jsonb_agg(jsonb_build_object('id',c.user_id,'name',c.username) ORDER BY c.user_id),'[]'::jsonb)
+    FROM (SELECT c.user_id,cp.username FROM event_contributors c JOIN profiles cp ON cp.id=c.user_id
+      WHERE c.event_id=e.id ORDER BY c.user_id LIMIT 3) c) contributor_preview,
   (SELECT count(*)::integer FROM bookmarks b WHERE b.event_id=e.id) bookmarks_count,
   (SELECT min(o.starts_at) FROM event_occurrences o WHERE o.event_id=e.id
     AND o.status='scheduled' AND o.starts_at>=now()) next_start,
@@ -12,29 +16,31 @@ const select = `SELECT e.*, p.username AS author_name,
   FROM events e JOIN profiles p ON p.id=e.user_id`;
 function createEventModel(pool) { return {
   getAll: () => pool.query(`${select} WHERE e.archived_at IS NULL AND (e.ends_at IS NULL OR e.ends_at>now()) ORDER BY e.id ASC`),
-  getById: id => pool.query(`${select} WHERE e.id=$1`, [id]),
+  getById: (id,db=pool) => db.query(`${select} WHERE e.id=$1`, [id]),
   async create(input) {
     const value=prepareEventInput({...input,occurrences:input.occurrences||[{starts_at:input.starts_at,ends_at:input.ends_at}]});
-    const {user_id,title,description,category,lat,lng,location_address,starts_at,ends_at,source='internal',place_id,occurrences,submission}=value;
+    const {user_id,title,description,category,lat,lng,location_address,starts_at,ends_at,source='internal',place_id,occurrences,submission,organizer_name,image}=value;
     const db=await pool.connect();
     try {
       await db.query('BEGIN');
       const result=await db.query(`INSERT INTO events(user_id,title,description,category,latitude,longitude,location_address,starts_at,ends_at,source,data)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb) RETURNING *`,
       [user_id,title,description,category,lat,lng,location_address,starts_at,ends_at,source,
-        JSON.stringify({...(place_id?{place_id}:{}),...(submission?{submission}:{}),occurrences,schedule_origin:'manual',schedule_format:2})]);
+        JSON.stringify({...(place_id?{place_id}:{}),...(submission?{submission}:{}),...(organizer_name?{organizer_name:organizer_name.trim()}:{}),
+          ...(image?{image,image_hidden:false}:{}),occurrences,schedule_origin:'manual',schedule_format:2})]);
       await db.query('SELECT refresh_event_occurrences($1)',[result.rows[0].id]);
-      await db.query('COMMIT');return result;
+      const hydrated=await db.query(`${select} WHERE e.id=$1`,[result.rows[0].id]);
+      await db.query('COMMIT');return hydrated;
     } catch(error) {await db.query('ROLLBACK');throw error;} finally {db.release();}
   },
   delete: id => pool.query('DELETE FROM events WHERE id=$1 RETURNING *', [id]),
-  async update({ id, actor_id, version, ...input }) {
-    const db = await pool.connect();
+  async update({ id, actor_id, version, ...input },transaction=null) {
+    const db = transaction || await pool.connect();
     try {
-      await db.query('BEGIN');
+      if(!transaction) await db.query('BEGIN');
       await db.query("SELECT set_config('eventmap.actor_id',$1,true)",[String(actor_id||'')]);
       const {rows:[before]} = await db.query('SELECT * FROM events WHERE id=$1 FOR UPDATE', [id]);
-      if (!before) { await db.query('ROLLBACK'); return {rows:[],rowCount:0}; }
+      if (!before) { if(!transaction) await db.query('ROLLBACK'); return {rows:[],rowCount:0}; }
       if (before.archived_at) throw Object.assign(new Error('This event is archived and cannot be edited.'),{status:410});
       if (version != null && String(version)!==String(before.version)) throw Object.assign(new Error('This event changed. Reopen it before saving.'),{status:409});
       input=prepareEventInput(input);
@@ -50,6 +56,10 @@ function createEventModel(pool) { return {
         changed.push('occurrences');
       }
       if (Object.hasOwn(input,'place_id')) data.place_id=input.place_id || null;
+      if (Object.hasOwn(input,'organizer_name')) {
+        data.organizer_name=input.organizer_name.trim() || null;
+        if(data.organizer_name!==(before.data?.organizer_name||null)) changed.push('organizer_name');
+      }
       if (before.source==='external') data.editor_overrides=[...new Set([...(data.editor_overrides||[]),...changed,
         ...(data.schedule_origin==='manual'?['occurrences','starts_at','ends_at']:[])])];
       const parameters=fields.map(field=>input[field]);
@@ -58,9 +68,10 @@ function createEventModel(pool) { return {
         data=$${fields.length+1}::jsonb,version=version+1,updated_at=now() WHERE id=$${fields.length+2} RETURNING *`,parameters);
       await db.query('INSERT INTO event_edit_history(event_id,actor_id,action,changed_fields) VALUES($1,$2,$3,$4)',[id,actor_id||null,'update',changed]);
       await db.query('SELECT refresh_event_occurrences($1)',[id]);
-      await db.query('COMMIT'); return result;
-    } catch(error) { await db.query('ROLLBACK'); throw error; }
-    finally { db.release(); }
+      const hydrated=await db.query(`${select} WHERE e.id=$1`,[result.rows[0].id]);
+      if(!transaction) await db.query('COMMIT'); return hydrated;
+    } catch(error) { if(!transaction) await db.query('ROLLBACK'); throw error; }
+    finally { if(!transaction) db.release(); }
   },
 }; }
 module.exports=createEventModel(require('../config/db'));
