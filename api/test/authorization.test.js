@@ -247,12 +247,14 @@ test('a database failure is retryable and does not masquerade as an invalid toke
   assert.equal(outcome.nextCalled, false);
 });
 
-function events(create) {
+function events(create,{photoInput}={}) {
   return load('controllers/eventsController.js', {
     '../models/eventModel': { create },
     '../services/eventPermissions': require('../services/eventPermissions'),
     '../services/eventSchedule': require('../services/eventSchedule'),
     '../services/publicEvents': require('../services/publicEvents'),
+    '../services/eventPhotoInput': photoInput,
+    '../services/imageErrors': require('../services/imageErrors'),
     '../config/redis': {},
     '../socket': { getIO: () => ({ emit() {} }) },
     '../config/db': { query() { assert.fail('system identity lookup attempted'); } },
@@ -324,4 +326,21 @@ test('sharing an event does not store an organizer declaration from extra reques
   assert.equal(res.statusCode, 200);
   assert.deepEqual(Object.keys(inserted.submission), ['role']);
   assert.equal(inserted.submission.role, 'reporter');
+});
+
+test('creation checks the photo before inserting an event and keeps decoder errors private',async()=>{
+  const {ImageError}=require('../services/imageErrors');
+  const controllers=events(()=>assert.fail('event inserted before rejecting the photo'),{photoInput:{async preparePhoto(){throw new ImageError('IMAGE_ADDRESS_BLOCKED');}}});
+  const res=response();
+  await controllers.createEvent({user:{id:7},body:{...eventBody,image:{url:'https://example.test/private'}}},res);
+  assert.equal(res.statusCode,422);assert.equal(res.body.code,'IMAGE_ADDRESS_BLOCKED');
+  assert.doesNotMatch(res.body.error,/example\.test/);
+});
+
+test('creation persists only the photo returned by the controlled image checker',async()=>{
+  const checked={url:'https://images.unsplash.com/checked',source:'link',alt:'Checked image',credit:'Photographer'};
+  let inserted;
+  const controllers=events(async input=>{inserted=input;return {rows:[{id:42}]};},{photoInput:{async preparePhoto(){return {image:checked};}}});
+  const res=response();await controllers.createEvent({user:{id:7},body:{...eventBody,image:{url:'untrusted',source:'forged'}}},res);
+  assert.equal(res.statusCode,200);assert.equal(inserted.image,checked);
 });

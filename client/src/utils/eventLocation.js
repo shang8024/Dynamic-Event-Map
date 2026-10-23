@@ -25,13 +25,13 @@ export function eventLocationError(form,{existing=null,confirmed=false}={}) {
   const point=locationPoint(form);
   if(!point) return 'Enter valid pin coordinates, or choose a venue from the search results.';
   if(!withinGTA(point)) return GTA_LOCATION_HELP;
-  if(!form.place_id&&!confirmed) return 'Confirm that this pin matches the event address, or choose a venue from the search results.';
+  if(!confirmed) return 'Confirm that the address and pin show the correct event location.';
   return '';
 }
 
 export function eventDraftSignature(form,dates) {
   return JSON.stringify({
-    fields:['title','description','category','status','location_address','latitude','longitude','place_id','submission_role','organizer_confirmed'].map(key=>form[key]??''),
+    fields:['title','description','category','status','location_address','latitude','longitude','place_id','submission_role','organizer_confirmed','organizer_name','suggestion_explanation'].map(key=>form[key]??''),
     dates:dates.map(({starts_at,ends_at})=>({starts_at,ends_at})),
   });
 }

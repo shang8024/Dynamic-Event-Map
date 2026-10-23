@@ -16,6 +16,9 @@ test('event dates require explicit timezone, valid order and real coordinates',(
   assert.match(validateEvent({...event,ends_at:'2026-10-31T01:00:00Z'}),/after/);
   assert.match(validateEvent({...event,latitude:null}),/location/);
   assert.match(validateEvent({...event,status:'forged'}),/status/);
+  assert.match(validateEvent({...event,latitude:45.4,longitude:-75.7}),/within the GTA/);
+  const legacy={...event,latitude:45.4,longitude:-75.7};
+  assert.equal(validateEvent({title:'Unrelated correction'},legacy),null);
 });
 
 test('occurrence validation rejects impossible calendar days and retains explicit DST offsets',()=>{

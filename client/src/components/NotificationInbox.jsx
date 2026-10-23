@@ -46,7 +46,7 @@ export function NotificationBell() {
 export default function NotificationInbox() {
   const listRef=useRef(null);
   const {data,error,moreError,markError,marking,mark,more,refresh,loading,loadingMore,refreshing}=useInbox({listRef});
-  return <PageLayout title="Notifications" narrow intro="Updates and new conversations on your saved events." actions={<button className="btn btn-outline" disabled={!data.unread||marking.length>0} onClick={()=>mark()}>{marking.includes('all')?'Marking all read…':'Mark all read'}</button>}>
+  return <PageLayout title="Notifications" narrow intro="Saved-event updates, conversations and results of your community contributions." actions={<button className="btn btn-outline" disabled={!data.unread||marking.length>0} onClick={()=>mark()}>{marking.includes('all')?'Marking all read…':'Mark all read'}</button>}>
     {error&&<div role="alert" className="page-error"><p>{error}</p><button className="btn btn-outline" disabled={refreshing} onClick={refresh}>{refreshing?'Retrying…':'Retry refresh'}</button></div>}
     {markError&&<div role="alert" className="page-error"><p>{markError.message}</p><button className="btn btn-outline" disabled={marking.length>0} onClick={()=>mark(markError.id)}>Retry marking read</button></div>}
     {loading&&<p role="status" className="content-card">Loading notifications…</p>}
@@ -55,7 +55,8 @@ export default function NotificationInbox() {
         {!item.read_at && <button className="btn btn-ghost btn-sm" disabled={marking.includes('all')||marking.includes(String(item.id))} onClick={()=>mark(item.id)}>{marking.includes(String(item.id))?'Marking…':'Mark read'}</button>}</div>
       {!item.read_at&&<span className="notification-new">New</span>}<p className="notification-message">{item.message}</p>
       <div className="flex flex-wrap items-center justify-between gap-3"><time className="text-xs muted" dateTime={item.created_at}>{new Date(item.created_at).toLocaleString()}</time>
-        {item.event_id && <Link className="link font-medium" to={`/events/${item.event_id}`} onClick={()=>{void mark(item.id);}}>View event</Link>}</div>
+        <span className="flex flex-wrap gap-3">{item.suggestion_id&&<Link className="link font-medium" to={`/contributions?request=${item.suggestion_id}`} onClick={()=>{void mark(item.id);}}>View submission</Link>}
+        {item.event_id && <Link className="link font-medium" to={`/events/${item.event_id}`} onClick={()=>{void mark(item.id);}}>View event</Link>}</span></div>
     </li>)}</ul>
     {!loading&&!data.items.length&&!error&&<div className="empty-state"><p>You’re all caught up.</p><p className="text-sm muted mt-2">Save an event to receive updates here.</p><Link className="btn btn-outline mt-4" to="/">Explore events</Link></div>}
     {moreError&&<p role="alert" className="text-error mt-4">{moreError}</p>}

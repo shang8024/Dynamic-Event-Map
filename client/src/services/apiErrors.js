@@ -21,6 +21,7 @@ const validationMessages=new Set([
   'title is required','description is required','location address is required','An event field is too long',
   'A valid location is required','Dates must include a timezone','Valid start and end times are required',
   'End time must be after start time','Invalid event status','Invalid place',
+  'The event location must be within the GTA.',
   'Add between 1 and 366 event occurrences.','Invalid event occurrence.','Invalid or duplicate occurrence identity.',
   'Occurrence dates must include a valid timezone.','An occurrence must end after it starts.','Remove duplicate event occurrences.',
   'This event changed. Reopen it before saving.','This event is archived and cannot be edited.',

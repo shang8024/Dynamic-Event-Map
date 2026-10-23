@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {GoogleMap} from '@react-google-maps/api';
-import {useLocation,useSearchParams} from 'react-router-dom';
+import {useLocation,useNavigate,useSearchParams} from 'react-router-dom';
 import EventInfo from '../../components/EventInfo';
 import EventForm from '../../components/EventForm';
 import Modal from '../../components/Modal';
@@ -33,7 +33,7 @@ function viewGTA(instance) {
 export default function EventMap() {
   const {push}=useNotifications();
   const {colorMode}=useTheme();
-  const {user}=useAuth(),requestAuth=useAuthFlow(),location=useLocation();
+  const {user}=useAuth(),requestAuth=useAuthFlow(),location=useLocation(),navigate=useNavigate();
   const [initialBrowse]=useState(()=>readMapBrowsing(location.key));
   const [params,setParams]=useSearchParams(),[events,setEvents]=useState([]),[map,setMap]=useState(null),[viewport,setViewport]=useState(null);
   const camera=useMemo(()=>createMapCameraMotion(map),[map]);
@@ -100,9 +100,8 @@ export default function EventMap() {
   useEffect(()=>{if(!panelOpen) {setToolsOpen(false);setNavigationOpen(false);}},[panelOpen]);
   useEffect(()=>{
     if(!params.has('create')&&intent?.kind!=='create') return;
-    const next=new URLSearchParams(params);next.delete('create');setParams(next,{replace:true,state:null});
-    if(user) {setFormDirty(false);setFormBusy(false);setForm({latitude:center.lat,longitude:center.lng});}else requestAuth('create an event','/',{kind:'create'});
-  },[params,setParams,user,requestAuth,center,intent]);
+    if(user) navigate('/events/new',{replace:true,state:null});else requestAuth('create an event','/events/new');
+  },[params,user,requestAuth,navigate,intent]);
   const refresh=useCallback(async()=>{
     const generation=++request.current;
     try {const rows=await fetchEvents();if(!active.current||generation!==request.current) return;setEvents(rows.map(eventView));setError('');}

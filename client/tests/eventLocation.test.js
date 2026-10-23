@@ -4,10 +4,11 @@ import {eventDraftSignature,eventLocationError,locationPoint,sameLocation,within
 
 const venue={location_address:'100 Queen St W, Toronto',latitude:43.6534,longitude:-79.3841,place_id:'toronto-city-hall'};
 
-test('new locations require a selected venue or explicit manual pin confirmation',()=>{
-  assert.equal(eventLocationError(venue),'');
+test('both searched venues and manual pins require explicit location confirmation',()=>{
+  assert.match(eventLocationError(venue),/Confirm that the address and pin/);
+  assert.equal(eventLocationError(venue,{confirmed:true}),'');
   const manual={...venue,place_id:null};
-  assert.match(eventLocationError(manual),/Confirm that this pin/);
+  assert.match(eventLocationError(manual),/Confirm that the address and pin/);
   assert.equal(eventLocationError(manual,{confirmed:true}),'');
 });
 
@@ -28,7 +29,7 @@ test('unrelated edits keep incomplete imported locations editable without fabric
 
 test('changing an existing address or pin requires renewed location confirmation',()=>{
   const edited={...venue,location_address:'Different venue',place_id:null};
-  assert.match(eventLocationError(edited,{existing:venue}),/Confirm that this pin/);
+  assert.match(eventLocationError(edited,{existing:venue}),/Confirm that the address and pin/);
   assert.equal(eventLocationError(edited,{existing:venue,confirmed:true}),'');
   assert.equal(sameLocation({...venue,latitude:String(venue.latitude)},venue),true);
   assert.equal(sameLocation({...venue,longitude:-79.4},venue),false);

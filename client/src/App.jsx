@@ -18,6 +18,8 @@ import {AuthFlowProvider,useAuthFlow} from './contexts/AuthFlowContext';
 import {Link,useLocation} from 'react-router-dom';
 import AuthPage from './components/AuthPage';
 import EventPage from './feature/events/EventPage';
+import EventComposePage from './feature/events/EventComposePage';
+import ContributionsPage from './components/ContributionsPage';
 import './CompactLayout.css';
 import UnsavedChangesProvider from './contexts/UnsavedChangesProvider';
 
@@ -32,7 +34,7 @@ function PageWrapper({ children,map=false }) {
   useEffect(()=>{
     page.current?.scrollTo({top:0});
     if(!['/signin','/register','/reset-password'].includes(location.pathname)&&!location.pathname.startsWith('/events/')) {
-      const title={'/bookmarks':'Saved events','/recommendations':'For you','/notifications':'Notifications','/comments':'My comments','/settings':'Settings'}[location.pathname];
+      const title={'/bookmarks':'Saved events','/recommendations':'For you','/notifications':'Notifications','/comments':'My comments','/settings':'Settings','/contributions':'Contributions'}[location.pathname];
       document.title=title?`${title} · Dynamic Event Map`:'Dynamic Event Map';
     }
   },[location.pathname]);
@@ -65,12 +67,16 @@ function AuthorizedRoute({ children }) {
 }
 
 function AppRoutes() {
+  const {user}=useAuth();
   return <UnsavedChangesProvider><AuthFlowProvider><Routes>
+    <Route path="/events/new" element={<AuthorizedRoute><EventComposePage/></AuthorizedRoute>}/>
+    <Route path="/events/:eventId/suggest" element={<AuthorizedRoute><EventComposePage/></AuthorizedRoute>}/>
     <Route path="/events/:eventId" element={<PageWrapper><EventPage/></PageWrapper>}/>
     <Route path="/signin" element={<PageWrapper><AuthPage key="signin"/></PageWrapper>}/>
     <Route path="/register" element={<PageWrapper><AuthPage key="register" initialMode="register"/></PageWrapper>}/>
     <Route path="/reset-password" element={<PageWrapper><AuthPage key="reset-password" initialMode="reset"/></PageWrapper>}/>
     <Route path="/notifications" element={<AuthorizedRoute><NotificationInbox/></AuthorizedRoute>}/>
+    <Route path="/contributions" element={<AuthorizedRoute><ContributionsPage key={user?.uid}/></AuthorizedRoute>}/>
     <Route path="/settings" element={<AuthorizedRoute><PreferencesPage/></AuthorizedRoute>}/>
     <Route path="/recommendations" element={<AuthorizedRoute><RecommendationsPage/></AuthorizedRoute>}/>
     <Route path="/unsubscribe" element={<PageWrapper><UnsubscribePage/></PageWrapper>}/>

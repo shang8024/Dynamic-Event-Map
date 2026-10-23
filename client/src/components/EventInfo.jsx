@@ -9,6 +9,7 @@ import EventImageEditor from './EventImageEditor';
 import VenuePhoto from './VenuePhoto';
 import Icon from './Icon';
 import Modal from './Modal';
+import ReportedBy from './ReportedBy';
 import {updateEvent} from '../services/eventsService';
 import {eventImage,isEnded,eventOccurrences,occurrenceTime,scheduleSummary} from '../utils/event';
 
@@ -67,11 +68,15 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
     </div>
     <div ref={bodyRef} className="event-detail-scroll" onScroll={onBodyScroll}>
     <div className="event-detail-body">
-      {image&&<p className="photo-credit">{image.credit||(image.source==='toronto'?'Photo supplied with the Toronto event listing':'Event photo')}
-        {image.source==='toronto'&&<> · <a href="https://open.toronto.ca/dataset/festivals-events/" target="_blank" rel="noopener noreferrer" className="link">Source</a></>}</p>}
+      {(image||event.submission_role==='reporter')&&<div className="event-credit-row">
+        {image&&<p className="photo-credit">{image.credit||(image.source==='toronto'?'Photo supplied with the Toronto event listing':'Event photo')}
+          {image.source==='toronto'&&event.submission_role!=='reporter'&&<> · <a href="https://open.toronto.ca/dataset/festivals-events/" target="_blank" rel="noopener noreferrer" className="link">Source</a></>}</p>}
+        {event.submission_role==='reporter'&&<ReportedBy key={`${event.id}-${event.contributor_count}`} event={event}/>}
+      </div>}
       <div className="event-overview">
       <div className="event-intro">
       <header className="event-heading"><div className="event-heading-topline"><span className="category-label">{event.category||'Other'}</span>{!standalone&&<div className="event-heading-links"><Link className="event-full-link" to={`/events/${event.id}`} target="_blank" rel="noopener noreferrer">Full details <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></Link></div>}</div><Heading id="event-detail-title" tabIndex={-1}>{event.title}</Heading></header>
+      {event.data?.organizer_name&&<p className="event-organizer">Organizer <strong>{event.data.organizer_name}</strong></p>}
       {(ended||cancelled)&&<p role="status" className="event-status-note">{cancelled?'This event has been cancelled.':'This event has ended. It stays in your saved events.'}</p>}
       {promptForPhoto&&manage&&!ended&&!cancelled&&<div className="rounded-xl border border-base-300 p-3 flex flex-wrap items-center justify-between gap-3" role="status"><p className="text-sm">Your event is published. Add a photo to help people recognize it.</p><button className="btn btn-outline btn-sm" onClick={()=>setPhotoOpen(value=>Number(value)+1)}>Add photo link</button></div>}
       </div>
@@ -97,6 +102,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
       </details>}
       </div>
       </div>
+      {event.submission_role==='reporter'&&!manage&&!ended&&!cancelled&&<section className="community-contribute"><div><h3>Help keep this event accurate</h3><p>Suggest a correction or add a missing detail. Updates are reviewed before publication.</p></div><Link className="btn btn-outline" to={`/events/${event.id}/suggest`}>Suggest an update</Link></section>}
       <EventComments key={event.id} eventId={event.id} preview={!standalone} returnTo={standalone?`${returnTo}#comments`:returnTo}/>
       {manage&&<section className="event-management" aria-label="Manage event"><div><p className="eyebrow">Manage event</p><p className="text-sm muted">Only you and project administrators can change this listing.</p></div>
         <div className="flex flex-wrap gap-2"><button className="btn btn-outline flex-1" onClick={()=>onEdit(event)}>Edit event</button>

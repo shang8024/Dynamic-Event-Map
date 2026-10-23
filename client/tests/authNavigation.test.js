@@ -33,3 +33,8 @@ test('event pages survive sign-in while actions stay bound to the same event',()
     assert.equal(eventPageId(value),null);assert.equal(safeReturnTo(value),'/');
   }
 });
+
+test('creation and contribution pages return after sign-in without accepting arbitrary event subroutes',()=>{
+  for(const path of ['/events/new','/events/296/suggest','/contributions?request=7']) assert.equal(safeReturnTo(path),path);
+  for(const path of ['/events/0/suggest','/events/01/suggest','/events/2147483648/suggest','/events/296/delete']) assert.equal(safeReturnTo(path),'/');
+});

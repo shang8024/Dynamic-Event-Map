@@ -21,6 +21,9 @@ function validateEvent(input, existing) {
       if (!(existing && value[field] == null)) return 'A valid location is required';
     }
   }
+  const locationChanged=!existing || ['latitude','longitude'].some(field=>Object.hasOwn(input,field)&&String(input[field]??'')!==String(existing[field]??''));
+  if(locationChanged && value.latitude!=null && value.longitude!=null &&
+    (Number(value.latitude)<43.3||Number(value.latitude)>44.55||Number(value.longitude)<-80.2||Number(value.longitude)>-78.3)) return 'The event location must be within the GTA.';
   for (const field of ['starts_at','ends_at']) {
     const raw = value[field];
     if (!raw && field === 'ends_at') continue;

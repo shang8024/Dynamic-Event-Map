@@ -30,6 +30,14 @@ test('private publisher declarations are kept out of public event data',()=>{
   assert.deepEqual(publicEvent(row),{id:1,data:{}});
 });
 
+test('community attribution exposes only the declared role, count and three public names',()=>{
+  const result=publicEvent({source:'internal',contributor_count:4,contributor_preview:Array.from({length:4},(_,i)=>({id:i+1,name:`Reporter ${i+1}`,email:'private@example.test'})),
+    data:{submission:{role:'reporter',organizer_confirmed_at:'private'},organizer_name:'Community Centre'}});
+  assert.equal(result.submission_role,'reporter');assert.equal(result.contributor_count,4);assert.equal(result.contributor_preview.length,3);
+  assert.ok(result.contributor_preview.every(person=>!Object.hasOwn(person,'email')));
+  assert.equal(result.data.organizer_name,'Community Centre');assert.ok(!Object.hasOwn(result.data,'submission'));
+});
+
 test('legacy data-only schedules remain visible and empty hydrated schedules take precedence',()=>{
   const slot={key:'legacy',starts_at:'2027-01-01T14:00:00Z',ends_at:null};
   assert.deepEqual(publicEvent({data:{occurrences:[slot]}}).occurrences,[slot]);

@@ -63,6 +63,11 @@ test('storage-producing actions also have daily verified-user budgets',()=>{
   const event=requestPolicies({originalUrl:'/API/EVENTS/',method:'POST'},true);
   assert.equal(event.find(row=>row.bucket==='event-create-day').limit,10);
   assert.equal(event.find(row=>row.bucket==='write-day').limit,500);
+  const suggestion=requestPolicies({originalUrl:'/API/EVENTS/%31/suggestions/',method:'POST'},true);
+  assert.equal(suggestion.find(row=>row.bucket==='suggestion-burst').limit,3);
+  assert.equal(suggestion.find(row=>row.bucket==='suggestion-day').limit,20);
+  const preview=requestPolicies({originalUrl:'/api/event-photo-preview',method:'POST'},true);
+  assert.equal(preview.find(row=>row.bucket==='photo-preview').limit,20);
 });
 test('concurrent expensive reads are bounded and slots release once on response or disconnect',()=>{
   const guard=createAdmissionGuard({maximum:3,catalogue:1});
