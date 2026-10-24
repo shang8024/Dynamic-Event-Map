@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {eventView,eventImage,representative,nextStart} from '../src/utils/event.js';
+import {eventView,eventImage,representative,nextStart,compareEventStarts} from '../src/utils/event.js';
 import {torontoInput,torontoInstant} from '../src/utils/eventDate.js';
 import {getEventStatus} from '../src/utils/date.js';
 test('missing coordinates stay missing and linked images use only the same-origin proxy',()=>{
@@ -27,4 +27,11 @@ test('saved-event rows show ended/cancelled status without requesting expired ph
   const row={id:9,title:'Saved event',ends_at:'2020-01-02',status:'scheduled',data:{image:{url:'https://images.unsplash.com/a'}}};
   assert.equal(getEventStatus({_row:row}),'Expired');assert.equal(eventImage({id:9,_row:row}),null);
   assert.equal(getEventStatus({...row,status:'cancelled'}),'Cancelled');
+});
+test('unknown dates sort last and text changes retain the photo cache key',()=>{
+  const photo={id:3,starts_at:'2027-01-01',version:1,data:{image:{url:'https://images.unsplash.com/a'}}};
+  const unknown={id:1,occurrences:[{starts_at:'2020-01-01',ends_at:null}],data:{schedule_format:2}};
+  assert.deepEqual([unknown,photo].sort(compareEventStarts).map(e=>e.id),[3,1]);
+  assert.equal(eventImage(photo).url,eventImage({...photo,title:'Revised',version:2}).url);
+  assert.notEqual(eventImage(photo).url,eventImage({...photo,data:{image:{url:'https://images.unsplash.com/b'}}}).url);
 });

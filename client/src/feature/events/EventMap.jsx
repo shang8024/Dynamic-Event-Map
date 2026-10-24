@@ -18,7 +18,7 @@ import socket,{onRealtimeWake} from '../../services/socket';
 import {readMapBrowsing,rememberMapBrowsing} from '../../services/mapBrowsing';
 import {createMapCameraMotion} from '../../utils/mapCamera';
 import {withinGTA,GTA_LOCATION_HELP} from '../../utils/eventLocation';
-import {GTA_BOUNDS,distanceKm,eventImage,eventTime,eventView,isEnded,nextStart} from '../../utils/event';
+import {GTA_BOUNDS,compareEventStarts,distanceKm,eventImage,eventTime,eventView,isEnded,nextStart} from '../../utils/event';
 import './MapFocusLayout.css';
 const DEFAULT_CENTER={lat:43.8,lng:-79.25};
 const DEFAULT_ZOOM=10;
@@ -150,7 +150,7 @@ export default function EventMap() {
     });
   },[events,time,category,query,mode,distance,center]);
   const visible=useMemo(()=>filtered.filter(event=>!event.position || !viewport || (event.position.lat>=viewport.south && event.position.lat<=viewport.north && event.position.lng>=viewport.west && event.position.lng<=viewport.east)),[filtered,viewport]);
-  const listed=useMemo(()=>[...(clusterIds.length?filtered.filter(event=>clusterIds.includes(event.id)):visible)].sort((a,b)=>new Date(nextStart(a))-new Date(nextStart(b))),[clusterIds,filtered,visible]);
+  const listed=useMemo(()=>[...(clusterIds.length?filtered.filter(event=>clusterIds.includes(event.id)):visible)].sort(compareEventStarts),[clusterIds,filtered,visible]);
   const cluster=useCallback((ids,position)=>{setToolsOpen(false);setClusterIds(ids);setListLimit(30);setListOpen(true);setParams({},{replace:true});camera.flyTo({center:position});},[setParams,camera]);
   const loadMap=useCallback(instance=>{if(!mapRef.current) opened.current=null;mapRef.current=instance;setMap(instance);},[]);
   function idle() {

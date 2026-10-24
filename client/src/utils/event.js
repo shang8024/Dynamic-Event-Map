@@ -6,7 +6,7 @@ export function eventImage(event, size="detail") {
   const source=data.image||data.imported_image;
   if(!source?.url || !event?.id) return null;
   const tag=Array.from(source.url).reduce((hash,ch)=>Math.imul(hash^ch.charCodeAt(0),16777619)>>>0,2166136261);
-  return {...source,url:`/api/events/${event.id}/image?size=${size==='thumb'?'thumb':'detail'}&v=${encodeURIComponent(`${tag}-${event.version||event._row?.version||1}`)}`};
+  return {...source,url:`/api/events/${event.id}/image?size=${size==='thumb'?'thumb':'detail'}&v=${encodeURIComponent(`${tag}-${source.revision||1}`)}`};
 }
 export function isEnded(event,now=Date.now()) {
   if(event?.archived_at || event?._row?.archived_at) return true;
@@ -29,10 +29,13 @@ export function nextStart(event,now=Date.now()) {
   if(event?.next_start && new Date(event.next_start).getTime()>=now) return event.next_start;
   return event?.data?.occurrences?.map(item=>item.starts_at).filter(value=>new Date(value).getTime()>=now).sort()[0]||event?.starts_at||event?.startsAt||event?._row?.starts_at;
 }
+const occurrenceCache=new WeakMap();
 export function eventOccurrences(event) {
   const row=event?._row||event||{};
   const values=row.occurrences ?? row.data?.occurrences;
-  return Array.isArray(values)?values.filter(item=>item.starts_at && Number.isFinite(Date.parse(item.starts_at))).slice().sort((a,b)=>Date.parse(a.starts_at)-Date.parse(b.starts_at)):[];
+  if(!Array.isArray(values)) return [];
+  if(!occurrenceCache.has(values)) occurrenceCache.set(values,Object.freeze(values.filter(item=>item.starts_at && Number.isFinite(Date.parse(item.starts_at))).sort((a,b)=>Date.parse(a.starts_at)-Date.parse(b.starts_at))));
+  return occurrenceCache.get(values);
 }
 export function nextOccurrence(event,now=Date.now()) {
   const slots=eventOccurrences(event);
@@ -57,9 +60,10 @@ export function scheduleSummary(event,now=Date.now()) {
   if(start && Date.parse(start)>=now) return {label:'Next occurrence',text:eventTime(start)};
   return {label:'Dates to be confirmed',text:recordedStart||end||eventOccurrences(event).length?'Check the organizer’s schedule for the next date.':'--'};
 }
+const timeFormatter=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Toronto',dateStyle:'medium',timeStyle:'short'});
 export function eventTime(value) {
   if(!value || !Number.isFinite(new Date(value).getTime())) return '--';
-  return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Toronto',dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
+  return timeFormatter.format(new Date(value));
 }
 export function distanceKm(a,b) {
   if(!a||!b) return Infinity;const rad=value=>value*Math.PI/180;
@@ -67,5 +71,15 @@ export function distanceKm(a,b) {
   return 6371*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
 }
 export function representative(events) {
-  return [...events].sort((a,b)=>Number(Boolean(eventImage(b)))-Number(Boolean(eventImage(a))) || new Date(nextStart(a))-new Date(nextStart(b)) || Number(a.id)-Number(b.id))[0];
+  let best,bestPhoto=false;
+  for(const event of events) {
+    const photo=Boolean(eventImage(event,'thumb'));
+    if(!best || photo&&!bestPhoto || photo===bestPhoto&&compareEventStarts(event,best)<0) {best=event;bestPhoto=photo;}
+  }
+  return best;
+}
+export function compareEventStarts(a,b) {
+  const timestamp=event=>{const value=nextStart(event);return value&&Number.isFinite(Date.parse(value))?Date.parse(value):Infinity;};
+  const left=timestamp(a),right=timestamp(b);
+  return (left===right?0:left-right)||Number(a.id)-Number(b.id);
 }
