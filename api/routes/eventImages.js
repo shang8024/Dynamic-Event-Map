@@ -3,17 +3,18 @@ const auth=require('../middleware/auth');
 const pool=require('../config/db');
 const {canManageEvent}=require('../services/eventPermissions');
 const images=require('../services/eventImages');
-const {publicImageError}=require('../services/imageErrors');
+const {publicImageError,imageStatus}=require('../services/imageErrors');
 router.get('/',async(req,res)=>{
   try {
     if(!/^\d{1,10}$/.test(req.params.eventId)) return res.sendStatus(404);
     const {rows:[event]}=await pool.query('SELECT ends_at,status,data FROM events WHERE id=$1',[req.params.eventId]);
     const image=event && images.sourceImage(event);
     if(!image?.url) return res.sendStatus(404);
-    const bytes=await images.getImage(image.url,req.query.size==='thumb'?'thumb':'detail');
+    const bytes=await require('../services/imageDelivery').getDeliveredImage(image.url,req.query.size==='thumb'?'thumb':'detail',{expiresAt:event.ends_at,revision:image.revision});
+    const maxAge=event.ends_at?Math.max(0,Math.min(3600,Math.floor((new Date(event.ends_at)-Date.now())/1000))):3600;
     res.set({'Content-Type':'image/webp','X-Content-Type-Options':'nosniff','Content-Disposition':'inline; filename="event.webp"',
-      'Content-Security-Policy':"default-src 'none'; sandbox",'Cache-Control':'public, max-age=3600','Cross-Origin-Resource-Policy':'same-origin'}).send(bytes);
-  } catch {res.set('Cache-Control','no-store').sendStatus(422);}
+      'Content-Security-Policy':"default-src 'none'; sandbox",'Cache-Control':`public, max-age=${maxAge}`,'Cross-Origin-Resource-Policy':'same-origin'}).send(bytes);
+  } catch(error) {const status=imageStatus(error);res.set('Cache-Control','no-store');if(status>=500)res.set('Retry-After','2');res.status(status).json(publicImageError(error));}
 });
 router.put('/',auth,async(req,res)=>{
   let url;

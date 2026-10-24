@@ -3,6 +3,7 @@ const dns=require('node:dns/promises');
 const {createHash}=require('node:crypto');
 const ipaddr=require('ipaddr.js');
 const {ImageError}=require('./imageErrors');
+const {createImagePool}=require('./imagePool');
 const ALLOWED_HOSTS=new Set(['secure.toronto.ca','images.unsplash.com','i.imgur.com','res.cloudinary.com','images.pexels.com']);
 const MAX_BYTES=8*1024*1024,MAX_PIXELS=12000000;
 const MIME_TYPES=new Set(['image/jpeg','image/png','image/webp','image/avif']);
@@ -23,8 +24,8 @@ async function resolvePublic(hostname,lookup=dns.lookup) {
   if(!addresses.length || addresses.some(item=>!isPublicAddress(item.address))) throw new ImageError('IMAGE_ADDRESS_BLOCKED');
   return addresses;
 }
-async function downloadImage(value,{lookup=dns.lookup,request=https.request}={}) {
-  const signal=AbortSignal.timeout(10000);
+async function downloadImage(value,{lookup=dns.lookup,request=https.request,signal:parentSignal}={}) {
+  const signal=parentSignal?AbortSignal.any([parentSignal,AbortSignal.timeout(10000)]):AbortSignal.timeout(10000);
   async function fetchHop(value,hops) {
     const url=validateImageURL(value);
     const addresses=await Promise.race([resolvePublic(url.hostname,lookup),new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(new ImageError('IMAGE_TIMEOUT')),{once:true}))]);
@@ -75,25 +76,16 @@ async function sanitizeImage(bytes,size='detail') {
     throw new ImageError(/pixel limit/i.test(error.message)?'IMAGE_TOO_LARGE':/timeout/i.test(error.message)?'IMAGE_TIMEOUT':'IMAGE_INVALID');
   }
 }
-const cache=new Map(),inflight=new Map();let cacheBytes=0,active=0;
-const queue=[];
+const cache=new Map(),inflight=new Map();let cacheBytes=0;
+const downloads=createImagePool({concurrency:3});
+const decoders=createImagePool({concurrency:1,maximumQueue:3,waitMs:4000});
 const eviction=setInterval(()=>{for(const [key,value] of cache) if(value.until<=Date.now()) {cache.delete(key);cacheBytes-=value.bytes.length;}},60000);eviction.unref();
-async function slot() {
-  if(active<1) {active++;return;}
-  if(queue.length>=30) throw new ImageError('IMAGE_BUSY');
-  await new Promise((resolve,reject)=>{
-    const item={resolve:()=>{clearTimeout(item.timer);resolve();},timer:null};
-    item.timer=setTimeout(()=>{const index=queue.indexOf(item);if(index>=0) queue.splice(index,1);reject(new ImageError('IMAGE_BUSY'));},12000);
-    queue.push(item);
-  });
-}
-function release() {const next=queue.shift();if(next) next.resolve();else active--;}
 async function getImage(url,size) {
   validateImageURL(url);
   if(process.env.IMAGE_PROXY_URL) {
     let response;
     try {response=await fetch(`${process.env.IMAGE_PROXY_URL}/render`,{method:'POST',
-      headers:{'Content-Type':'application/json'},body:JSON.stringify({url,size}),redirect:'error',signal:AbortSignal.timeout(16000)});}
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({url,size}),redirect:'error',signal:AbortSignal.timeout(20000)});}
     catch(error) {throw new ImageError(error.name==='TimeoutError'?'IMAGE_TIMEOUT':'IMAGE_SERVICE_UNAVAILABLE');}
     if(!response.ok) {
       if(Number(response.headers.get('content-length'))>2000) {await response.body?.cancel();throw new ImageError('IMAGE_SERVICE_UNAVAILABLE');}
@@ -111,12 +103,12 @@ async function getImage(url,size) {
   if(cached) {cache.delete(key);cacheBytes-=cached.bytes.length;}
   if(inflight.has(key)) return inflight.get(key);
   const promise=(async()=>{
-    await slot();
-    try {
-      const bytes=await sanitizeImage(await downloadImage(url),size);
+      const signal=AbortSignal.timeout(15000);
+      const original=await downloads.run(()=>downloadImage(url,{signal}),signal);
+      const bytes=await decoders.run(()=>sanitizeImage(original,size),signal);
+      if(signal.aborted) throw new ImageError('IMAGE_TIMEOUT');
       while(cacheBytes+bytes.length>20*1024*1024 && cache.size) {const [old,item]=cache.entries().next().value;cache.delete(old);cacheBytes-=item.bytes.length;}
-      cache.set(key,{bytes,until:Date.now()+3600000});cacheBytes+=bytes.length;return bytes;
-    } finally {release();}
+      cache.set(key,{bytes,until:Date.now()+(size==='thumb'?21600000:3600000)});cacheBytes+=bytes.length;return bytes;
   })().finally(()=>inflight.delete(key));
   inflight.set(key,promise);return promise;
 }

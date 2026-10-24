@@ -1,6 +1,6 @@
 const http=require('node:http');
 const {getImage}=require('../services/eventImages');
-const {ImageError,publicImageError}=require('../services/imageErrors');
+const {ImageError,publicImageError,imageStatus}=require('../services/imageErrors');
 if(process.env.NODE_ENV==='production' && process.env.IMAGE_PROXY_WORKER!=='true') throw new Error('Image worker mode is required');
 const server=http.createServer(async(req,res)=>{
   if(req.method==='GET' && req.url==='/healthz') {res.writeHead(200,{'Content-Type':'application/json'});return res.end('{"status":"ok"}');}
@@ -15,7 +15,7 @@ const server=http.createServer(async(req,res)=>{
     res.writeHead(200,{'Content-Type':'image/webp','Content-Length':image.length,'X-Content-Type-Options':'nosniff'});res.end(image);
   } catch(error) {
     const body=JSON.stringify(publicImageError(error));
-    if(!res.headersSent) res.writeHead(422,{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)});
+    if(!res.headersSent) res.writeHead(imageStatus(error),{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)});
     res.end(body);
   }
 });

@@ -21,4 +21,5 @@ function publicImageError(error) {
   if(error?.name==='AbortError' || error?.name==='TimeoutError') return publicImageError(new ImageError('IMAGE_TIMEOUT'));
   return publicImageError(new ImageError('IMAGE_SERVICE_UNAVAILABLE'));
 }
-module.exports={ImageError,publicImageError};
+function imageStatus(error){return ['IMAGE_BUSY','IMAGE_SERVICE_UNAVAILABLE'].includes(error?.code)?503:error?.code==='IMAGE_TIMEOUT'?504:422;}
+module.exports={ImageError,publicImageError,imageStatus};

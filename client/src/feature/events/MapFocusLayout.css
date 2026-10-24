@@ -76,8 +76,7 @@
   .map-page[data-panel-open="true"] .event-heading h2 { font-size:22px; margin-top:6px; }
   .map-page[data-panel-open="true"] .event-list-header { padding:8px 12px; }
   .map-page[data-panel-open="true"] .event-list-item { padding:10px 12px; gap:12px; }
-  .map-page[data-panel-open="true"] .event-list-item > img,
-  .map-page[data-panel-open="true"] .event-list-item > .event-template { width:56px; height:56px; }
+  .map-page[data-panel-open="true"] .event-list-item > .event-artwork { width:56px; height:56px; }
   .map-page[data-panel-open="true"] .event-list-item .event-template > span { font-size:28px; }
   .map-page[data-panel-open="true"] .event-list-item .event-template > small { display:none; }
 }
