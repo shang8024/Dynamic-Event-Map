@@ -4,7 +4,7 @@ import {GTA_BOUNDS} from '../utils/event';
 import {GTA_LOCATION_HELP,withinGTA} from '../utils/eventLocation';
 export default function LocationSearch({onSelected,onQueryChange,onBusyChange,initialValue='',autoResolve=false,label='Search a location',placeholder='City, neighbourhood or venue',showLabel=false,enforceBounds=true}) {
   const id=useId(),version=useRef(0);
-  const [service]=useState(()=>createPlacesSearch(()=>window.google?.maps?.places,GTA_BOUNDS));
+  const [service]=useState(()=>createPlacesSearch(()=>window.google?.maps?.importLibrary('places'),GTA_BOUNDS));
   const [query,setQuery]=useState(initialValue),[items,setItems]=useState([]),[index,setIndex]=useState(-1),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   const selected=useRef(initialValue),resultsFor=useRef('');
   useEffect(()=>{onBusyChange?.(busy);return()=>onBusyChange?.(false);},[busy,onBusyChange]);

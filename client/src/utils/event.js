@@ -24,6 +24,7 @@ export function eventView(row) {
 }
 export function nextStart(event,now=Date.now()) {
   const slot=nextOccurrence(event,now);if(slot) return slot.starts_at;
+  if(event?._summary) return null;
   if(event?.data?.schedule_format===2 || event?.occurrences?.length>0) return null;
   if(event?.data?.editor_overrides?.includes('starts_at')) return event.starts_at;
   if(event?.next_start && new Date(event.next_start).getTime()>=now) return event.next_start;
@@ -38,6 +39,10 @@ export function eventOccurrences(event) {
   return occurrenceCache.get(values);
 }
 export function nextOccurrence(event,now=Date.now()) {
+  if(event?._summary) {
+    const item=event.next_occurrence;
+    return item&&(Date.parse(item.starts_at)>=now||item.ends_at&&Date.parse(item.ends_at)>now)?item:null;
+  }
   const slots=eventOccurrences(event);
   return slots.find(item=>Date.parse(item.starts_at)<=now && item.ends_at && Date.parse(item.ends_at)>now)
     ||slots.find(item=>Date.parse(item.starts_at)>=now)||null;

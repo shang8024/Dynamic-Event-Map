@@ -10,10 +10,15 @@ import {authIntent,eventPageId} from '../../services/authNavigation';
 import socket,{onRealtimeWake} from '../../services/socket';
 import {eventView} from '../../utils/event';
 
+function EventEditor(props) {
+  const {isLoaded,loadError}=useGoogleMaps();
+  if(!isLoaded&&!loadError)return <p role="status">Loading venue search…</p>;
+  return <>{loadError&&<p className="form-error mb-4">Venue search is unavailable. You can still enter the pin coordinates under Advanced pin position.</p>}<EventForm {...props}/></>;
+}
+
 export default function EventPage() {
   const {eventId}=useParams(),id=eventPageId(`/events/${eventId}`);
   const location=useLocation(),navigate=useNavigate(),{push}=useNotifications();
-  const {isLoaded:mapsReady,loadError:mapsError}=useGoogleMaps();
   const [event,setEvent]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[missing,setMissing]=useState(false),[form,setForm]=useState(null);
   const [formDirty,setFormDirty]=useState(false),[formBusy,setFormBusy]=useState(false);
   const active=useRef(false),generation=useRef(0),focused=useRef('');
@@ -70,9 +75,9 @@ export default function EventPage() {
     {loading&&<p role="status" className="p-6">Loading event…</p>}
     {missing&&<section className="event-page-message"><h1 id="event-page-status" tabIndex={-1}>This event is no longer available</h1><p>It may have been removed. You can still explore other events on the map.</p><Link className="btn btn-primary" to="/">Explore events</Link></section>}
     {error&&<div role="alert" className="page-error"><p>{error}</p><button className="btn btn-outline" onClick={refresh}>Retry</button></div>}
-    {event&&<EventInfo key={event.id} event={event} standalone mapsReady={mapsReady} onEdit={value=>{setFormDirty(false);setFormBusy(false);setForm(value);}} onDelete={remove} onSaved={saved} pendingAction={pendingAction} onActionHandled={handled}/>}
+    {event&&<EventInfo key={event.id} event={event} standalone onEdit={value=>{setFormDirty(false);setFormBusy(false);setForm(value);}} onDelete={remove} onSaved={saved} pendingAction={pendingAction} onActionHandled={handled}/>}
     {form&&<Modal dirty={formDirty} busy={formBusy} title="Edit event" onClose={discardForm} description="Dates and times use Toronto time.">{({requestClose})=>
-      !mapsReady&&!mapsError?<p role="status">Loading venue search…</p>:<>{mapsError&&<p className="form-error mb-4">Venue search is unavailable. You can still enter the pin coordinates under Advanced pin position.</p>}<EventForm initialData={form} onDirtyChange={setFormDirty} onBusyChange={setFormBusy} onDiscard={discardForm} onCancel={requestClose} onSaved={saved}/></>}
+      <EventEditor initialData={form} onDirtyChange={setFormDirty} onBusyChange={setFormBusy} onDiscard={discardForm} onCancel={requestClose} onSaved={saved}/>}
     </Modal>}
   </main>;
 }

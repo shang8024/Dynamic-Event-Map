@@ -13,7 +13,7 @@ import ReportedBy from './ReportedBy';
 import {updateEvent} from '../services/eventsService';
 import {eventImage,isEnded,eventOccurrences,occurrenceTime,scheduleSummary} from '../utils/event';
 
-export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pendingAction,onActionHandled,bodyRef,onBodyScroll,standalone=false,mapsReady=true,promptForPhoto=false}) {
+export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pendingAction,onActionHandled,bodyRef,onBodyScroll,standalone=false,mapsReady=true,promptForPhoto=false,detailsLoading=false,detailsError='',onRetryDetails}) {
   const {user}=useAuth(),{isBookmarked,isPending,toggle,loading:bookmarksLoading,error:bookmarkError,refetchBookmarks}=useBookmarks();
   const count=useCountBookmarks(event?.id);
   const [failedURL,setFailedURL]=useState(null);
@@ -38,7 +38,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
   },[event,user,pendingAction,bookmarksLoading,isBookmarked,toggle,onActionHandled]);
   if(!event) return null;
   const candidate=eventImage(event),image=candidate?.url===failedURL?null:candidate;
-  const ended=isEnded(event),cancelled=event.status==='cancelled',manage=user&&(user.role==='admin'||String(user.id)===String(event.user_id));
+  const ended=isEnded(event),cancelled=event.status==='cancelled',manage=!detailsLoading&&user&&(user.role==='admin'||String(user.id)===String(event.user_id));
   const occurrences=eventOccurrences(event),when=scheduleSummary(event),now=Date.now();
   const future=occurrences.filter(item=>Date.parse(item.starts_at)>=now||item.ends_at&&Date.parse(item.ends_at)>now);
   const past=occurrences.filter(item=>item.ends_at&&Date.parse(item.ends_at)<=now);
@@ -92,7 +92,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
       </div>
       </section>
       <div className="event-story">
-      <section className="detail-section"><SectionHeading>About this event</SectionHeading><p className="event-description">{event.description||'The organizer has not provided a description yet.'}</p>
+      <section className="detail-section"><SectionHeading>About this event</SectionHeading>{detailsLoading?<p role={detailsError?'alert':'status'} className="event-description">{detailsError||'Loading event details…'}{detailsError&&<button className="btn btn-outline btn-sm ml-3" onClick={onRetryDetails}>Retry</button>}</p>:<p className="event-description">{event.description||'The organizer has not provided a description yet.'}</p>}
         {event.data?.website&&/^https?:\/\//.test(event.data.website)&&<a className="link organizer-link" href={event.data.website} target="_blank" rel="noopener noreferrer">Organizer’s website ↗</a>}
       </section>
       {occurrences.length>0&&<details className="schedule-details"><summary>All dates <span>· {occurrences.length} {occurrences.length===1?'occurrence':'occurrences'}</span></summary>

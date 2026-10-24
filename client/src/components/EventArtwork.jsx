@@ -20,7 +20,7 @@ export default function EventArtwork({src,title,category,className='',alt,loadin
     return()=>{alive=false;observer?.disconnect();release?.();};
   },[src,loading]);
   const [background,color,symbol]=tones[category]||['#eee4d6','#8a6b49','✦'];
-  const url=result?.src===src?result.url:null,decorative=alt==='';
+  const url=result?.src===src?result?.url:null,decorative=alt==='';
   return <div ref={host} className={`${className} event-artwork`} style={{background,color}}>
     {url?<img src={url} alt={alt??title??'Event photo'} decoding="async" className="event-artwork-image"/>
       :<div className="event-template" role={decorative?undefined:'img'} aria-label={decorative?undefined:`${category||'Event'} illustration`} aria-hidden={decorative||undefined}>

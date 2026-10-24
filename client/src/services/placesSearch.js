@@ -1,10 +1,10 @@
-// The Places library is loaded by App's Maps JavaScript API loader.
+// Load Places only when a user starts a location search.
 // Keep the actual prediction so toPlace() carries its billing session token.
 export function createPlacesSearch(getLibrary, bounds) {
   let sessionToken = null;
 
-  function library() {
-    const places = getLibrary();
+  async function library() {
+    const places = await getLibrary();
     if (
       !places?.AutocompleteSuggestion?.fetchAutocompleteSuggestions ||
       !places?.AutocompleteSessionToken
@@ -25,7 +25,7 @@ export function createPlacesSearch(getLibrary, bounds) {
         sessionToken = null;
         return [];
       }
-      const places = library();
+      const places = await library();
       sessionToken ??= new places.AutocompleteSessionToken();
       const requestToken = sessionToken;
       const { suggestions } = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({

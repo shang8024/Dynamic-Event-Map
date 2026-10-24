@@ -15,6 +15,17 @@ const select = `SELECT e.*, p.username AS author_name,
     FROM event_occurrences o WHERE o.event_id=e.id AND o.status='scheduled') occurrences
   FROM events e JOIN profiles p ON p.id=e.user_id`;
 function createEventModel(pool) { return {
+  getMapRevision: () => pool.query(`SELECT count(*)::text AS count,COALESCE(sum(version),0)::text AS versions,
+    max(updated_at)::text AS updated FROM events WHERE archived_at IS NULL`),
+  getMap: (search='') => pool.query(`SELECT e.id,e.title,e.category,e.source,e.status,e.starts_at,e.ends_at,
+    e.latitude,e.longitude,e.location_name,e.location_address,e.version,
+    jsonb_strip_nulls(jsonb_build_object('image',e.data->'image','imported_image',e.data->'imported_image',
+      'image_hidden',e.data->'image_hidden','schedule_format',e.data->'schedule_format')) AS data,
+    (SELECT jsonb_build_object('starts_at',o.starts_at,'ends_at',o.ends_at) FROM event_occurrences o
+      WHERE o.event_id=e.id AND o.status='scheduled' AND (o.starts_at>=now() OR o.ends_at>now())
+      ORDER BY CASE WHEN o.starts_at<=now() AND o.ends_at>now() THEN 0 ELSE 1 END,o.starts_at LIMIT 1) next_occurrence
+    FROM events e WHERE e.archived_at IS NULL AND (e.ends_at IS NULL OR e.ends_at>now())
+      AND ($1='' OR position($1 in lower(e.title||' '||COALESCE(e.description,'')))>0) ORDER BY e.id`,[search]),
   getAll: () => pool.query(`${select} WHERE e.archived_at IS NULL AND (e.ends_at IS NULL OR e.ends_at>now()) ORDER BY e.id ASC`),
   getById: (id,db=pool) => db.query(`${select} WHERE e.id=$1`, [id]),
   async create(input) {

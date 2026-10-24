@@ -1,8 +1,8 @@
-import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
+import {lazy,Suspense,useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {GoogleMap} from '@react-google-maps/api';
 import {useLocation,useNavigate,useSearchParams} from 'react-router-dom';
 import EventInfo from '../../components/EventInfo';
-import EventForm from '../../components/EventForm';
+const EventForm=lazy(()=>import('../../components/EventForm'));
 import Modal from '../../components/Modal';
 import MapTools from '../../components/MapTools';
 import useCompactMap from '../../hooks/useCompactMap';
@@ -13,7 +13,7 @@ import {useAuth} from '../../contexts/AuthContext';
 import {useTheme} from '../../contexts/ThemeContext';
 import {authIntent} from '../../services/authNavigation';
 import {useNotifications} from '../../contexts/NotificationContext';
-import {fetchEvents,deleteEvent} from '../../services/eventsService';
+import {fetchMapEvents,fetchEvent,deleteEvent} from '../../services/eventsService';
 import socket,{onRealtimeWake} from '../../services/socket';
 import {readMapBrowsing,rememberMapBrowsing} from '../../services/mapBrowsing';
 import {createMapCameraMotion} from '../../utils/mapCamera';
@@ -30,7 +30,7 @@ function viewGTA(instance) {
   // Start over the urban corridor; the northern GTA remains reachable by panning.
   instance.moveCamera({center:DEFAULT_CENTER,zoom:DEFAULT_ZOOM});
 }
-export default function EventMap() {
+export default function EventMap({mapsReady=true,mapsError=null}) {
   const {push}=useNotifications();
   const {colorMode}=useTheme();
   const {user}=useAuth(),requestAuth=useAuthFlow(),location=useLocation(),navigate=useNavigate();
@@ -56,7 +56,16 @@ export default function EventMap() {
   },[colorMode,mapAppearance.colorMode,camera,center,zoom]);
   const previousEntry=useRef(location.key),skipRemember=useRef(false),restoreList=useRef(initialBrowse?.listOpen&&!params.has('event')?initialBrowse:null);
   const restoringCamera=useRef(Boolean(initialBrowse)),[restoreTick,setRestoreTick]=useState(0);
-  const selectedId=params.get('event'),selected=events.find(event=>String(event.id)===selectedId)||null;
+  const selectedId=params.get('event'),summary=events.find(event=>String(event.id)===selectedId)||null;
+  const [detail,setDetail]=useState(null),[detailError,setDetailError]=useState(''),[detailRetry,setDetailRetry]=useState(0);
+  const selected=detail&&String(detail.id)===selectedId&&(!summary||String(detail.version)===String(summary.version))?detail:summary;
+  useEffect(()=>{
+    if(!selectedId||!/^[1-9]\d{0,9}$/.test(selectedId)) return;
+    const controller=new AbortController();setDetailError('');
+    fetchEvent(selectedId,{signal:controller.signal}).then(row=>{if(!controller.signal.aborted)setDetail(eventView(row));})
+      .catch(()=>{if(!controller.signal.aborted)setDetailError('Event details could not be loaded.');});
+    return()=>controller.abort();
+  },[selectedId,summary?.version,detailRetry]);
   const panelOpen=Boolean(selected||listOpen);
   const intent=useMemo(()=>authIntent(location.state?.authIntent,location.pathname+location.search),[location.state,location.pathname,location.search]);
   const browsing=useCallback(()=>({center,zoom,category,time,distance,mode,query,filters,listOpen,listLimit,clusterIds,
@@ -102,22 +111,37 @@ export default function EventMap() {
     if(!params.has('create')&&intent?.kind!=='create') return;
     if(user) navigate('/events/new',{replace:true,state:null});else requestAuth('create an event','/events/new');
   },[params,user,requestAuth,navigate,intent]);
+  const [search,setSearch]=useState(mode==='event'?query.trim():'');
+  useEffect(()=>{const timer=setTimeout(()=>setSearch(mode==='event'?query.trim():''),350);return()=>clearTimeout(timer);},[query,mode]);
+  const flight=useRef(null),lastRows=useRef(null);
   const refresh=useCallback(async()=>{
+    if(flight.current?.query===search) return flight.current.promise;
+    flight.current?.controller.abort();const controller=new AbortController();
     const generation=++request.current;
-    try {const rows=await fetchEvents();if(!active.current||generation!==request.current) return;setEvents(rows.map(eventView));setError('');}
-    catch {if(active.current && generation===request.current) setError('Unable to load events. Please try again.');}
-    finally {if(active.current) setLoading(false);}
-  },[]);
+    const promise=(async()=>{
+      try {const rows=await fetchMapEvents(search,{signal:controller.signal});if(!active.current||generation!==request.current) return;
+        if(lastRows.current!==rows){lastRows.current=rows;setEvents(rows.map(eventView));}setError('');}
+      catch {if(!controller.signal.aborted&&active.current&&generation===request.current)setError('Unable to load events. Please try again.');}
+      finally {if(active.current&&generation===request.current)setLoading(false);if(flight.current?.controller===controller)flight.current=null;}
+    })();
+    flight.current={query:search,controller,promise};return promise;
+  },[search]);
   useEffect(()=>{
     active.current=true;void refresh();
-    const changed=row=>setEvents(old=>{const value=eventView(row);const found=old.find(item=>String(item.id)===String(row.id));return found?old.map(item=>String(item.id)===String(row.id)?{...item,...value}:item):[...old,value];});
+    const changed=row=>{
+      setDetail(old=>String(old?.id)===String(row.id)?eventView(row):old);
+      if(search) {void refresh();return;}
+      setEvents(old=>{const value=eventView(row),found=old.find(item=>String(item.id)===String(row.id));
+        if(found&&Number(found.version)>=Number(row.version))return old;
+        return found?old.map(item=>String(item.id)===String(row.id)?value:item):[...old,value];});
+    };
     const deleted=({id})=>setEvents(old=>old.filter(item=>String(item.id)!==String(id)));
     socket.on('event:created',changed);socket.on('event:updated',changed);socket.on('event:deleted',deleted);const stop=onRealtimeWake(refresh);
     const timer=setInterval(()=>{if(document.visibilityState==='visible') void refresh();},60000);
     // Invalidate request generations on unmount; this ref is a counter, not a DOM node.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    return()=>{active.current=false;request.current++;stop();clearInterval(timer);socket.off('event:created',changed);socket.off('event:updated',changed);socket.off('event:deleted',deleted);};
-  },[refresh]);
+    return()=>{active.current=false;request.current++;flight.current?.controller.abort();flight.current=null;stop();clearInterval(timer);socket.off('event:created',changed);socket.off('event:updated',changed);socket.off('event:deleted',deleted);};
+  },[refresh,search]);
   useEffect(()=>{
     if(!selected || !map || opened.current===selected.id) return;
     opened.current=selected.id;
@@ -142,13 +166,13 @@ export default function EventMap() {
     return events.filter(event=>{
       if(isEnded(event,now)||event.status==='cancelled') return false;
       if(category && event.category!==category) return false;
-      if(query && mode==='event' && !`${event.title} ${event.description||''}`.toLowerCase().includes(query.toLowerCase())) return false;
+      if(!event._summary&&search&&!`${event.title} ${event.description||''}`.toLowerCase().includes(search.toLowerCase()))return false;
       const next=nextStart(event,now);
       if(days && (!next || new Date(next).getTime()>now+days*86400000)) return false;
       if(Number(distance)>0 && distanceKm(center,event.position)>Number(distance)) return false;
       return true;
     });
-  },[events,time,category,query,mode,distance,center]);
+  },[events,time,category,search,distance,center]);
   const visible=useMemo(()=>filtered.filter(event=>!event.position || !viewport || (event.position.lat>=viewport.south && event.position.lat<=viewport.north && event.position.lng>=viewport.west && event.position.lng<=viewport.east)),[filtered,viewport]);
   const listed=useMemo(()=>[...(clusterIds.length?filtered.filter(event=>clusterIds.includes(event.id)):visible)].sort(compareEventStarts),[clusterIds,filtered,visible]);
   const cluster=useCallback((ids,position)=>{setToolsOpen(false);setClusterIds(ids);setListLimit(30);setListOpen(true);setParams({},{replace:true});camera.flyTo({center:position});},[setParams,camera]);
@@ -198,14 +222,14 @@ export default function EventMap() {
     </Modal>}
     {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-base-200 p-3 text-sm">{error}<button className="btn btn-sm" onClick={refresh}>Retry</button></div>}
     <div className={`map-stage ${selected||listOpen?'has-panel':''}`}>
-      <div className="map-canvas" onPointerDownCapture={camera.cancel} onWheelCapture={camera.cancel} onKeyDownCapture={camera.cancel}><GoogleMap key={mapAppearance.colorMode} onLoad={loadMap} onIdle={idle} mapContainerStyle={{height:'100%',width:'100%'}} center={mapAppearance.center} zoom={mapAppearance.zoom} options={mapOptions}>
+      <div className="map-canvas" onPointerDownCapture={camera.cancel} onWheelCapture={camera.cancel} onKeyDownCapture={camera.cancel}>{mapsReady?<GoogleMap key={mapAppearance.colorMode} onLoad={loadMap} onIdle={idle} mapContainerStyle={{height:'100%',width:'100%'}} center={mapAppearance.center} zoom={mapAppearance.zoom} options={mapOptions}>
         <PhotoMarkers map={map} events={filtered} zoom={zoom} viewport={viewport} onSelect={select} onCluster={cluster} selectedId={selectedId}/>
-      </GoogleMap>
+      </GoogleMap>:<div className="map-loading" role="status">{mapsError?<><p>The map could not be loaded. You can still browse the event list.</p><button className="btn btn-outline" onClick={()=>setListOpen(true)}>Browse events as a list</button></>:<p>Loading map…</p>}</div>}
         {panelOpen&&<button type="button" className="btn map-tools-toggle" aria-controls={toolsOpen?'map-tools':undefined} aria-haspopup="dialog" aria-expanded={toolsOpen} onClick={toggleTools}>{activeFilters?`Map tools (${activeFilters})`:'Map tools'}</button>}
         <div className="map-navigation"><div className="map-control-group"><button aria-label="Show my location" disabled={locationBusy} onClick={locate}>{locationBusy?'Locating…':'My location'}</button><button onClick={()=>viewGTA(map)}>View GTA</button></div><div className="map-control-group map-zoom" role="group" aria-label="Map zoom"><button aria-label="Zoom in" disabled={zoom>=20} onClick={()=>map?.setZoom(zoom+1)}>＋</button><button aria-label="Zoom out" disabled={zoom<=3} onClick={()=>map?.setZoom(zoom-1)}>−</button></div></div>
         <div className="map-caption" role="status">{loading?'Loading events…':`${visible.length} upcoming`}</div>
       </div>
-      {selected && <aside className="event-panel event-detail-panel" aria-labelledby="event-detail-title" onKeyDown={event=>{if(event.key==='Escape'&&!event.defaultPrevented) {event.stopPropagation();close();}}}><EventInfo key={selected.id} event={selected} onClose={close} bodyRef={panelRef} onBodyScroll={()=>{if(!restoreList.current&&!restoringCamera.current) rememberMapBrowsing(location.key,browsing());}} onEdit={openForm} onDelete={remove} onSaved={saved} promptForPhoto={photoPrompt===selected.id} pendingAction={intent} onActionHandled={handledIntent}/></aside>}
+      {selected && <aside className="event-panel event-detail-panel" aria-labelledby="event-detail-title" onKeyDown={event=>{if(event.key==='Escape'&&!event.defaultPrevented) {event.stopPropagation();close();}}}><EventInfo key={selected.id} event={selected} mapsReady={mapsReady} detailsLoading={Boolean(selected._summary)} detailsError={detailError} onRetryDetails={()=>setDetailRetry(value=>value+1)} onClose={close} bodyRef={panelRef} onBodyScroll={()=>{if(!restoreList.current&&!restoringCamera.current) rememberMapBrowsing(location.key,browsing());}} onEdit={openForm} onDelete={remove} onSaved={saved} promptForPhoto={photoPrompt===selected.id} pendingAction={intent} onActionHandled={handledIntent}/></aside>}
       {!selected && listOpen && <aside className="event-panel event-list" aria-label="Events in this area"><header className="event-list-header"><div><h2 id="event-list-title" tabIndex={-1} className="text-xl font-semibold outline-none">{clusterIds.length?'Events in this group':'Events in this view'}</h2><p className="text-sm muted">{listed.length} events</p></div><button className="btn btn-circle btn-ghost" aria-label="Close event list" onClick={()=>{camera.cancel();setToolsOpen(false);setListOpen(false);setClusterIds([]);requestAnimationFrame(()=>document.getElementById('list-mode')?.focus());}}>✕</button></header>
         <div ref={panelRef} className="event-list-scroll" onScroll={()=>{if(!restoreList.current&&!restoringCamera.current) rememberMapBrowsing(location.key,browsing());}}>
         {!listed.length && <p className="p-5 text-base-content/75">No matching events here. Move the map or change your filters.</p>}
@@ -214,6 +238,6 @@ export default function EventMap() {
         </div>
       </aside>}
     </div>
-    {form && <Modal dirty={formDirty} busy={formBusy} title={form.id?'Edit event':'Create event'} onClose={discardForm} description="Share something worth going to. Dates and times use Toronto time.">{({requestClose})=><EventForm initialData={form} onDirtyChange={setFormDirty} onBusyChange={setFormBusy} onDiscard={discardForm} onCancel={requestClose} onSaved={saved}/>}</Modal>}
+    {form && <Modal dirty={formDirty} busy={formBusy} title={form.id?'Edit event':'Create event'} onClose={discardForm} description="Share something worth going to. Dates and times use Toronto time.">{({requestClose})=><Suspense fallback={<p role="status">Loading event editor…</p>}><EventForm initialData={form} onDirtyChange={setFormDirty} onBusyChange={setFormBusy} onDiscard={discardForm} onCancel={requestClose} onSaved={saved}/></Suspense>}</Modal>}
   </main>;
 }

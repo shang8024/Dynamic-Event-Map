@@ -1,10 +1,13 @@
 import {useEffect,useRef,useState} from 'react';
 import {loadVenuePhoto} from '../services/venuePhoto';
 import EventArtwork from './EventArtwork';
+import useGoogleMaps from '../hooks/useGoogleMaps';
 export default function VenuePhoto({event}) {
+  const {isLoaded,loadError}=useGoogleMaps();
   const [photo,setPhoto]=useState(null),[pending,setPending]=useState(true);
   const request=useRef(null);
   useEffect(()=>{
+    if(!isLoaded) {if(loadError)setPending(false);return;}
     let active=true;
     request.current??=(async()=>{
       let timer;
@@ -15,7 +18,7 @@ export default function VenuePhoto({event}) {
     })();
     request.current.then(value=>{if(active) setPhoto(value);}).catch(()=>{}).finally(()=>{if(active) setPending(false);});
     return()=>{active=false;};
-  },[event]);
+  },[event,isLoaded,loadError]);
   if(pending) return <div className="h-full w-full bg-base-200 flex items-center justify-center" role="status"><span className="loading loading-spinner mr-2"/>Checking venue photo…</div>;
   if(!photo) return <EventArtwork title={event.title} category={event.category} className="h-full w-full"/>;
   return <figure className="relative h-full w-full"><img src={photo.url} alt={`Venue photograph for ${event.location_name||event.title}`} className="h-full w-full object-cover" referrerPolicy="strict-origin-when-cross-origin" onError={()=>setPhoto(null)}/>

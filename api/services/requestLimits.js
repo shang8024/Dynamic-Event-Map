@@ -24,7 +24,7 @@ function requestPolicy(req,authenticated) {
   if(read && /^\/api\/events\/\d+\/image$/.test(pathname)) return {bucket:'image',limit:120,window:60000};
   if(/^\/api\/(auth|profiles)(\/|$)/.test(pathname)) return {bucket:'auth',limit:authenticated?120:600,window:300000};
   if(['POST','PUT','PATCH','DELETE'].includes(req.method)) return {bucket:'write',limit:authenticated?30:300,window:60000};
-  if(read && !authenticated && pathname==='/api/events') return {bucket:'catalogue',limit:30,window:60000};
+  if(read && !authenticated && ['/api/events','/api/events/map'].includes(pathname)) return {bucket:'catalogue',limit:30,window:60000};
   if(read && !authenticated && /^\/api\/events\/\d+\/comments(?:\/snapshot)?$/.test(pathname)) return {bucket:'discussion',limit:60,window:60000};
   if(read) return {bucket:'read',limit:authenticated?180:300,window:60000};
   return null;

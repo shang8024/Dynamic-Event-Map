@@ -1,8 +1,8 @@
-import React,{useEffect,useRef} from "react";
+import React,{lazy,Suspense,useEffect,useRef} from "react";
 import { createBrowserRouter, RouterProvider, Routes, Route } from "react-router-dom";
 import "./App.css";
-import BookmarksPage from "./feature/bookmarks/EventBookmarks.jsx";
-import UserComments from "./feature/comments/UserComments.jsx";
+const BookmarksPage=lazy(()=>import('./feature/bookmarks/EventBookmarks.jsx'));
+const UserComments=lazy(()=>import('./feature/comments/UserComments.jsx'));
 import useGoogleMaps from './hooks/useGoogleMaps';
 import EventMap from "./feature/events/EventMap.jsx";
 import { useAuth, AuthProvider } from "./contexts/AuthContext.jsx";
@@ -10,23 +10,22 @@ import Navbar from "./components/Navbar.jsx";
 import SiteFooter from './components/SiteFooter';
 import { NotificationProvider } from "./contexts/NotificationContext.jsx";
 import NotificationBanner from "./components/NotificationBanner.jsx";
-import PreferencesPage from "./components/PreferencesPage.jsx";
-import RecommendationsPage from "./components/RecommendationsPage.jsx";
-import UnsubscribePage from "./components/UnsubscribePage.jsx";
-import NotificationInbox from "./components/NotificationInbox";
+const PreferencesPage=lazy(()=>import('./components/PreferencesPage.jsx'));
+const RecommendationsPage=lazy(()=>import('./components/RecommendationsPage.jsx'));
+const UnsubscribePage=lazy(()=>import('./components/UnsubscribePage.jsx'));
+const NotificationInbox=lazy(()=>import('./components/NotificationInbox'));
 import {AuthFlowProvider,useAuthFlow} from './contexts/AuthFlowContext';
 import {Link,useLocation} from 'react-router-dom';
-import AuthPage from './components/AuthPage';
-import EventPage from './feature/events/EventPage';
-import EventComposePage from './feature/events/EventComposePage';
-import ContributionsPage from './components/ContributionsPage';
+const AuthPage=lazy(()=>import('./components/AuthPage'));
+const EventPage=lazy(()=>import('./feature/events/EventPage'));
+const EventComposePage=lazy(()=>import('./feature/events/EventComposePage'));
+const ContributionsPage=lazy(()=>import('./components/ContributionsPage'));
 import './CompactLayout.css';
 import UnsavedChangesProvider from './contexts/UnsavedChangesProvider';
 
 function MapPage() {
   const {isLoaded,loadError}=useGoogleMaps();
-  if(loadError) return <div role="alert" className="p-6">The map could not be loaded. Check your connection and <button className="link" onClick={()=>window.location.reload()}>try again</button>.</div>;
-  return isLoaded?<EventMap/>:<p role="status" className="p-4">Loading map…</p>;
+  return <EventMap mapsReady={isLoaded} mapsError={loadError}/>;
 }
 
 function PageWrapper({ children,map=false }) {
@@ -42,7 +41,7 @@ function PageWrapper({ children,map=false }) {
     <div ref={page} className="app-shell" data-page-scroll data-map-page={map||undefined}>
       <Navbar />
       <NotificationBanner />
-      <div id="main-content" className="app-content" tabIndex={-1}>{children}</div>
+      <div id="main-content" className="app-content" tabIndex={-1}><Suspense fallback={<p role="status" className="p-6">Loading page…</p>}>{children}</Suspense></div>
       <SiteFooter map={map}/>
     </div>
   );

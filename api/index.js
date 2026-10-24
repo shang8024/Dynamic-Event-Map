@@ -94,5 +94,9 @@ const socket = require("./socket");
 async function start() {
   await socket.init(server,{db:require('./config/db')});
   server.listen(port,host,()=>console.log(`API running on http://${host}:${port}`));
+  if(process.env.NODE_ENV==='production') setTimeout(()=>{
+    require('./services/warmEventImages').warmEventImages({db:require('./config/db')})
+      .then(count=>console.log(`Thumbnail warm-up: ${count} ready`)).catch(()=>console.warn('Thumbnail warm-up skipped'));
+  },1000).unref();
 }
 start().catch(error=>{console.error('API startup failed',error.code||error.name);process.exit(1);});
