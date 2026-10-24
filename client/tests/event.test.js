@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {eventView,eventImage,representative,nextStart,compareEventStarts} from '../src/utils/event.js';
+import {eventView,eventImage,representative,nextStart,compareEventStarts,scheduleSummary,isEnded} from '../src/utils/event.js';
 import {torontoInput,torontoInstant} from '../src/utils/eventDate.js';
 import {getEventStatus} from '../src/utils/date.js';
 test('missing coordinates stay missing and linked images use only the same-origin proxy',()=>{
@@ -34,4 +34,12 @@ test('unknown dates sort last and text changes retain the photo cache key',()=>{
   assert.deepEqual([unknown,photo].sort(compareEventStarts).map(e=>e.id),[3,1]);
   assert.equal(eventImage(photo).url,eventImage({...photo,title:'Revised',version:2}).url);
   assert.notEqual(eventImage(photo).url,eventImage({...photo,data:{image:{url:'https://images.unsplash.com/b'}}}).url);
+});
+test('map summaries use their projected next occurrence and never label a historic start as upcoming',()=>{
+  const now=Date.parse('2026-10-24T12:00:00Z');
+  const row={_summary:true,id:1,starts_at:'2026-01-01T12:00:00Z',ends_at:'2027-01-01T12:00:00Z',data:{schedule_format:2},
+    next_occurrence:{starts_at:'2026-10-24T11:00:00Z',ends_at:'2026-10-24T13:00:00Z'}};
+  assert.equal(scheduleSummary(row,now).label,'Happening now');assert.equal(nextStart(row,now),row.next_occurrence.starts_at);assert.equal(isEnded(row,now),false);
+  assert.equal(nextStart({...row,next_occurrence:null},now),null);
+  assert.equal(scheduleSummary({_summary:true},now).text,'--');
 });

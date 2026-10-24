@@ -1,3 +1,4 @@
+import Icon from './Icon';
 import {useEffect,useRef,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {fetchComments,addComment,removeComment} from '../services/commentsService';
@@ -69,7 +70,7 @@ export default function EventComments({eventId,preview=false,returnTo=`/?event=$
         <time dateTime={comment.createdAt} className="text-xs muted">{new Date(comment.createdAt).toLocaleString()}</time>
       </li>)}
     </ul>
-    {preview&&total>0&&<Link className="btn btn-outline w-full" to={`/events/${eventId}#comments`} target="_blank" rel="noopener noreferrer">View all {total} {total===1?'comment':'comments'} <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></Link>}
+    {preview&&total>0&&<Link className="btn btn-outline w-full" to={`/events/${eventId}#comments`} target="_blank" rel="noopener noreferrer">View all {total} {total===1?'comment':'comments'} <Icon name="external" size={14}/><span className="sr-only"> (opens in a new tab)</span></Link>}
     {user?<form onSubmit={submit} className="comment-composer">
       <label htmlFor={`comment-${eventId}`} className="text-sm font-medium">{user?'Add a comment':'Sign in to join the conversation'}</label>
       <textarea ref={composer} id={`comment-${eventId}`} value={text} onChange={event=>setText(event.target.value)} maxLength={5000}

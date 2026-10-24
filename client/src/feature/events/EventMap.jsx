@@ -2,6 +2,7 @@ import {lazy,Suspense,useCallback,useEffect,useLayoutEffect,useMemo,useRef,useSt
 import {GoogleMap} from '@react-google-maps/api';
 import {useLocation,useNavigate,useSearchParams} from 'react-router-dom';
 import EventInfo from '../../components/EventInfo';
+import Icon from '../../components/Icon';
 const EventForm=lazy(()=>import('../../components/EventForm'));
 import Modal from '../../components/Modal';
 import MapTools from '../../components/MapTools';
@@ -127,7 +128,7 @@ export default function EventMap({mapsReady=true,mapsError=null}) {
     flight.current={query:search,controller,promise};return promise;
   },[search]);
   useEffect(()=>{
-    active.current=true;void refresh();
+    active.current=true;setLoading(true);void refresh();
     const changed=row=>{
       setDetail(old=>String(old?.id)===String(row.id)?eventView(row):old);
       if(search) {void refresh();return;}
@@ -226,14 +227,14 @@ export default function EventMap({mapsReady=true,mapsError=null}) {
         <PhotoMarkers map={map} events={filtered} zoom={zoom} viewport={viewport} onSelect={select} onCluster={cluster} selectedId={selectedId}/>
       </GoogleMap>:<div className="map-loading" role="status">{mapsError?<><p>The map could not be loaded. You can still browse the event list.</p><button className="btn btn-outline" onClick={()=>setListOpen(true)}>Browse events as a list</button></>:<p>Loading map…</p>}</div>}
         {panelOpen&&<button type="button" className="btn map-tools-toggle" aria-controls={toolsOpen?'map-tools':undefined} aria-haspopup="dialog" aria-expanded={toolsOpen} onClick={toggleTools}>{activeFilters?`Map tools (${activeFilters})`:'Map tools'}</button>}
-        <div className="map-navigation"><div className="map-control-group"><button aria-label="Show my location" disabled={locationBusy} onClick={locate}>{locationBusy?'Locating…':'My location'}</button><button onClick={()=>viewGTA(map)}>View GTA</button></div><div className="map-control-group map-zoom" role="group" aria-label="Map zoom"><button aria-label="Zoom in" disabled={zoom>=20} onClick={()=>map?.setZoom(zoom+1)}>＋</button><button aria-label="Zoom out" disabled={zoom<=3} onClick={()=>map?.setZoom(zoom-1)}>−</button></div></div>
+        <div className="map-navigation"><div className="map-control-group"><button aria-label="Show my location" disabled={locationBusy} onClick={locate}>{locationBusy?'Locating…':'My location'}</button><button onClick={()=>viewGTA(map)}>View GTA</button></div><div className="map-control-group map-zoom" role="group" aria-label="Map zoom"><button aria-label="Zoom in" disabled={zoom>=20} onClick={()=>map?.setZoom(zoom+1)}><Icon name="plus"/></button><button aria-label="Zoom out" disabled={zoom<=3} onClick={()=>map?.setZoom(zoom-1)}><Icon name="minus"/></button></div></div>
         <div className="map-caption" role="status">{loading?'Loading events…':`${visible.length} upcoming`}</div>
       </div>
       {selected && <aside className="event-panel event-detail-panel" aria-labelledby="event-detail-title" onKeyDown={event=>{if(event.key==='Escape'&&!event.defaultPrevented) {event.stopPropagation();close();}}}><EventInfo key={selected.id} event={selected} mapsReady={mapsReady} detailsLoading={Boolean(selected._summary)} detailsError={detailError} onRetryDetails={()=>setDetailRetry(value=>value+1)} onClose={close} bodyRef={panelRef} onBodyScroll={()=>{if(!restoreList.current&&!restoringCamera.current) rememberMapBrowsing(location.key,browsing());}} onEdit={openForm} onDelete={remove} onSaved={saved} promptForPhoto={photoPrompt===selected.id} pendingAction={intent} onActionHandled={handledIntent}/></aside>}
-      {!selected && listOpen && <aside className="event-panel event-list" aria-label="Events in this area"><header className="event-list-header"><div><h2 id="event-list-title" tabIndex={-1} className="text-xl font-semibold outline-none">{clusterIds.length?'Events in this group':'Events in this view'}</h2><p className="text-sm muted">{listed.length} events</p></div><button className="btn btn-circle btn-ghost" aria-label="Close event list" onClick={()=>{camera.cancel();setToolsOpen(false);setListOpen(false);setClusterIds([]);requestAnimationFrame(()=>document.getElementById('list-mode')?.focus());}}>✕</button></header>
+      {!selected && listOpen && <aside className="event-panel event-list" aria-label="Events in this area"><header className="event-list-header"><div><h2 id="event-list-title" tabIndex={-1} className="text-xl font-semibold outline-none">{clusterIds.length?'Events in this group':'Events in this view'}</h2><p className="text-sm muted">{listed.length} events</p></div><button className="btn btn-circle btn-ghost" aria-label="Close event list" onClick={()=>{camera.cancel();setToolsOpen(false);setListOpen(false);setClusterIds([]);requestAnimationFrame(()=>document.getElementById('list-mode')?.focus());}}><Icon name="close" size={16}/></button></header>
         <div ref={panelRef} className="event-list-scroll" onScroll={()=>{if(!restoreList.current&&!restoringCamera.current) rememberMapBrowsing(location.key,browsing());}}>
         {!listed.length && <p className="p-5 text-base-content/75">No matching events here. Move the map or change your filters.</p>}
-        <ul className="divide-y divide-base-300">{listed.slice(0,listLimit).map(event=><li key={event.id}><button className="event-list-item" data-event-id={event.id} onClick={()=>select(event.id)}><EventArtwork src={eventImage(event,'thumb')?.url} title={event.title} category={event.category} className="h-20 w-20 shrink-0 rounded-lg"/><span className="min-w-0"><strong className="block text-left font-semibold">{event.title}</strong><span className="mt-2 block text-left text-sm text-base-content/75">{eventTime(nextStart(event))}</span>{!event.position&&<span className="text-sm">Location to be confirmed</span>}</span></button></li>)}</ul>
+        <ul className="divide-y divide-base-300">{listed.slice(0,listLimit).map(event=><li key={event.id}><button className="event-list-item" data-event-id={event.id} onClick={()=>select(event.id)}><EventArtwork alt="" src={eventImage(event,'thumb')?.url} title={event.title} category={event.category} className="h-20 w-20 shrink-0 rounded-lg"/><span className="min-w-0"><strong className="block text-left font-semibold">{event.title}</strong><span className="mt-2 block text-left text-sm text-base-content/75">{eventTime(nextStart(event))}</span>{!event.position&&<span className="text-sm">Location to be confirmed</span>}</span></button></li>)}</ul>
         {listed.length>listLimit && <button className="btn m-4" onClick={()=>setListLimit(value=>value+30)}>Show more events</button>}
         </div>
       </aside>}

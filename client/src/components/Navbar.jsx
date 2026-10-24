@@ -1,3 +1,4 @@
+import Icon from './Icon';
 import {useEffect,useRef,useState} from 'react';
 import {Link,NavLink,useLocation} from 'react-router-dom';
 import {useAuth} from '../contexts/AuthContext';
@@ -46,7 +47,7 @@ export default function Navbar() {
           {colorMode==='dark'?<><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></>:<path d="M20.9 13a9 9 0 0 1-9.9-9.9A9 9 0 1 0 20.9 13Z"/>}
         </svg>
       </button>
-      <button className="btn btn-primary create-event-button" onClick={create} disabled={loading}><span aria-hidden="true">＋</span> Create event</button>
+      <button className="btn btn-primary create-event-button" onClick={create} disabled={loading}><Icon name="plus" size={16}/> Create event</button>
       {user && <NotificationBell/>}
       {user?<details ref={menu} className="account-menu">
         <summary aria-label="Account menu"><img src={user.photoURL||GuestAvatar} alt="" width="32" height="32"/></summary>

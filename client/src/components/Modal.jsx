@@ -1,3 +1,4 @@
+import Icon from './Icon';
 import {useEffect,useId,useRef,useState} from 'react';
 export default function Modal({title,children,onClose,className='',closeLabel='Close window',description,dirty=false,busy=false}) {
   const dialog=useRef(null),heading=useRef(null),body=useRef(null),label=useId();
@@ -41,7 +42,7 @@ export default function Modal({title,children,onClose,className='',closeLabel='C
   return <dialog ref={dialog} className="app-dialog" aria-modal="true" aria-labelledby={label} aria-describedby={!confirming&&description?`${label}-description`:undefined} onKeyDown={trapFocus} onCancel={event=>{event.preventDefault();if(confirming) continueEditing();else requestClose();}}>
     <section className={`app-dialog-panel ${className}`}>
       <header className="app-dialog-header"><h2 ref={heading} tabIndex={-1} id={label} className="text-xl font-semibold outline-none">{confirming?'Discard unsaved changes?':title}</h2>
-        <button type="button" className="btn btn-circle btn-ghost" disabled={busy} aria-label={confirming?'Keep editing':closeLabel} onClick={confirming?continueEditing:requestClose}>✕</button></header>
+        <button type="button" className="btn btn-circle btn-ghost" disabled={busy} aria-label={confirming?'Keep editing':closeLabel} onClick={confirming?continueEditing:requestClose}><Icon name="close" size={16}/></button></header>
       <div ref={body} className="app-dialog-body">
         <div hidden={confirming}>{description && <p id={`${label}-description`} className="dialog-description">{description}</p>}{typeof children==='function'?children({requestClose}):children}
           {waiting&&<p role="status" className="mt-3 text-sm">Please wait until saving finishes before closing.</p>}

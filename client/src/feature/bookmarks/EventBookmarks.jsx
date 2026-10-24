@@ -1,3 +1,4 @@
+import Icon from '../../components/Icon';
 import {useState,useCallback,useMemo,useEffect,useRef} from 'react';
 import {Link} from 'react-router-dom';
 import {useBookmarks} from '../../hooks';
@@ -19,7 +20,7 @@ const BookmarkListItem=({id,eventData,bookmarkInfo,toggle,pending,blocked})=>{
       <div className="card-heading"><div className="min-w-0">
         <EventStatusBadge event={eventData} position="inline-block mb-2"/>
         <h2>{ended?eventData?.title:<Link to={`/?event=${id}`}>{eventData?.title||`Event ${id}`}</Link>}</h2>
-      </div><button className="btn btn-ghost text-error" disabled={pending||blocked} aria-busy={pending} aria-label={`Remove ${eventData?.title||'event'} from saved events`} onClick={()=>toggle(id,false)}>{pending?'…':'✕'}</button></div>
+      </div><button className="btn btn-ghost text-error" disabled={pending||blocked} aria-busy={pending} aria-label={`Remove ${eventData?.title||'event'} from saved events`} onClick={()=>toggle(id,false)}>{pending?'…':<Icon name="close" size={16}/>}</button></div>
       <p className="saved-event-time"><strong>{when.label}</strong><span>{when.text}</span></p>
       {eventData?.description&&<Description text={eventData.description}/>}
       {eventData?._row?.archived_at&&<p className="form-help mt-3">This event has ended. Its saved summary stays here after the full listing and photo are cleared.</p>}

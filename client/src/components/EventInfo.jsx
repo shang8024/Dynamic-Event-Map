@@ -61,10 +61,10 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
   }
   const askManagement=action=>{if(photoLocked) return;setManagementError('');setManagement(action);};
   return <article className="event-detail-content">
-    <div className="event-detail-hero">{mapsReady&&!image&&!ended&&!cancelled&&!event.data?.image_hidden
+    <div className="event-detail-hero">{mapsReady&&!detailsLoading&&!image&&!ended&&!cancelled&&!event.data?.image_hidden
       ?<VenuePhoto key={[event.id,event.data?.place_id,event.location_address,event.latitude,event.longitude].join(':')} event={event}/>
       :<EventArtwork src={image?.url} alt={image?.alt} title={event.title} category={event.category} className="h-full w-full" loading="eager" onUnavailable={()=>setFailedURL(candidate?.url)}/>}
-      {!standalone&&<button className="btn btn-circle event-detail-close" aria-label="Close event details" onClick={onClose}>✕</button>}
+      {!standalone&&<button className="btn btn-circle event-detail-close" aria-label="Close event details" onClick={onClose}><Icon name="close" size={16}/></button>}
     </div>
     <div ref={bodyRef} className="event-detail-scroll" onScroll={onBodyScroll}>
     <div className="event-detail-body">
@@ -75,7 +75,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
       </div>}
       <div className="event-overview">
       <div className="event-intro">
-      <header className="event-heading"><div className="event-heading-topline"><span className="category-label">{event.category||'Other'}</span>{!standalone&&<div className="event-heading-links"><Link className="event-full-link" to={`/events/${event.id}`} target="_blank" rel="noopener noreferrer">Full details <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></Link></div>}</div><Heading id="event-detail-title" tabIndex={-1}>{event.title}</Heading></header>
+      <header className="event-heading"><div className="event-heading-topline"><span className="category-label">{event.category||'Other'}</span>{!standalone&&<div className="event-heading-links"><Link className="event-full-link" to={`/events/${event.id}`} target="_blank" rel="noopener noreferrer">Full details <Icon name="external" size={14}/><span className="sr-only"> (opens in a new tab)</span></Link></div>}</div><Heading id="event-detail-title" tabIndex={-1}>{event.title}</Heading></header>
       {event.data?.organizer_name&&<p className="event-organizer">Organizer <strong>{event.data.organizer_name}</strong></p>}
       {(ended||cancelled)&&<p role="status" className="event-status-note">{cancelled?'This event has been cancelled.':'This event has ended. It stays in your saved events.'}</p>}
       {promptForPhoto&&manage&&!ended&&!cancelled&&<div className="rounded-xl border border-base-300 p-3 flex flex-wrap items-center justify-between gap-3" role="status"><p className="text-sm">Your event is published. Add a photo to help people recognize it.</p><button className="btn btn-outline btn-sm" onClick={()=>setPhotoOpen(value=>Number(value)+1)}>Add photo link</button></div>}
@@ -93,7 +93,7 @@ export default function EventInfo({event,onClose,onEdit,onDelete,onSaved,pending
       </section>
       <div className="event-story">
       <section className="detail-section"><SectionHeading>About this event</SectionHeading>{detailsLoading?<p role={detailsError?'alert':'status'} className="event-description">{detailsError||'Loading event details…'}{detailsError&&<button className="btn btn-outline btn-sm ml-3" onClick={onRetryDetails}>Retry</button>}</p>:<p className="event-description">{event.description||'The organizer has not provided a description yet.'}</p>}
-        {event.data?.website&&/^https?:\/\//.test(event.data.website)&&<a className="link organizer-link" href={event.data.website} target="_blank" rel="noopener noreferrer">Organizer’s website ↗</a>}
+        {event.data?.website&&/^https?:\/\//.test(event.data.website)&&<a className="link organizer-link" href={event.data.website} target="_blank" rel="noopener noreferrer">Organizer’s website <Icon name="external" size={14}/></a>}
       </section>
       {occurrences.length>0&&<details className="schedule-details"><summary>All dates <span>· {occurrences.length} {occurrences.length===1?'occurrence':'occurrences'}</span></summary>
         {future.length>0&&dateList(future)}

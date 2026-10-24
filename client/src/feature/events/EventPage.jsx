@@ -1,7 +1,7 @@
-import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {Link,useLocation,useNavigate,useParams} from 'react-router-dom';
 import EventInfo from '../../components/EventInfo';
-import EventForm from '../../components/EventForm';
+const EventForm=lazy(()=>import('../../components/EventForm'));
 import Modal from '../../components/Modal';
 import useGoogleMaps from '../../hooks/useGoogleMaps';
 import {useNotifications} from '../../contexts/NotificationContext';
@@ -13,7 +13,7 @@ import {eventView} from '../../utils/event';
 function EventEditor(props) {
   const {isLoaded,loadError}=useGoogleMaps();
   if(!isLoaded&&!loadError)return <p role="status">Loading venue search…</p>;
-  return <>{loadError&&<p className="form-error mb-4">Venue search is unavailable. You can still enter the pin coordinates under Advanced pin position.</p>}<EventForm {...props}/></>;
+  return <>{loadError&&<p className="form-error mb-4">Venue search is unavailable. You can still enter the pin coordinates under Advanced pin position.</p>}<Suspense fallback={<p role="status">Loading event editor…</p>}><EventForm {...props}/></Suspense></>;
 }
 
 export default function EventPage() {

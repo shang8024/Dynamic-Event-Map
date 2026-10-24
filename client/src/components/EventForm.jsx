@@ -134,7 +134,7 @@ export default function EventForm({initialData={},onSaved,onCancel,onDirtyChange
         <div className="form-grid">{['starts_at','ends_at'].map(name=><label key={name} className="form-field"><span>{name==='starts_at'?'Start':'End (optional)'}</span><input type="datetime-local" className="input input-bordered w-full" aria-label={`Occurrence ${index+1} ${name==='starts_at'?'start':'end'}`} aria-invalid={!!dateErrors[item.key]} aria-describedby={dateErrors[item.key]?`date-error-${item.key}`:undefined} required={name==='starts_at'} value={item[name]} onChange={event=>updateDate(item.key,name,event.target.value)}/></label>)}</div>
         {dateErrors[item.key]&&<p id={`date-error-${item.key}`} className="text-sm text-error mt-3">{dateErrors[item.key]}</p>}
       </div>)}</div>
-      <button type="button" className="btn btn-outline self-start" disabled={dates.length>=366} onClick={()=>setDates(old=>[...old,{key:crypto.randomUUID(),starts_at:'',ends_at:''}])}>＋ Add another date range</button>
+      <button type="button" className="btn btn-outline self-start" disabled={dates.length>=366} onClick={()=>setDates(old=>[...old,{key:crypto.randomUUID(),starts_at:'',ends_at:''}])}><Icon name="plus" size={16}/> Add another date range</button>
     </fieldset>}
     {wizard&&step===2&&<fieldset className="form-section" disabled={busy}>
       <p className="form-help">Add a direct HTTPS image link, or leave this step blank. Supported hosts: Toronto, Unsplash, Imgur, Cloudinary and Pexels. We check the image before publishing.</p>

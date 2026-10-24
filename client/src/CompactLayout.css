@@ -99,9 +99,9 @@
   .page-narrow { max-width:720px; }
   .account-nav { padding-bottom:16px; margin-bottom:20px; }
   .account-nav a { min-height:36px; padding:6px 10px; }
-  .page-heading { gap:16px; margin-bottom:20px; }
-  .page-heading h1 { font-size:28px; margin:6px 0 8px; }
-  .page-heading-actions { padding-top:20px; }
+  .page-heading { gap:8px; margin-bottom:20px; }
+  .page-heading h1 { font-size:28px; margin:0; }
+  .page-heading-actions { padding-top:0; }
   .page-body,.saved-grid,.comment-grid,.notification-list { gap:16px; }
   .content-card,.preference-card { padding:16px; border-radius:12px; }
   .saved-card { gap:14px; }

@@ -1,4 +1,8 @@
 const paths={
+  close:'M6 6l12 12M18 6 6 18',
+  plus:'M12 5v14M5 12h14',
+  minus:'M5 12h14',
+  external:'M14 3h7v7M21 3 10 14M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5',
   calendar:'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z',
   pin:'M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0ZM15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
   bookmark:'M6 3h12v19l-6-4-6 4V3Z',

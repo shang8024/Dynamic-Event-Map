@@ -1,3 +1,4 @@
+import Icon from '../../components/Icon';
 import {useState,useEffect,useMemo,useCallback} from 'react';
 import {Link} from 'react-router-dom';
 import {fetchUserComments,removeComment} from '../../services/commentsService';
@@ -18,7 +19,7 @@ const CommentListItem=({item,onDelete,pending})=>{
     <div className="saved-card-body"><div className="card-heading"><div className="min-w-0">
       <EventStatusBadge event={item.event} position="inline-block mb-2"/>
       <h2>{!ended&&item.event?.id?<Link to={`/?event=${item.event.id}`}>{item.event.title}</Link>:item.event?.title||'Event no longer available'}</h2>
-    </div><button className="btn btn-ghost text-error" disabled={pending} aria-label={`Delete your comment on ${item.event?.title||'this event'}`} onClick={()=>{if(confirm('Delete this comment?')) void onDelete(item.event.id,item.comment.id);}}>{pending?'…':'✕'}</button></div>
+    </div><button className="btn btn-ghost text-error" disabled={pending} aria-label={`Delete your comment on ${item.event?.title||'this event'}`} onClick={()=>{if(confirm('Delete this comment?')) void onDelete(item.event.id,item.comment.id);}}>{pending?'…':<Icon name="close" size={16}/>}</button></div>
       <p className="saved-event-time"><strong>{when.label}</strong><span>{when.text}</span></p>
       {item.comment?.text&&<blockquote className="comment-quote"><Description text={item.comment.text}/></blockquote>}
       {item.event?.locationAddress&&<p className="text-sm muted mt-3">{item.event.locationAddress}</p>}
