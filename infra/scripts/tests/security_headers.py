@@ -1,5 +1,6 @@
 """Check production Nginx headers in a disposable, loopback-only container."""
 import os
+import gzip
 from pathlib import Path
 import subprocess
 import tempfile
@@ -40,7 +41,8 @@ with tempfile.TemporaryDirectory(prefix='eventmap-headers-') as directory:
     assert fixture.is_relative_to(Path(tempfile.gettempdir()).resolve())
     (fixture / 'assets').mkdir()
     (fixture / 'index.html').write_text('<!doctype html><title>Local security fixture</title>', encoding='utf8')
-    (fixture / 'assets' / 'app.js').write_text('/* Local security fixture */', encoding='utf8')
+    asset = '/* Local security fixture */\n' * 200
+    (fixture / 'assets' / 'app.js').write_text(asset, encoding='utf8')
     # TemporaryDirectory is 0700 on Linux. Only these synthetic public assets
     # need to be readable/traversable by the container's unprivileged worker.
     for public_directory in [fixture, fixture / 'assets']:
@@ -79,6 +81,14 @@ with tempfile.TemporaryDirectory(prefix='eventmap-headers-') as directory:
                     assert 'immutable' in response.headers['Cache-Control']
                 if path == '/index.html':
                     assert 'no-store' in response.headers['Cache-Control']
+        request = urllib.request.Request(base + '/assets/app.js', headers={'Accept-Encoding': 'gzip'})
+        with urllib.request.urlopen(request, timeout=5) as response:
+            check_headers(response)
+            assert response.headers['Content-Encoding'] == 'gzip'
+            assert 'Accept-Encoding' in response.headers['Vary']
+            compressed = response.read()
+            assert gzip.decompress(compressed) == (fixture / 'assets' / 'app.js').read_bytes()
+            assert len(compressed) < len(asset) / 2
         assert token not in docker('logs', name)
         print('Production Nginx headers survive SPA, cache and error responses; access logs omit query tokens.')
     finally:
