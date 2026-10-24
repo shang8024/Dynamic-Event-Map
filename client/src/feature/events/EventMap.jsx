@@ -148,9 +148,14 @@ export default function EventMap({mapsReady=true,mapsError=null}) {
     opened.current=selected.id;
     panelRef.current?.scrollTo({top:0});
     if(selected.position) camera.flyTo({center:selected.position,zoom:map.getZoom()<14?15:map.getZoom()});
-    if(intent?.kind==='comment') return;
+  },[map,selected,camera,location.key]);
+  const selectionReady=Boolean(selected);
+  useEffect(()=>{
+    if(!selectionReady||intent?.kind==='comment')return;
+    // Full details may arrive within the same animation frame as selection.
+    // Hydrating that record must not cancel the pending keyboard focus.
     const frame=requestAnimationFrame(()=>document.getElementById('event-detail-title')?.focus({preventScroll:true}));return()=>cancelAnimationFrame(frame);
-  },[map,selected,intent,camera,location.key]);
+  },[selectedId,selectionReady,intent?.kind,location.key]);
   useEffect(()=>{
     if(!listOpen||selected||document.activeElement?.id==='event-query') return;
     const restored=restoreList.current;
