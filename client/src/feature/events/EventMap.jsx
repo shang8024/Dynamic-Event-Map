@@ -44,6 +44,7 @@ export default function EventMap({mapsReady=true,mapsError=null}) {
   const [toolsOpen,setToolsOpen]=useState(false);
   const compact=useCompactMap(),[navigationOpen,setNavigationOpen]=useState(false);
   const [form,setForm]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[locationBusy,setLocationBusy]=useState(false);
+  const [clock,setClock]=useState(()=>Date.now());
   const [formDirty,setFormDirty]=useState(false),[formBusy,setFormBusy]=useState(false),[photoPrompt,setPhotoPrompt]=useState(null);
   const request=useRef(0),active=useRef(true),mapRef=useRef(null),panelRef=useRef(null),opened=useRef(null),selectionTrigger=useRef(null);
   const [mapAppearance,setMapAppearance]=useState(()=>({colorMode,center:initialBrowse?.center??DEFAULT_CENTER,zoom:initialBrowse?.zoom??DEFAULT_ZOOM}));
@@ -117,6 +118,8 @@ export default function EventMap({mapsReady=true,mapsError=null}) {
   const flight=useRef(null),lastRows=useRef(null);
   const refresh=useCallback(async()=>{
     if(flight.current?.query===search) return flight.current.promise;
+    // A 304 avoids decoding rows, but time filters must still advance.
+    setClock(Date.now());
     flight.current?.controller.abort();const controller=new AbortController();
     const generation=++request.current;
     const promise=(async()=>{
@@ -168,7 +171,7 @@ export default function EventMap({mapsReady=true,mapsError=null}) {
     });return()=>cancelAnimationFrame(frame);
   },[listOpen,clusterIds,selected,loading,restoreTick,location.key]);
   const filtered=useMemo(()=>{
-    const now=Date.now(),days={day:1,week:7,month:30}[time];
+    const now=clock,days={day:1,week:7,month:30}[time];
     return events.filter(event=>{
       if(isEnded(event,now)||event.status==='cancelled') return false;
       if(category && event.category!==category) return false;
@@ -178,7 +181,7 @@ export default function EventMap({mapsReady=true,mapsError=null}) {
       if(Number(distance)>0 && distanceKm(center,event.position)>Number(distance)) return false;
       return true;
     });
-  },[events,time,category,search,distance,center]);
+  },[events,time,category,search,distance,center,clock]);
   const visible=useMemo(()=>filtered.filter(event=>!event.position || !viewport || (event.position.lat>=viewport.south && event.position.lat<=viewport.north && event.position.lng>=viewport.west && event.position.lng<=viewport.east)),[filtered,viewport]);
   const listed=useMemo(()=>[...(clusterIds.length?filtered.filter(event=>clusterIds.includes(event.id)):visible)].sort(compareEventStarts),[clusterIds,filtered,visible]);
   const cluster=useCallback((ids,position)=>{setToolsOpen(false);setClusterIds(ids);setListLimit(30);setListOpen(true);setParams({},{replace:true});camera.flyTo({center:position});},[setParams,camera]);
