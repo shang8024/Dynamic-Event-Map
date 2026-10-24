@@ -33,6 +33,8 @@ test('real Redis thumbnail cache has a byte/count ceiling, expiry and a separate
     for(const key of ['a','b','c'])await cache.set(key,bytes);
     assert.equal(await cache.get('a'),null);assert.deepEqual(await cache.get('c'),bytes);
     assert.ok(Number(await redis.get(prefix+':bytes'))<=1500);assert.ok(await redis.zCard(prefix+':order')<=2);
+    assert.equal(await redis.get(prefix+':sequence'),'3','eviction order uses an atomic sequence, including same-millisecond writes');
+    assert.ok(await redis.ttl(prefix+':sequence')>0);
     await cache.set('expiry',bytes,1);await new Promise(resolve=>setTimeout(resolve,1100));assert.equal(await cache.get('expiry'),null);
     let writes=0;
     const noRoom=createThumbnailCache({isReady:true,info:async()=> 'used_memory:100000000\nmaxmemory:100000000\n',eval:()=>{writes++;}});
