@@ -25,6 +25,7 @@ const EventSubmissionPage=lazy(()=>import('./components/EventSubmissionPage'));
 import './CompactLayout.css';
 import UnsavedChangesProvider from './contexts/UnsavedChangesProvider';
 import SearchIndexing from './components/SearchIndexing';
+import ReviewAccessGate from './components/ReviewAccessGate';
 
 function MapPage() {
   const {isLoaded,loadError}=useGoogleMaps();
@@ -78,8 +79,8 @@ function AppRoutes() {
     <Route path="/register" element={<PageWrapper><AuthPage key="register" initialMode="register"/></PageWrapper>}/>
     <Route path="/reset-password" element={<PageWrapper><AuthPage key="reset-password" initialMode="reset"/></PageWrapper>}/>
     <Route path="/notifications" element={<AuthorizedRoute><NotificationInbox/></AuthorizedRoute>}/>
-    <Route path="/contributions" element={<AuthorizedRoute><ContributionsPage key={user?.uid}/></AuthorizedRoute>}/>
-    <Route path="/my-events" element={<AuthorizedRoute><MyEventsPage key={user?.uid}/></AuthorizedRoute>}/>
+    <Route path="/contributions" element={<AuthorizedRoute><ReviewAccessGate><ContributionsPage key={user?.uid}/></ReviewAccessGate></AuthorizedRoute>}/>
+    <Route path="/my-events" element={<AuthorizedRoute><ReviewAccessGate><MyEventsPage key={user?.uid}/></ReviewAccessGate></AuthorizedRoute>}/>
     <Route path="/event-submissions/:submissionId" element={<AuthorizedRoute><EventSubmissionPage key={user?.uid}/></AuthorizedRoute>}/>
     <Route path="/settings" element={<AuthorizedRoute><PreferencesPage/></AuthorizedRoute>}/>
     <Route path="/recommendations" element={<AuthorizedRoute><RecommendationsPage/></AuthorizedRoute>}/>
