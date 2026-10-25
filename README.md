@@ -72,81 +72,28 @@ DB_HOST=127.0.0.1 REDIS_HOST=127.0.0.1 \
 
 ## Deploy
 
-GitHub Actions runs **CI only** on pull requests, pushes to `main`, and manual runs. It does not publish images, connect to AWS, or deploy. CI needs no repository secrets. Production releases are manual, using Bash/WSL, Docker Buildx, Git, `jq`, and an authenticated GitHub CLI account with `write:packages` access to your GHCR packages.
+GitHub Actions runs **CI only**. Deployment is an explicit local command; no AWS credentials or deployment secrets are needed in GitHub Actions.
 
-**Prepare the host once.** Use Ubuntu 24.04 with DNS pointing to the host, public ports 80/443, and SSH restricted to your administrator IP. Copy the reviewed release files to `/root/deploy`, run [install_host.sh](infra/scripts/bootstrap/install_host.sh), and initialize the single-node Docker Swarm. Create the external Docker secrets named in [stack.yml](stack.yml) from protected files outside Git. Run [setup_infra.sh](infra/scripts/bootstrap/setup_infra.sh), fill in the root-owned, mode `0600` `/root/deploy/.env` using the [production example](infra/env/.env.production.example), then run [start_database.sh](infra/scripts/bootstrap/start_database.sh) on a **fresh host only**. Apply and record the numbered migrations before the first full deployment. Keep database/cache ports private; keep optional email delivery disabled until its separate credentials and feedback handling are configured.
+On Windows, install Python 3.11+, Git, Docker Desktop (Linux containers), OpenSSH and GitHub CLI. Sign in with `gh auth login` and grant GHCR publishing access with `gh auth refresh --scopes write:packages`. The SSH key must already have administrator access to the configured server; pin its independently verified host key in your `known_hosts` file.
 
-**Build a reviewed commit locally.** Wait for its CI run to pass. Store production `VITE_GOOGLE_MAPS_*` and `VITE_FIREBASE_*` web settings in a protected file outside Git; restrict the Maps key to your production domain and authorize that domain in Firebase. These browser settings must never contain Firebase Admin, AWS, or SES private credentials. Replace `OWNER/REPO` below with your repository:
+**Configure once:** copy [deploy.example.json](infra/env/deploy.example.json) to `%LOCALAPPDATA%\DynamicEventMap\deploy.json` and fill in the repository, server and external file paths. Copy the [browser settings example](infra/env/.env.frontend.production.example) to the configured `frontend_env` path and fill in your production Maps/Firebase web settings. Restrict the Maps key to your production domain. Keep both files, keys, logs and release artifacts outside the checkout. Never put AWS, database or Firebase Admin credentials in browser settings.
 
-```sh
-set -eu
-set -a
-. /secure/path/frontend.env
-set +a
-export GITHUB_REPOSITORY="OWNER/REPO"
-export GITHUB_ACTOR="$(gh api user --jq .login)"
-export GITHUB_SHA="$(git rev-parse HEAD)"
-export GH_TOKEN="$(gh auth token)"
-bash infra/scripts/build_release.sh
-unset GH_TOKEN
-sha256sum release/eventmap-release.tar.gz
+Commit and push `main`, then run from the repository in PowerShell:
+
+```powershell
+.\deploy.ps1 -Check  # Read-only local/configuration/CI checks; no SSH or deployment.
+.\deploy.ps1         # Wait for this commit's CI, publish images and deploy.
+# Optional alternate private configuration:
+.\deploy.ps1 -Config C:\secure\eventmap\deploy.json
 ```
 
-The script requires a clean committed checkout, publishes four images, and creates an ignored `release/eventmap-release.tar.gz` with immutable image digests and committed deployment files. Keep the bundle and its checksum together; do not rebuild an already accepted commit with different images.
+If your PowerShell policy blocks local scripts, run `powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy.ps1` for this invocation. The launcher does not change your machine's execution policy.
 
-**Transfer and deploy.** Configure an `eventmap` SSH alias outside Git with your host, private key, and a verified host fingerprint. Upload the bundle, its validator, and reviewed migration SQL:
+The command requires a clean `main` matching GitHub and passing CI. It builds committed sources, reuses verified existing commit-tagged images, publishes four GHCR images, validates an immutable release bundle, and connects using pinned SSH. On the host it verifies migration checksums, takes a verified backup, restores and rehearses any new migrations in an isolated database, applies them in order, deploys by image digest, and checks the installed release and HTTPS readiness. A successful repeat verifies the current release without another backup or rollout. It does not change DNS, firewall rules, email delivery or scheduled jobs.
 
-```sh
-ssh eventmap 'umask 077; mkdir -p ~/eventmap-upload'
-scp release/eventmap-release.tar.gz infra/scripts/ci_deploy_lightsail.py eventmap:eventmap-upload/
-scp -r db/migrations eventmap:eventmap-upload/
-```
+Failures stop the sequence. Private logs and checkpoints are saved in the configured `state_dir` and `/var/lib/eventmap/local-releases/<commit>` on the host. An interrupted production migration is not automatically replayed. Inspect its SQL, schema and ledger before recovery; application rollback does not undo database migrations. Failed rehearsal databases are retained for inspection; successful releases remove only their own rehearsal database.
 
-On the host, open a root Bash shell (`sudo -i`). Take and verify a backup before applying any new migrations, and rehearse their recovery on an isolated database. Existing hosts use `bash /root/deploy/infra/scripts/run_swarm_job.sh backup`; scheduled backup and ingestion jobs remain on the host's systemd timers.
-
-<details>
-<summary>Apply a pending database migration</summary>
-
-Run once for each **unapplied**, reviewed SQL file, in numeric order. Adjust the upload path for your SSH user. Never rewrite an applied migration or create its ledger without successfully executing its SQL:
-
-```sh
-MIGRATION=/home/ubuntu/eventmap-upload/migrations/NNN_name.sql
-(
-  set -eu
-  umask 077
-  flock -n 9
-  LEDGER="/var/lib/eventmap/migrations/$(basename "$MIGRATION" .sql).applied"
-  test ! -e "$LEDGER"
-  mapfile -t DB_TASKS < <(docker ps -q --filter label=com.docker.swarm.service.name=eventmap_db)
-  test "${#DB_TASKS[@]}" -eq 1
-  docker exec -i "${DB_TASKS[0]}" sh -ec '
-    export PGPASSWORD="$(cat /run/secrets/pg_password)"
-    exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
-  ' < "$MIGRATION"
-  install -d -m 700 /var/lib/eventmap/migrations
-  sha256sum "$MIGRATION" > "$LEDGER"
-) 9>/var/lock/eventmap-maintenance.lock
-```
-
-</details>
-
-Set the reviewed full commit SHA, lowercase GHCR prefix, and checksum recorded on the build machine. Verify/stage the bundle, take a pre-deploy backup, then roll out by digest:
-
-```sh
-set -eu
-umask 077
-UPLOAD=/home/ubuntu/eventmap-upload
-SHA=REVIEWED_FULL_COMMIT_SHA
-PREFIX=ghcr.io/owner/repo-production
-DIGEST=VERIFIED_BUNDLE_SHA256
-python3 "$UPLOAD/ci_deploy_lightsail.py" install-bundle \
-  --bundle "$UPLOAD/eventmap-release.tar.gz" --digest "$DIGEST" \
-  --sha "$SHA" --prefix "$PREFIX"
-bash /root/deploy/infra/scripts/run_swarm_job.sh backup
-bash "/root/eventmap-releases/$SHA/infra/scripts/deploy.sh" "$PREFIX" "$SHA"
-```
-
-Deployment refuses missing/changed migration checksums and waits for service convergence and `/api/readyz`. Private GHCR packages require a protected, read-only registry login on the host. After success, check HTTPS, sign-in, map loading, and live comments. If deployment fails, inspect `docker service ps` and the preserved `/root/eventmap-release-history`; application rollback does not undo database migrations. Keep private keys, tokens, secret files, and host configuration outside the repository and never print them in logs.
+**Prepare a new host separately:** use Ubuntu 24.04, point DNS at it, allow ports 80/443 and restrict SSH to your administrator IP. Use [install_host.sh](infra/scripts/bootstrap/install_host.sh), initialize Swarm, create the external Docker secrets in [stack.yml](stack.yml), and configure the root-owned mode `0600` `/root/deploy/.env` from the [production example](infra/env/.env.production.example). Use [setup_infra.sh](infra/scripts/bootstrap/setup_infra.sh) and [start_database.sh](infra/scripts/bootstrap/start_database.sh) on a **fresh host only**, and apply/record the initial migrations after a verified recovery rehearsal. This release command targets an already initialized installation with working backup/restore services. Packages must be public or the host must have a protected read-only GHCR login. Keep database/cache ports private and optional email sending disabled until configured.
 
 ## Data and license
 

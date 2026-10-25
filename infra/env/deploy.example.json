@@ -1,0 +1,10 @@
+{
+  "repository": "OWNER/REPO",
+  "host": "YOUR_SERVER_IP_OR_HOSTNAME",
+  "user": "ubuntu",
+  "identity_file": "C:/Users/YOU/.ssh/eventmap/production.pem",
+  "known_hosts_file": "C:/Users/YOU/.ssh/eventmap/known_hosts",
+  "frontend_env": "C:/Users/YOU/AppData/Local/DynamicEventMap/frontend.env",
+  "state_dir": "C:/Users/YOU/AppData/Local/DynamicEventMap/releases",
+  "url": "https://www.example.com"
+}

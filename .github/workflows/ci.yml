@@ -113,3 +113,6 @@ jobs:
           docker run --rm --network none -e EVENTMAP_CD_BUNDLE_TEST=1 -e PYTHONDONTWRITEBYTECODE=1 \
             -v "$PWD:/repo:ro" -w /repo --entrypoint python3 eventmap-ops-check:local \
             -m unittest discover -s infra/scripts/tests -p 'test_ci_deploy*.py'
+          docker run --rm --network none -e PYTHONDONTWRITEBYTECODE=1 \
+            -v "$PWD:/repo:ro" -w /repo --entrypoint python3 eventmap-ops-check:local \
+            -m unittest discover -s infra/scripts/tests -p 'test_local_release.py'
