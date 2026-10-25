@@ -1,6 +1,6 @@
 import {NavLink,useLocation} from 'react-router-dom';
 import {useEffect,useRef} from 'react';
-const links=[['/bookmarks','Saved events'],['/recommendations','For you'],['/comments','My comments'],['/notifications','Notifications'],['/contributions','Contributions'],['/settings','Settings']];
+const links=[['/my-events','My events'],['/bookmarks','Saved events'],['/recommendations','For you'],['/comments','My comments'],['/notifications','Notifications'],['/contributions','Contributions'],['/settings','Settings']];
 const labels={'/bookmarks':'Your saved plans','/recommendations':'Picked for you','/comments':'Your conversations','/notifications':'Updates & activity','/contributions':'Community contributions','/settings':'Your preferences','/my-events':'Your events'};
 export default function PageLayout({title,intro,actions,eyebrow,narrow=false,children}) {
   const heading=useRef(null),{pathname}=useLocation();

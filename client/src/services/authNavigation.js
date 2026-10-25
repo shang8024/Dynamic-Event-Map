@@ -1,4 +1,4 @@
-const destinations=new Set(['/','/bookmarks','/recommendations','/comments','/notifications','/settings','/events/new','/contributions']);
+const destinations=new Set(['/','/bookmarks','/recommendations','/comments','/notifications','/settings','/events/new','/contributions','/my-events']);
 export function eventPageId(pathname) {
   const match=/^\/events\/([1-9]\d{0,9})$/.exec(pathname);
   return match&&Number(match[1])<=2147483647?Number(match[1]):null;
@@ -8,7 +8,8 @@ export function safeReturnTo(value='/') {
   try {
     const target=new URL(value,'https://eventmap.invalid');
     const suggestion=/^\/events\/([1-9]\d{0,9})\/suggest$/.exec(target.pathname);
-    if(target.origin!=='https://eventmap.invalid'||!destinations.has(target.pathname)&&!eventPageId(target.pathname)&&!(suggestion&&Number(suggestion[1])<=2147483647)) return '/';
+    const submission=/^\/event-submissions\/[1-9]\d{0,17}$/.test(target.pathname);
+    if(target.origin!=='https://eventmap.invalid'||!destinations.has(target.pathname)&&!eventPageId(target.pathname)&&!(suggestion&&Number(suggestion[1])<=2147483647)&&!submission) return '/';
     target.searchParams.delete('action');
     return target.pathname+target.search+target.hash;
   } catch {return '/';}

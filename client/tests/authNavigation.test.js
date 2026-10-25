@@ -35,6 +35,10 @@ test('event pages survive sign-in while actions stay bound to the same event',()
 });
 
 test('creation and contribution pages return after sign-in without accepting arbitrary event subroutes',()=>{
-  for(const path of ['/events/new','/events/296/suggest','/contributions?request=7']) assert.equal(safeReturnTo(path),path);
+  for(const path of ['/events/new','/events/296/suggest','/contributions?request=7','/my-events','/event-submissions/18']) assert.equal(safeReturnTo(path),path);
   for(const path of ['/events/0/suggest','/events/01/suggest','/events/2147483648/suggest','/events/296/delete']) assert.equal(safeReturnTo(path),'/');
+});
+
+test('private publication destinations accept only bounded positive identifiers',()=>{
+  for(const path of ['/event-submissions/0','/event-submissions/01','/event-submissions/-1','/event-submissions/1234567890123456789','/event-submissions/1/review','//evil.test/event-submissions/1']) assert.equal(safeReturnTo(path),'/');
 });

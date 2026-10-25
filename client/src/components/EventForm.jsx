@@ -147,14 +147,14 @@ export default function EventForm({initialData={},onSaved,onCancel,onDirtyChange
       <dl><div><dt>Published as</dt><dd>{form.submission_role==='organizer'?'Organizer':'Community reporter'}</dd></div>
         {form.organizer_name&&<div><dt>Organizer</dt><dd>{form.organizer_name}</dd></div>}<div><dt>Location</dt><dd>{form.location_address}</dd></div>
         <div><dt>Dates · Toronto time</dt><dd>{serializeOccurrences(dates).map(item=><p key={item.key}>{occurrenceTime(item)}</p>)}</dd></div></dl>
-      <p className="event-description">{form.description}</p><p className="form-help">Check the details before publishing. You can edit your listing later.</p>
+      <p className="event-description">{form.description}</p><p className="form-help">Your first event needs approval before it becomes public. You can track its status and the review result in My events.</p>
     </section>}
     {onSubmitChanges&&<label className="form-field"><span>What changed, and how did you confirm it?</span><textarea className="textarea textarea-bordered w-full" name="suggestion_explanation" required maxLength={2000} rows={3} value={form.suggestion_explanation} disabled={busy} onChange={update} placeholder="Describe your correction and include a source link when possible."/></label>}
     {!wizard&&!onSubmitChanges&&<section className="form-photo-note"><Icon name="photo" size={24}/><div><h3>Event photo</h3><p>Use Manage event to add or update a photo link after saving.</p></div></section>}
     <div className="form-actions">
       <button type="button" className="btn btn-ghost" disabled={busy} onClick={onCancel}>Cancel</button>
       {wizard&&step>0&&<button type="button" className="btn btn-outline" disabled={busy} onClick={()=>{setStep(old=>old-1);setError('');}}>Back</button>}
-      <button className="btn btn-primary" disabled={busy||locationBusy}>{locationBusy?'Finding address…':busy?(wizard&&step===2?'Checking photo…':'Saving…'):wizard&&step<3?'Continue':onSubmitChanges?'Submit for review':initialData.id?'Save changes':'Publish event'}</button>
+      <button className="btn btn-primary" disabled={busy||locationBusy}>{locationBusy?'Finding address…':busy?(wizard&&step===2?'Checking photo…':'Saving…'):wizard&&step<3?'Continue':onSubmitChanges?'Submit for review':initialData.id?'Save changes':'Submit event'}</button>
     </div>
   </form>;
 }

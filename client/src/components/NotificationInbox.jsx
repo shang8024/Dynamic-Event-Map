@@ -56,6 +56,7 @@ export default function NotificationInbox() {
       {!item.read_at&&<span className="notification-new">New</span>}<p className="notification-message">{item.message}</p>
       <div className="flex flex-wrap items-center justify-between gap-3"><time className="text-xs muted" dateTime={item.created_at}>{new Date(item.created_at).toLocaleString()}</time>
         <span className="flex flex-wrap gap-3">{item.suggestion_id&&<Link className="link font-medium" to={`/contributions?request=${item.suggestion_id}`} onClick={()=>{void mark(item.id);}}>View submission</Link>}
+        {item.publication_id&&<Link className="link font-medium" to={`/event-submissions/${item.publication_id}`} onClick={()=>{void mark(item.id);}}>View submission</Link>}
         {item.event_id && <Link className="link font-medium" to={`/events/${item.event_id}`} onClick={()=>{void mark(item.id);}}>View event</Link>}</span></div>
     </li>)}</ul>
     {!loading&&!data.items.length&&!error&&<div className="empty-state"><p>You’re all caught up.</p><p className="text-sm muted mt-2">Save an event to receive updates here.</p><Link className="btn btn-outline mt-4" to="/">Explore events</Link></div>}

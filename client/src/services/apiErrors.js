@@ -34,6 +34,8 @@ const validationMessages=new Set([
   'This event changed since submission. Reject this suggestion and ask for a new one.',
   'This event is no longer available for community changes.','Include a review reason in 1 to 2000 characters.',
   'This event has ended or been archived and cannot accept suggestions.','Another administrator must review your own suggestion.',
+  'You already have 10 events waiting for review.','Another administrator must review your own submission.',
+  'This event has already ended. Reject it with a reason.',
 ]);
 export class ApiError extends Error {
   constructor(message,{status=null,code='request_failed',retryAfter=null,ambiguous=false}={}) {

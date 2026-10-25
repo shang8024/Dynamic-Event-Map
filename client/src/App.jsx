@@ -20,6 +20,8 @@ const AuthPage=lazy(()=>import('./components/AuthPage'));
 const EventPage=lazy(()=>import('./feature/events/EventPage'));
 const EventComposePage=lazy(()=>import('./feature/events/EventComposePage'));
 const ContributionsPage=lazy(()=>import('./components/ContributionsPage'));
+const MyEventsPage=lazy(()=>import('./components/MyEventsPage'));
+const EventSubmissionPage=lazy(()=>import('./components/EventSubmissionPage'));
 import './CompactLayout.css';
 import UnsavedChangesProvider from './contexts/UnsavedChangesProvider';
 import SearchIndexing from './components/SearchIndexing';
@@ -34,7 +36,7 @@ function PageWrapper({ children,map=false }) {
   useEffect(()=>{
     page.current?.scrollTo({top:0});
     if(!['/signin','/register','/reset-password'].includes(location.pathname)&&!location.pathname.startsWith('/events/')) {
-      const title={'/bookmarks':'Saved events','/recommendations':'For you','/notifications':'Notifications','/comments':'My comments','/settings':'Settings','/contributions':'Contributions'}[location.pathname];
+      const title={'/bookmarks':'Saved events','/recommendations':'For you','/notifications':'Notifications','/comments':'My comments','/settings':'Settings','/contributions':'Contributions','/my-events':'My events'}[location.pathname];
       document.title=title?`${title} · Dynamic Event Map`:'Dynamic Event Map';
     }
   },[location.pathname]);
@@ -77,6 +79,8 @@ function AppRoutes() {
     <Route path="/reset-password" element={<PageWrapper><AuthPage key="reset-password" initialMode="reset"/></PageWrapper>}/>
     <Route path="/notifications" element={<AuthorizedRoute><NotificationInbox/></AuthorizedRoute>}/>
     <Route path="/contributions" element={<AuthorizedRoute><ContributionsPage key={user?.uid}/></AuthorizedRoute>}/>
+    <Route path="/my-events" element={<AuthorizedRoute><MyEventsPage key={user?.uid}/></AuthorizedRoute>}/>
+    <Route path="/event-submissions/:submissionId" element={<AuthorizedRoute><EventSubmissionPage key={user?.uid}/></AuthorizedRoute>}/>
     <Route path="/settings" element={<AuthorizedRoute><PreferencesPage/></AuthorizedRoute>}/>
     <Route path="/recommendations" element={<AuthorizedRoute><RecommendationsPage/></AuthorizedRoute>}/>
     <Route path="/unsubscribe" element={<PageWrapper><UnsubscribePage/></PageWrapper>}/>

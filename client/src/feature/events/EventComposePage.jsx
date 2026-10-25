@@ -21,15 +21,16 @@ export default function EventComposePage() {
     return()=>{active=false;};
   },[eventId,retry]);
   function saved(result) {
-    push({type:'success',title:suggesting?'Suggestion submitted':'Event published',
-      message:suggesting?'Your changes are waiting for administrator review. The result will appear in your inbox.':'Your event is now available on the map.'});
-    navigate(suggesting?`/contributions?request=${result.id}`:`/events/${result.id}`);
+    const pending=result.publication_status==='pending';
+    push({type:'success',title:suggesting?'Suggestion submitted':pending?'Event submitted for review':'Event published',
+      message:suggesting?'Your changes are waiting for administrator review. The result will appear in your inbox.':pending?'Your first event needs approval. Track it in My events; the decision will appear in your inbox.':'Your event is now available on the map.'});
+    navigate(suggesting?`/contributions?request=${result.id}`:pending?`/event-submissions/${result.submission_id}`:`/events/${result.id}`);
   }
   const eligible=!suggesting||state.event?.submission_role==='reporter'&&!isEnded(state.event)&&state.event.status!=='cancelled';
   return <main className="event-compose-page">
     <Link className="link compose-back" to={returnTo}>← {suggesting?'Back to event':'Back to map'}</Link>
     <header className="compose-heading"><p className="eyebrow">{suggesting?'Community contribution':'Share an event'}</p>
-      <h1>{suggesting?'Suggest an update':'Create event'}</h1><p className="form-help">{suggesting?'Add a correction or missing detail. Changes are published only after review.':'Start with the details, confirm the location, add a photo and review before publishing.'}</p></header>
+      <h1>{suggesting?'Suggest an update':'Create event'}</h1><p className="form-help">{suggesting?'Add a correction or missing detail. Changes are published only after review.':'Start with the details, confirm the location and add a photo. Your first event requires approval; track its status in My events.'}</p></header>
     {state.loading&&<p role="status">Loading event…</p>}
     {state.error&&<div role="alert" className="page-error"><p>{state.error}</p><button className="btn btn-outline" onClick={()=>setRetry(old=>old+1)}>Retry</button></div>}
     {suggesting&&!state.loading&&!state.error&&!eligible&&<p className="content-card">This listing is not accepting community suggestions. You can use Report abuse to request a correction or management access.</p>}

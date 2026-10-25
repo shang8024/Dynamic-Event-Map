@@ -70,7 +70,7 @@ export default function ContributionsPage() {
   }
   return <PageLayout title={review?'Review community updates':'My contributions'} intro={review?'Compare each suggestion with its original details before publishing. Decisions are delivered to the contributor’s inbox.':'Track your suggested changes. Approved updates add your name to the event’s community reporters.'}
     actions={<button className="btn btn-outline" disabled={state.loading} onClick={refresh}>Refresh</button>}>
-    {user.role==='admin'&&<div className="page-toolbar" role="group" aria-label="Contribution view"><button className={`btn ${review?'btn-ghost':'btn-outline'}`} onClick={()=>setParams({})}>My suggestions</button><button className={`btn ${review?'btn-outline':'btn-ghost'}`} onClick={()=>setParams({review:'true'})}>Review queue</button></div>}
+    {user.role==='admin'&&<div className="page-toolbar" role="group" aria-label="Contribution view"><button className={`btn ${review?'btn-ghost':'btn-outline'}`} onClick={()=>setParams({})}>My suggestions</button><button className={`btn ${review?'btn-outline':'btn-ghost'}`} onClick={()=>setParams({review:'true'})}>Review queue</button><Link className="btn btn-outline" to="/my-events?review=true">Review first events</Link></div>}
     {state.loading&&<p role="status">Loading contributions…</p>}
     {state.error&&<p role="alert" className="form-error">{state.error}</p>}
     {!state.loading&&!state.items.length&&!state.error&&<div className="empty-state"><p>{review?'There are no suggestions waiting for review.':'You have not suggested any updates yet.'}</p><p className="form-help">{review?'New community suggestions will appear here and in your inbox.':'Open a community-reported event and choose Suggest an update.'}</p></div>}
