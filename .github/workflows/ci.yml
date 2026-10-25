@@ -1,22 +1,13 @@
-name: CI and Release Images
+name: CI
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      publish_images:
-        description: Publish tested images and a manual deployment bundle to GHCR
-        type: boolean
-        default: false
-      deploy_production:
-        description: Build and deploy this main commit to production (includes image publication)
-        type: boolean
-        default: false
 permissions:
   contents: read
 concurrency:
-  group: eventmap-ci-${{ github.ref }}
+  group: eventmap-ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   verify:
@@ -98,7 +89,7 @@ jobs:
         run: |
           docker build -t eventmap-backup-check:local infra/backup
           python3 infra/backup/tests/integration.py
-      - name: Test production HTTP security headers
+      - name: Test HTTP security headers in local containers
         run: python3 infra/scripts/tests/security_headers.py
       - name: Test isolated image processing
         run: |
@@ -117,99 +108,8 @@ jobs:
           docker run --rm --network none -e EVENTMAP_CLEANUP_TEST=1 \
             -v "$PWD:/repo:ro" --entrypoint python3 eventmap-ops-check:local \
             /repo/infra/scripts/tests/cleanup_guardrails.py
-      - name: Test manual CD guardrails without cloud access
+      - name: Test release tooling in isolated containers
         run: |
           docker run --rm --network none -e EVENTMAP_CD_BUNDLE_TEST=1 -e PYTHONDONTWRITEBYTECODE=1 \
             -v "$PWD:/repo:ro" -w /repo --entrypoint python3 eventmap-ops-check:local \
             -m unittest discover -s infra/scripts/tests -p 'test_ci_deploy*.py'
-  publish:
-    needs: verify
-    if: github.event_name == 'workflow_dispatch' && (inputs.publish_images || inputs.deploy_production) && github.ref == 'refs/heads/main'
-    environment: production
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          persist-credentials: false
-      - name: Build immutable image references and deployment bundle
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VITE_GOOGLE_MAPS_MAP_ID: ${{ vars.GOOGLE_MAPS_MAP_ID }}
-          VITE_GOOGLE_MAPS_KEY: ${{ secrets.GOOGLE_MAPS_KEY }}
-          VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-          VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.FIREBASE_MESSAGING_SENDER_ID }}
-        run: bash infra/scripts/build_release.sh
-      - name: Downloadable manual deployment bundle
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: eventmap-release-${{ github.sha }}
-          path: release/eventmap-release.tar.gz
-          if-no-files-found: error
-          retention-days: 7
-  deploy:
-    name: Deploy production (manual only)
-    needs: publish
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy_production && github.ref == 'refs/heads/main'
-    environment:
-      name: production
-      url: https://www.dynamic-event-map.cloud
-    concurrency:
-      group: eventmap-production-deploy
-      cancel-in-progress: false
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    permissions:
-      contents: read
-      id-token: write
-    env:
-      AWS_REGION: ${{ vars.AWS_REGION || 'ca-central-1' }}
-      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-      LIGHTSAIL_INSTANCE_NAME: ${{ vars.LIGHTSAIL_INSTANCE_NAME }}
-      AWS_PAGER: ''
-      AWS_RETRY_MODE: standard
-      AWS_MAX_ATTEMPTS: '3'
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          persist-credentials: false
-      - name: Check deployment configuration
-        shell: bash
-        run: |
-          [[ "$AWS_DEPLOY_ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9_+=,.@/-]+$ ]] || {
-            echo 'Configure the production environment variable AWS_DEPLOY_ROLE_ARN (see README.md).' >&2; exit 1;
-          }
-          [[ "$LIGHTSAIL_INSTANCE_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{1,253}[A-Za-z0-9]$ ]] || {
-            echo 'Configure the production environment variable LIGHTSAIL_INSTANCE_NAME.' >&2; exit 1;
-          }
-      - name: Obtain temporary AWS credentials using GitHub OIDC
-        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
-          role-session-name: eventmap-cd-${{ github.run_id }}-${{ github.run_attempt }}
-          role-duration-seconds: 3600
-          unset-current-credentials: true
-      - name: Download this run's tested release bundle
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
-        with:
-          name: eventmap-release-${{ github.sha }}
-          path: release
-      - name: Back up and deploy the immutable release
-        shell: bash
-        run: |
-          python3 infra/scripts/ci_deploy_lightsail.py deploy \
-            --region "$AWS_REGION" --instance "$LIGHTSAIL_INSTANCE_NAME" \
-            --sha "$GITHUB_SHA" --prefix "ghcr.io/${GITHUB_REPOSITORY,,}-production" \
-            --bundle release/eventmap-release.tar.gz --state "$RUNNER_TEMP/eventmap-cd-state.json"
-      - name: Remove this run's temporary SSH access
-        if: always()
-        shell: bash
-        run: python3 infra/scripts/ci_deploy_lightsail.py cleanup --state "$RUNNER_TEMP/eventmap-cd-state.json"
