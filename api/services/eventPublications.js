@@ -2,12 +2,12 @@ const {createEventModel}=require('../models/eventModel');
 const {publicEvent}=require('./publicEvents');
 const {prepareEventInput}=require('./eventSchedule');
 const {validateEvent}=require('./eventPermissions');
+const {authenticated,administrator,activeAdministrator,requireAdministrator}=require('./moderationAccess');
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
 function identifier(value) {
   if(!/^[1-9]\d{0,17}$/.test(String(value??''))) fail(400,'Invalid publication ID.');
   return String(value);
 }
-function authenticated(user) {if(!user?.id) fail(401,'Authentication required');}
 const columns='id,user_id,event_id,draft,status,review_note,created_at,reviewed_at';
 function createEventPublications(pool) {
   const events=createEventModel(pool);
@@ -44,7 +44,7 @@ function createEventPublications(pool) {
     },
     async list(user,{review=false,before=null}={}) {
       authenticated(user);
-      if(review&&user.role!=='admin') fail(403,'Administrator access required');
+      if(review) await requireAdministrator(pool,user);
       if(before!==null) identifier(before);
       const {rows}=await pool.query(`SELECT ${columns} FROM event_publication_requests
         WHERE (($1::boolean AND status='pending') OR (NOT $1::boolean AND user_id=$2))
@@ -53,7 +53,8 @@ function createEventPublications(pool) {
     },
     async get(id,user) {
       authenticated(user);identifier(id);
-      const {rows:[row]}=await pool.query(`SELECT ${columns} FROM event_publication_requests WHERE id=$1 AND (user_id=$2 OR $3::boolean)`,[id,user.id,user.role==='admin']);
+      const {rows:[row]}=await pool.query(`SELECT ${columns} FROM event_publication_requests WHERE id=$1 AND
+        (user_id=$2 OR ($3::boolean AND EXISTS(SELECT 1 FROM profiles moderator WHERE moderator.id=$2 AND moderator.role='admin' AND moderator.disabled_at IS NULL)))`,[id,user.id,user.role==='admin']);
       if(!row) fail(404,'Submission not found');
       return row;
     },
@@ -65,17 +66,23 @@ function createEventPublications(pool) {
     },
     async review(id,user,{decision,note=''}={}) {
       authenticated(user);identifier(id);
-      if(user.role!=='admin') fail(403,'Administrator access required');
+      administrator(user);
       if(!['approve','reject'].includes(decision)) fail(400,'Choose approve or reject.');
       if(typeof note!=='string'||note.length>2000||decision==='reject'&&!note.trim()) fail(400,'Include a review reason in 1 to 2000 characters.');
       note=note.trim();
       const db=await pool.connect();
       try {
         await db.query('BEGIN');
+        await requireAdministrator(db,user);
         const {rows:[lookup]}=await db.query('SELECT user_id FROM event_publication_requests WHERE id=$1',[id]);
         if(!lookup) fail(404,'Submission not found');
-        const {rows:[owner]}=await db.query('SELECT id,disabled_at FROM profiles WHERE id=$1 FOR UPDATE',[lookup.user_id]);
+        // Lock both profiles in ID order: two administrators reviewing each
+        // other's submissions cannot deadlock through opposite profile order.
+        const {rows:profiles}=await db.query('SELECT id,role,disabled_at FROM profiles WHERE id=ANY($1::integer[]) ORDER BY id FOR NO KEY UPDATE',[[lookup.user_id,user.id]]);
+        if(!activeAdministrator(profiles.find(profile=>String(profile.id)===String(user.id)))) fail(403,'Administrator access required');
+        const owner=profiles.find(profile=>String(profile.id)===String(lookup.user_id));
         const {rows:[request]}=await db.query(`SELECT ${columns} FROM event_publication_requests WHERE id=$1 FOR UPDATE`,[id]);
+        if(!owner||!request) fail(404,'Submission not found');
         if(request.status!=='pending') fail(409,'This submission has already been reviewed.');
         if(String(request.user_id)===String(user.id)) fail(403,'Another administrator must review your own submission.');
         let event=null;

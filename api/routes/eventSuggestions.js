@@ -3,11 +3,12 @@ const auth=require('../middleware/auth');
 const pool=require('../config/db');
 const {createEventSuggestions,identifier}=require('../services/eventSuggestions');
 const suggestions=createEventSuggestions(pool);
+router.use('/event-suggestions',(_req,res,next)=>{res.set('Cache-Control','no-store');next();});
 function route(handler) {return async(req,res)=>{
   res.set('Cache-Control','no-store');
   try {res.json(await handler(req));}
   catch(error) {
-    console.error('Event contribution operation failed',error.code||error.name);
+    if(!error.status) console.error('Event contribution operation failed',error.code||error.name);
     res.status(error.status||503).json({error:error.status?error.message:'Community updates are temporarily unavailable.'});
   }
 };}

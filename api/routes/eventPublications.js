@@ -3,6 +3,8 @@ const auth=require('../middleware/auth');
 const pool=require('../config/db');
 const store=require('../services/eventPublications').createEventPublications(pool);
 const {publicImageError,imageStatus}=require('../services/imageErrors');
+// Also cover rejected authentication and HEAD responses before route handlers.
+router.use(['/my-events','/event-publications'],(_req,res,next)=>{res.set('Cache-Control','no-store');next();});
 function route(handler) {return async(req,res)=>{
   res.set('Cache-Control','no-store');
   try {res.json(await handler(req));}

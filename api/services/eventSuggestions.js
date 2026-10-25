@@ -1,6 +1,7 @@
 const {prepareEventInput}=require('./eventSchedule');
 const {validateEvent}=require('./eventPermissions');
 const {createEventModel}=require('../models/eventModel');
+const {administrator,requireAdministrator}=require('./moderationAccess');
 
 const EDITABLE=['title','description','category','latitude','longitude','location_address','place_id','organizer_name','occurrences'];
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
@@ -79,7 +80,7 @@ function createEventSuggestions(pool) {
     },
     async list(user,{review=false,before=null}={}) {
       if(!user?.id) fail(401,'Authentication required');
-      if(review && user.role!=='admin') fail(403,'Administrator access required');
+      if(review) await requireAdministrator(pool,user);
       if(before!==null) identifier(before);
       const {rows}=await pool.query(`${select} WHERE ((NOT $3::boolean AND r.submitter_id=$1) OR ($3::boolean AND r.status='pending'))
         AND ($2::bigint IS NULL OR r.id<$2) ORDER BY r.id DESC LIMIT 30`,[user.id,before,review]);
@@ -88,12 +89,13 @@ function createEventSuggestions(pool) {
     async get(id,user) {
       identifier(id);
       if(!user?.id) fail(401,'Authentication required');
-      const {rows:[row]}=await pool.query(`${select} WHERE r.id=$1 AND (r.submitter_id=$2 OR $3::boolean)`,[id,user.id,user.role==='admin']);
+      const {rows:[row]}=await pool.query(`${select} WHERE r.id=$1 AND
+        (r.submitter_id=$2 OR ($3::boolean AND EXISTS(SELECT 1 FROM profiles moderator WHERE moderator.id=$2 AND moderator.role='admin' AND moderator.disabled_at IS NULL)))`,[id,user.id,user.role==='admin']);
       if(!row) fail(404,'Submission not found');
       return row;
     },
     async review(id,user,{decision,note=''}) {
-      if(user?.role!=='admin') fail(403,'Administrator access required');
+      administrator(user);
       identifier(id);
       if(!['approve','reject'].includes(decision)) fail(400,'Choose approve or reject.');
       if(typeof note!=='string'||note.length>2000||decision==='reject'&&!note.trim()) fail(400,'Include a review reason in 1 to 2000 characters.');
@@ -101,6 +103,7 @@ function createEventSuggestions(pool) {
       const db=await pool.connect();
       try {
         await db.query('BEGIN');
+        await requireAdministrator(db,user,{lock:true});
         const {rows:[lookup]}=await db.query('SELECT event_id FROM event_change_requests WHERE id=$1',[id]);
         if(!lookup) fail(404,'Submission not found');
         // Event before request: compatible with event deletion and parallel reviews.
