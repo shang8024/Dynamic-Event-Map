@@ -23,6 +23,7 @@ __pycache__/
 **/acme.json
 secrets/
 .local/
+/release/
 # Private planning, review notes and import reports are stored outside this checkout.
 /docs/
 /project_proposal.md
