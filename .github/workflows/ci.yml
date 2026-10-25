@@ -81,6 +81,8 @@ jobs:
           PGDATABASE: eventmap_test
           INGEST_DB_TEST: '1'
           INGEST_PG16_TEST: '1'
+          # Hosted runners may mount /tmp as tmpfs; spool fixtures require disk.
+          INGEST_SPOOL_DIR: ${{ github.workspace }}
         run: |
           npm ci --prefix infra/ingest --no-audit
           npm test --prefix infra/ingest
