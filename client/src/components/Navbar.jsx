@@ -52,8 +52,8 @@ export default function Navbar() {
       {user?<details ref={menu} className="account-menu">
         <summary aria-label="Account menu"><img src={user.photoURL||GuestAvatar} alt="" width="32" height="32"/></summary>
         <div className="account-menu-panel">
-          <div className="account-menu-heading"><strong>{user.displayName||'Your account'}</strong><span>{user.email}</span>{user.role==='admin' && <span className="admin-badge">Administrator</span>}</div>
-          <Link to="/my-events">My events</Link><Link to="/bookmarks">Saved events</Link><Link to="/recommendations">For you</Link><Link to="/comments">My comments</Link><Link to="/notifications">Notifications</Link><Link to="/contributions">{user.role==='admin'?'Contributions & review':'My contributions'}</Link><Link to="/settings">Settings</Link>
+          <Link to="/my-events">Dashboard</Link>
+          <Link to="/settings">Settings</Link>
           <button onClick={handleLogout}>Sign out</button>
         </div>
       </details>:!authPage&&<button className="btn btn-ghost sign-in-button" disabled={loading} onClick={()=>requestAuth()}>{loading?'Loading…':account?account.emailVerified?'Finish sign-in':'Verify email':'Sign in'}</button>}

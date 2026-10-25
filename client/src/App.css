@@ -102,12 +102,9 @@ h1,h2,h3 { text-wrap:pretty; overflow-wrap:anywhere; }
 .account-menu > summary:hover,.account-menu[open] > summary { background:var(--color-base-200); border-color:var(--color-base-300); box-shadow:0 0 0 3px var(--soft-accent); }
 .account-menu > summary::-webkit-details-marker { display:none; }
 .account-menu summary img { border-radius:50%; object-fit:cover; }
-.account-menu-panel { position:absolute; right:0; top:calc(100% + 12px); width:260px; max-width:calc(100vw - 24px); padding:8px; border:1px solid var(--color-base-300); border-radius:14px; background:var(--color-base-100); box-shadow:0 14px 40px #0003; max-height:calc(100dvh - 90px); overflow:auto; }
+.account-menu-panel { position:absolute; right:0; top:calc(100% + 12px); width:200px; max-width:calc(100vw - 24px); padding:8px; border:1px solid var(--color-base-300); border-radius:14px; background:var(--color-base-100); box-shadow:0 14px 40px #0003; max-height:calc(100dvh - 90px); overflow:auto; }
 .account-menu-panel > a,.account-menu-panel > button { display:flex; align-items:center; min-height:44px; padding:10px 12px; width:100%; text-align:left; border-radius:8px; font-size:14px; }
 .account-menu-panel > a:hover,.account-menu-panel > button:hover { background:var(--color-base-200); }
-.account-menu-heading { display:flex; flex-direction:column; gap:4px; padding:12px; margin-bottom:6px; border-bottom:1px solid var(--color-base-300); overflow-wrap:anywhere; font-size:13px; color:var(--muted); }
-.account-menu-heading strong { font-size:15px; color:var(--color-base-content); }
-.admin-badge { align-self:flex-start; display:inline-flex; padding:2px 7px; border-radius:6px; background:var(--soft-accent); color:var(--color-primary); font-size:11px; font-weight:650; }
 .header-error { grid-column:1/-1; color:var(--color-error); padding-top:8px; font-size:14px; }
 .skip-link { position:absolute; top:-80px; left:16px; padding:10px 16px; background:var(--color-base-100); border:2px solid var(--focus-color); border-radius:8px; }
 .skip-link:focus { top:8px; z-index:100; }
