@@ -58,11 +58,11 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Routes
+app.use('/api',require('./middleware/searchIndexing'));
 app.get('/api/healthz', (req, res) => res.json({ status: 'ok' }));
 // Reject excess traffic before JSON parsing or dependency-backed readiness.
 app.use('/api',require('./middleware/rateLimit').anonymous);
 app.use(express.json({limit:'100kb'}));
-app.get('/api/sitemap.xml',require('./services/sitemap').createSitemap({db:require('./config/db')}));
 app.get('/api/readyz', require('./services/readiness').createReadiness({
   db:require('./config/db'),redis:require('./config/redis'),realtime:require('./socket'),imageProxyURL:process.env.IMAGE_PROXY_URL,
 }));

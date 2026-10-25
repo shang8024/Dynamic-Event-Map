@@ -55,8 +55,6 @@ test('HEAD and encoded event IDs cannot bypass expensive public read policies',(
   }
   assert.equal(requestPolicy({originalUrl:'/api/events',method:'HEAD'},false).bucket,'catalogue');
   assert.equal(requestPolicy({originalUrl:'/API/EVENTS/MAP/?q=library',method:'GET'},false).bucket,'catalogue');
-  assert.equal(requestPolicy({originalUrl:'/API/SITEMAP.XML?cache=bust',method:'GET'},false).bucket,'catalogue');
-  assert.equal(requestPolicy({originalUrl:'/api/sitemap.xml',method:'HEAD'},false).bucket,'catalogue');
   assert.equal(requestPolicy({originalUrl:'/api/events/%31/comments/snapshot',method:'HEAD'},false).bucket,'discussion');
   assert.equal(requestPolicy({originalUrl:'/api/notifications',method:'GET'},true).limit,180);
 });

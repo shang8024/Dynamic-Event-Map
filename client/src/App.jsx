@@ -22,6 +22,7 @@ const EventComposePage=lazy(()=>import('./feature/events/EventComposePage'));
 const ContributionsPage=lazy(()=>import('./components/ContributionsPage'));
 import './CompactLayout.css';
 import UnsavedChangesProvider from './contexts/UnsavedChangesProvider';
+import SearchIndexing from './components/SearchIndexing';
 
 function MapPage() {
   const {isLoaded,loadError}=useGoogleMaps();
@@ -67,7 +68,7 @@ function AuthorizedRoute({ children }) {
 
 function AppRoutes() {
   const {user}=useAuth();
-  return <UnsavedChangesProvider><AuthFlowProvider><Routes>
+  return <><SearchIndexing/><UnsavedChangesProvider><AuthFlowProvider><Routes>
     <Route path="/events/new" element={<AuthorizedRoute><EventComposePage/></AuthorizedRoute>}/>
     <Route path="/events/:eventId/suggest" element={<AuthorizedRoute><EventComposePage/></AuthorizedRoute>}/>
     <Route path="/events/:eventId" element={<PageWrapper><EventPage/></PageWrapper>}/>
@@ -82,7 +83,7 @@ function AppRoutes() {
     <Route path="/bookmarks" element={<AuthorizedRoute><BookmarksPage/></AuthorizedRoute>}/>
     <Route path="/comments" element={<AuthorizedRoute><UserComments/></AuthorizedRoute>}/>
     <Route path="*" element={<PageWrapper map><MapPage/></PageWrapper>}/>
-  </Routes></AuthFlowProvider></UnsavedChangesProvider>;
+  </Routes></AuthFlowProvider></UnsavedChangesProvider></>;
 }
 
 // A data router lets forms protect unsaved changes on links and browser Back.
