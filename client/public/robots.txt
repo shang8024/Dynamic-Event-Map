@@ -1,0 +1,25 @@
+# Keep public event pages, assets and event APIs available for rendering.
+User-agent: *
+Disallow: /socket.io/
+Disallow: /signin
+Disallow: /register
+Disallow: /reset-password
+Disallow: /bookmarks
+Disallow: /recommendations
+Disallow: /comments
+Disallow: /notifications
+Disallow: /contributions
+Disallow: /settings
+Disallow: /unsubscribe
+Disallow: /events/new
+Disallow: /events/*/suggest
+Disallow: /api/auth
+Disallow: /api/profiles
+Disallow: /api/bookmarks
+Disallow: /api/comments/me
+Disallow: /api/notifications
+Disallow: /api/me/
+Disallow: /api/recommendations
+Disallow: /api/events/*/suggestions
+
+Sitemap: https://www.dynamic-event-map.cloud/sitemap.xml
