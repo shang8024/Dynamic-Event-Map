@@ -28,12 +28,13 @@ function createEventModel(pool) { return {
       AND ($1='' OR position($1 in lower(e.title||' '||COALESCE(e.description,'')))>0) ORDER BY e.id`,[search]),
   getAll: () => pool.query(`${select} WHERE e.archived_at IS NULL AND (e.ends_at IS NULL OR e.ends_at>now()) ORDER BY e.id ASC`),
   getById: (id,db=pool) => db.query(`${select} WHERE e.id=$1`, [id]),
-  async create(input) {
+  submit: input => require('../services/eventPublications').createEventPublications(pool).submit(input),
+  async create(input,transaction=null) {
     const value=prepareEventInput({...input,occurrences:input.occurrences||[{starts_at:input.starts_at,ends_at:input.ends_at}]});
     const {user_id,title,description,category,lat,lng,location_address,starts_at,ends_at,source='internal',place_id,occurrences,submission,organizer_name,image}=value;
-    const db=await pool.connect();
+    const db=transaction||await pool.connect();
     try {
-      await db.query('BEGIN');
+      if(!transaction) await db.query('BEGIN');
       const result=await db.query(`INSERT INTO events(user_id,title,description,category,latitude,longitude,location_address,starts_at,ends_at,source,data)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb) RETURNING *`,
       [user_id,title,description,category,lat,lng,location_address,starts_at,ends_at,source,
@@ -41,8 +42,8 @@ function createEventModel(pool) { return {
           ...(image?{image,image_hidden:false}:{}),occurrences,schedule_origin:'manual',schedule_format:2})]);
       await db.query('SELECT refresh_event_occurrences($1)',[result.rows[0].id]);
       const hydrated=await db.query(`${select} WHERE e.id=$1`,[result.rows[0].id]);
-      await db.query('COMMIT');return hydrated;
-    } catch(error) {await db.query('ROLLBACK');throw error;} finally {db.release();}
+      if(!transaction) await db.query('COMMIT');return hydrated;
+    } catch(error) {if(!transaction) await db.query('ROLLBACK');throw error;} finally {if(!transaction) db.release();}
   },
   delete: id => pool.query('DELETE FROM events WHERE id=$1 RETURNING *', [id]),
   async update({ id, actor_id, version, ...input },transaction=null) {

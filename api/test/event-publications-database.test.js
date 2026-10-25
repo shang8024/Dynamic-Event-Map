@@ -1,0 +1,70 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path');
+const {Pool}=require('pg');
+const {createEventModel}=require('../models/eventModel');
+const {createEventPublications}=require('../services/eventPublications');
+test('first-event moderation is private, serialized, durable and atomic through approval and rejection',
+  {skip:process.env.NOTIFICATION_DB_TEST!=='1'},async()=>{
+  assert.equal(process.env.PGHOST,'127.0.0.1');
+  const schema=`publication_test_${process.pid}`,admin=new Pool({max:1}),db=new Pool({max:6,options:`-c search_path=${schema}`});
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  try {
+    await db.query(await fs.readFile(path.resolve(__dirname,'../../db/init.sql'),'utf8'));
+    const directory=path.resolve(__dirname,'../../db/migrations');
+    for(const file of (await fs.readdir(directory)).filter(name=>/^\d.*\.sql$/.test(name)).sort()) await db.query(await fs.readFile(path.join(directory,file),'utf8'));
+    const {rows:users}=await db.query("INSERT INTO profiles(username,role) VALUES('new-publisher','member'),('second-publisher','member'),('reviewer','admin'),('other-reviewer','admin'),('unrelated','member') RETURNING id,role");
+    const [owner,otherOwner,reviewer,otherReviewer,unrelated]=users,store=createEventPublications(db),events=createEventModel(db);
+    const input={title:'First community event',description:'A genuine local event',category:'Other',latitude:43.7,longitude:-79.4,
+      location_address:'Toronto',occurrences:[{key:'first',starts_at:'2030-01-01T15:00:00Z',ends_at:'2030-01-01T17:00:00Z'}],submission:{role:'reporter'}};
+    const submit=(user,title=input.title)=>store.submit({...input,user_id:user.id,title,source:'external',publication_status:'published',first_event_approved_at:new Date().toISOString()});
+    const pending=await Promise.all([submit(owner),submit(owner,'Concurrent first event')]);
+    assert.ok(pending.every(result=>result.rows[0].publication_status==='pending'));
+    assert.equal((await events.getAll()).rows.length,0,'unapproved content never enters public catalogue');
+    assert.equal((await events.getMap()).rows.length,0);
+    assert.equal((await db.query('SELECT count(*)::int n FROM event_occurrences')).rows[0].n,0);
+    assert.equal((await db.query("SELECT count(*)::int n FROM realtime_outbox WHERE room IS NULL")).rows[0].n,0,'no public socket payload for a draft');
+    const id=pending[0].rows[0].submission_id;
+    assert.equal((await store.get(id,owner)).draft.title,input.title);
+    await assert.rejects(()=>store.get(id,unrelated),{status:404});
+    await assert.rejects(()=>store.list(owner,{review:true}),{status:403});
+    await assert.rejects(()=>store.list(null),{status:401});
+    await assert.rejects(()=>store.review(id,owner,{decision:'approve'}),{status:403});
+    await assert.rejects(()=>store.review(id,reviewer,{decision:'reject',note:'  '}),{status:400});
+    await assert.rejects(()=>store.get('1 OR 1=1',owner),{status:400});
+    assert.equal((await store.list(reviewer,{review:true})).items.length,2);
+    const decisions=await Promise.allSettled([reviewer,otherReviewer].map(user=>store.review(id,user,{decision:'approve',note:'Verified source.'})));
+    assert.equal(decisions.filter(result=>result.status==='fulfilled').length,1);
+    const approved=await store.get(id,owner);
+    assert.equal(approved.status,'approved');assert.ok(approved.event_id);
+    assert.equal((await events.getAll()).rows.length,1);
+    assert.ok((await db.query('SELECT first_event_approved_at FROM profiles WHERE id=$1',[owner.id])).rows[0].first_event_approved_at);
+    const notice=(await db.query("SELECT * FROM in_app_notifications WHERE user_id=$1 AND publication_id=$2",[owner.id,id])).rows;
+    assert.equal(notice.length,1);assert.equal(notice[0].kind,'publication_approved');
+    const feed=(await db.query("SELECT payload FROM realtime_outbox WHERE event='event:created'")).rows;
+    assert.equal(feed.length,1);assert.equal(feed[0].payload.title,input.title);assert.ok(!Object.hasOwn(feed[0].payload,'draft'));
+    assert.equal((await store.published(unrelated)).items.length,0);
+    await events.delete(approved.event_id);
+    const later=await submit(owner,'Approved publishers retain access after deletion');
+    assert.ok(later.rows[0].id);assert.equal(later.rows[0].source,'internal');
+    const rejectedId=(await submit(otherOwner)).rows[0].submission_id;
+    const reason='<script>alert(1)</script> Please provide a reliable organizer link.';
+    await store.review(rejectedId,reviewer,{decision:'reject',note:reason});
+    assert.equal((await store.get(rejectedId,otherOwner)).review_note,reason);
+    assert.equal((await store.get(rejectedId,otherOwner)).status,'rejected');
+    assert.equal((await store.published(otherOwner)).items.length,0);
+    assert.equal((await submit(otherOwner,'Rejection does not bypass review')).rows[0].publication_status,'pending');
+    const rejectedNotice=(await db.query('SELECT kind,message FROM in_app_notifications WHERE user_id=$1 AND publication_id=$2',[otherOwner.id,rejectedId])).rows[0];
+    assert.equal(rejectedNotice.kind,'publication_rejected');assert.ok(rejectedNotice.message.includes(reason));
+    const rollbackId=(await submit(otherOwner,'Atomic approval')).rows[0].submission_id;
+    const failing=createEventPublications({query:(...args)=>db.query(...args),async connect(){const client=await db.connect();return {release:()=>client.release(),query(sql,...args){
+      if(sql.includes('INSERT INTO in_app_notifications')) throw Object.assign(new Error('Injected notification failure'),{code:'TEST_FAILURE'});
+      return client.query(sql,...args);
+    }};}});
+    await assert.rejects(()=>failing.review(rollbackId,reviewer,{decision:'approve'}));
+    assert.equal((await store.get(rollbackId,otherOwner)).status,'pending');
+    assert.equal((await store.published(otherOwner)).items.length,0);
+    assert.equal((await db.query('SELECT first_event_approved_at FROM profiles WHERE id=$1',[otherOwner.id])).rows[0].first_event_approved_at,null);
+    await assert.rejects(()=>store.review(rollbackId,{...otherOwner,role:'admin'},{decision:'approve'}),{status:403});
+    for(let i=0;i<8;i++) await submit(otherOwner,`Pending cap ${i}`);
+    await assert.rejects(()=>submit(otherOwner,'Over the pending cap'),{status:409});
+  } finally {await db.end();await admin.query(`DROP SCHEMA ${schema} CASCADE`);await admin.end();}
+});

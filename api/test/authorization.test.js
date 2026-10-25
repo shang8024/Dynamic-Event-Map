@@ -249,7 +249,7 @@ test('a database failure is retryable and does not masquerade as an invalid toke
 
 function events(create,{photoInput}={}) {
   return load('controllers/eventsController.js', {
-    '../models/eventModel': { create },
+    '../models/eventModel': { submit:create },
     '../services/eventPermissions': require('../services/eventPermissions'),
     '../services/eventSchedule': require('../services/eventSchedule'),
     '../services/publicEvents': require('../services/publicEvents'),
@@ -267,6 +267,15 @@ const eventBody = {
   location_address: 'Toronto', starts_at: '2026-11-01T14:00:00Z', ends_at: '2026-11-01T15:00:00Z',
   submission_role: 'reporter',
 };
+
+test('a queued first event returns its private submission identifier without pretending to be published',async()=>{
+  const controllers=events(async()=>({rows:[{publication_status:'pending',submission_id:'29'}]}));
+  const res=response();
+  await controllers.createEvent({user:{id:7},body:{...eventBody,publication_status:'published',first_event_approved_at:'2000-01-01T00:00:00Z'}},res);
+  assert.equal(res.statusCode,200);
+  assert.equal(res.body.publication_status,'pending');assert.equal(res.body.submission_id,'29');
+  assert.equal(res.body.id,undefined);
+});
 
 test('a logged-in user cannot impersonate the external-event importer', async () => {
   const controllers = events(() => assert.fail('external event inserted'));

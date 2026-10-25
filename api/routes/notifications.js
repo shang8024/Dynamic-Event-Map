@@ -4,7 +4,7 @@ const pool=require('../config/db');
 router.get('/notifications',auth,async(req,res)=>{
   try {
     const before=/^\d+$/.test(req.query.before||'')?req.query.before:null;
-    const {rows}=await pool.query(`SELECT id,event_id,suggestion_id,kind,title,message,read_at,created_at FROM in_app_notifications
+    const {rows}=await pool.query(`SELECT id,event_id,suggestion_id,publication_id,kind,title,message,read_at,created_at FROM in_app_notifications
       WHERE user_id=$1 AND ($2::bigint IS NULL OR id<$2) ORDER BY id DESC LIMIT 30`,[req.user.id,before]);
     const {rows:[count]}=await pool.query('SELECT count(*)::integer unread FROM in_app_notifications WHERE user_id=$1 AND read_at IS NULL',[req.user.id]);
     res.set('Cache-Control','no-store').json({items:rows,unread:count.unread,next:rows.length===30?rows.at(-1).id:null});

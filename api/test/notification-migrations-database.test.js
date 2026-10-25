@@ -28,9 +28,9 @@ test('community notification migrations preserve existing import alerts and all 
       await db.query(await fs.readFile(path.join(directory,file),'utf8'));
     }
     assert.deepEqual((await db.query('SELECT * FROM in_app_notifications ORDER BY id')).rows,
-      before.map(row=>({...row,suggestion_id:null})));
+      before.map(row=>({...row,suggestion_id:null,publication_id:null})));
     await db.query('DELETE FROM in_app_notifications');
-    const supported=[...legacyKinds,'suggestion_submitted','suggestion_approved','suggestion_rejected'];
+    const supported=[...legacyKinds,'suggestion_submitted','suggestion_approved','suggestion_rejected','publication_submitted','publication_approved','publication_rejected'];
     for(const kind of supported) await insert(kind);
     assert.deepEqual((await db.query('SELECT kind FROM in_app_notifications ORDER BY id')).rows.map(row=>row.kind),supported);
     await assert.rejects(()=>insert('unsupported_kind'),error=>error.code==='23514'

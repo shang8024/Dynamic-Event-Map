@@ -32,7 +32,8 @@ async function createEvent(req,res) {
     const submission={role:input.submission_role,
       ...(input.submission_role==='organizer'?{organizer_confirmed_at:new Date().toISOString()}:{})};
     const image=input.image==null?null:(await require('../services/eventPhotoInput').preparePhoto(input.image)).image;
-    const row=(await Event.create({...input,lat:Number(input.latitude),lng:Number(input.longitude),user_id:req.user.id,source:'internal',submission,image})).rows[0];
+    const row=(await Event.submit({...input,latitude:Number(input.latitude),longitude:Number(input.longitude),user_id:req.user.id,source:'internal',submission,image})).rows[0];
+    if(row.publication_status==='pending') return res.json({publication_status:'pending',submission_id:row.submission_id});
     const output=publicEvent(row);
     await bumpEventCount(1); broadcast('event:created',output); res.json(output);
   } catch(error) {fail(res,error);}
