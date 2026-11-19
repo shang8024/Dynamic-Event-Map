@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {createEvent,updateEvent} from '../services/eventsService';
+import {createEvent,findSimilarEvents,updateEvent} from '../services/eventsService';
 import {CATEGORIES} from '../utils/event';
 import EventLocationPicker from './EventLocationPicker';
 import Icon from './Icon';
@@ -9,6 +9,7 @@ import useUnsavedChanges from '../hooks/useUnsavedChanges';
 import {post} from '../services/apiService';
 import {useNotifications} from '../contexts/NotificationContext';
 import {occurrenceTime} from '../utils/event';
+import {duplicateDraft,matchReasons} from '../utils/eventDuplicates';
 
 const STEPS=['Event details','Location','Photo link','Review'];
 export default function EventForm({initialData={},onSaved,onCancel,onDirtyChange,onBusyChange,onDiscard,wizard=false,onSubmitChanges,mapsReady=Boolean(window.google?.maps)}) {
@@ -24,6 +25,7 @@ export default function EventForm({initialData={},onSaved,onCancel,onDirtyChange
   useEffect(()=>{if(wizard) {if(step>0) formElement.current?.scrollIntoView({block:'start'});stepHeading.current?.focus({preventScroll:true});}},[step,wizard]);
   const [dates,setDates]=useState(()=>editableOccurrences(initialData));
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
+  const [similar,setSimilar]=useState([]);
   const [dateErrors,setDateErrors]=useState({});
   const [locationConfirmed,setLocationConfirmed]=useState(false),[locationError,setLocationError]=useState('');
   const [locationBusy,setLocationBusy]=useState(false);
@@ -33,6 +35,15 @@ export default function EventForm({initialData={},onSaved,onCancel,onDirtyChange
   const dirty=signature!==initial.current.signature;
   const {allowNavigation}=useUnsavedChanges({dirty,busy,title:'Leave this event without saving?',description:'Your event changes have not been saved. Keep editing to finish your listing.',onDiscard});
   useEffect(()=>{onDirtyChange?.(dirty);},[dirty,onDirtyChange]);
+  // On the review step of a new submission, ask the API whether a similar event is already listed.
+  useEffect(()=>{
+    if(!wizard||step!==3||initialData.id) return undefined;
+    let current=true,draft=null;
+    try {draft=duplicateDraft(form,serializeOccurrences(dates));} catch {/* Date problems are reported when the member submits. */}
+    if(!draft) {setSimilar([]);return undefined;}
+    findSimilarEvents(draft).then(result=>{if(current) setSimilar(result?.items||[]);}).catch(()=>{if(current) setSimilar([]);});
+    return ()=>{current=false;};
+  },[wizard,step,initialData.id,form,dates]);
   useEffect(()=>{onBusyChange?.(busy);},[busy,onBusyChange]);
   const warning=useRef(null);
   useEffect(()=>{if(error) warning.current?.focus();},[error]);
@@ -142,6 +153,15 @@ export default function EventForm({initialData={},onSaved,onCancel,onDirtyChange
       <p className="form-help">Still JPEG, PNG, WebP or AVIF · Up to 8 MB and 12 million pixels. The link stays here if it is rejected.</p>
     </fieldset>}
     {wizard&&step===3&&<section className="event-publish-preview" aria-label="Event preview">
+      {similar.length>0&&<aside className="similar-events" role="status">
+        <h4>This event may already be listed</h4>
+        <p className="form-help">Check these before you submit. If one is the same event, open it and suggest an update instead of posting it again.</p>
+        <ul>{similar.map(item=><li key={item.id}>
+          <a href={`/events/${item.id}`} target="_blank" rel="noreferrer">{item.title}</a>
+          <span>{[item.starts_at&&occurrenceTime(item),item.location_address||item.location_name].filter(Boolean).join(' · ')}</span>
+          <span className="similar-events-reason">{matchReasons(item).join(', ')}</span>
+        </li>)}</ul>
+      </aside>}
       {preview&&<img src={preview} alt={photo.alt||form.title} className="publish-photo-preview"/>}
       <span className="category-label">{form.category}</span><h3>{form.title}</h3>
       <dl><div><dt>Published as</dt><dd>{form.submission_role==='organizer'?'Organizer':'Community reporter'}</dd></div>

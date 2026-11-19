@@ -341,6 +341,12 @@ h1,h2,h3 { text-wrap:pretty; overflow-wrap:anywhere; }
 .location-confirmation > input { flex:none; margin-top:2px; }
 .event-publish-preview { display:flex; flex-direction:column; gap:20px; }
 .publish-photo-preview { width:100%; max-height:280px; object-fit:cover; border-radius:12px; }
+.similar-events { display:flex; flex-direction:column; gap:10px; padding:16px; border-radius:12px; background:var(--soft-accent); border:1px solid var(--color-warning); }
+.similar-events h4 { font-size:16px; font-weight:650; margin:0; }
+.similar-events ul { display:flex; flex-direction:column; gap:10px; margin:0; padding:0; list-style:none; }
+.similar-events li { display:flex; flex-direction:column; gap:2px; font-size:14px; overflow-wrap:anywhere; }
+.similar-events a { font-weight:600; text-decoration:underline; }
+.similar-events-reason { font-size:12px; color:var(--muted); }
 .event-publish-preview h3 { font-size:28px; font-weight:650; overflow-wrap:anywhere; }
 .event-publish-preview dl { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
 .event-publish-preview dt { font-size:12px; color:var(--muted); margin-bottom:6px; }

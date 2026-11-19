@@ -16,6 +16,11 @@ export async function createEvent(payload) {
   return post('/events', payload);
 }
 
+// Published events that look like the draft; used to warn before a duplicate is submitted.
+export async function findSimilarEvents(draft) {
+  return post('/events/duplicates', draft);
+}
+
 export async function deleteEvent(id) {
   return del(`/events/${id}`);
 }
